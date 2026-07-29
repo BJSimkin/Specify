@@ -1,0 +1,324 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# specify.yaml  |  Specify Schema v0.1
+# Canonical format for AI system requirements packages.
+# https://specify.dev
+# ─────────────────────────────────────────────────────────────────────────────
+
+specify_version: "0.1"
+
+
+# ── PACKAGE METADATA ─────────────────────────────────────────────────────────
+metadata:
+  name: "rag-customer-support"          # unique slug on Specify
+  version: "0.3.1"                      # semver — bump on every published change
+  description: "Requirements for a RAG-based customer support assistant with
+    human escalation, PII redaction, and response citation."
+  license: "MIT"
+  authors:
+    - name: "Barnaby Simkin"
+      org: "NVIDIA"
+      profile: "https://specify.dev/u/bsimkin"   # Specify profile URL
+  created: "2026-01-10"
+  updated: "2026-07-28"
+
+  # If this package was forked from another, record the origin here.
+  # Specify will display "forked from <author>/<package>@<version>" on the
+  # package page and maintain a bidirectional link so the original author
+  # can see all downstream forks.
+  forked_from:
+    package: "nvidia/base-rag-pipeline"
+    version: "0.2.0"
+    url: "https://specify.dev/packages/nvidia/base-rag-pipeline/0.2.0"
+
+  # Taxonomy tags — used for search and discovery on Specify.
+  # Each category is a controlled vocabulary; custom is freeform.
+  tags:
+    use_case:
+      - "rag-pipeline"          # rag-pipeline | agent | classifier |
+                                # fine-tuned-model | multimodal | embedding |
+                                # guardrails | evaluation | observability
+    industry:
+      - "technology"            # technology | finance | healthcare | legal |
+                                # retail | government | education | energy | other
+    model_type:
+      - "llm"                   # llm | vlm | diffusion | embedding |
+                                # speech | code | multimodal | other
+    deployment_env:
+      - "cloud"                 # cloud | on-prem | edge | hybrid
+    risk_tier:
+      - "limited"               # minimal | limited | high | unacceptable (EU AI Act)
+    custom:
+      - "citation"
+      - "pii-redaction"
+      - "human-in-the-loop"
+
+
+# ── VERSION HISTORY ───────────────────────────────────────────────────────────
+# Changelog maintained by the author. Each published version is immutable on
+# Specify — prior versions remain accessible at /packages/<name>/<version>.
+# Version control is semver: bump patch for edits, minor for new requirements,
+# major for breaking changes to structure or scope.
+
+changelog:
+  - version: "0.3.1"
+    date: "2026-07-28"
+    author: "bsimkin"
+    notes: "Switched requirements to free-form body. Added canvas section."
+
+  - version: "0.3.0"
+    date: "2026-06-15"
+    author: "bsimkin"
+    notes: "Added REQ-005 audit log retention. Linked to REQ-002."
+
+  - version: "0.2.0"
+    date: "2026-04-02"
+    author: "bsimkin"
+    notes: "Added performance requirement REQ-004. Updated vendor list."
+
+  - version: "0.1.0"
+    date: "2026-01-10"
+    author: "bsimkin"
+    notes: "Initial publish."
+
+
+# ── APPLICATION PROFILE ───────────────────────────────────────────────────────
+application:
+  type: "rag-pipeline"          # rag-pipeline | agent | classifier |
+                                # fine-tuned-model | multimodal | other
+  description: |
+    A retrieval-augmented generation system that answers customer queries
+    using a private knowledge base, cites source documents in every response,
+    redacts PII before logging, and escalates to a human agent when confidence
+    falls below threshold.
+  deployment: "cloud"           # cloud | on-prem | edge | hybrid
+  interaction_mode: "synchronous"  # synchronous | async | batch
+  end_users: "external-customers"  # internal | external-customers | both
+
+
+# ── FUNCTIONAL REQUIREMENTS ───────────────────────────────────────────────────
+# Priority follows MoSCoW: must-have | should-have | could-have | wont-have
+# Type: functional | non-functional | safety | compliance | performance
+#
+# body: free-form text — plain prose, markdown, bullet points, tables, whatever
+# the author needs. No enforced structure. This field maps directly to the
+# "Description" column in the exported requirements.csv.
+
+requirements:
+  - id: "REQ-001"
+    title: "Citation of source documents"
+    type: "functional"
+    priority: "must-have"
+    body: |
+      Every generated response must include inline citations referencing the
+      specific document chunks retrieved during the query.
+
+      Each response includes ≥1 citation in [source: <doc_id>] format.
+      Citations must resolve to a real document in the knowledge base.
+      Responses with no retrieved chunks return a fallback message — not a
+      hallucinated answer.
+    linked_to: []
+    tags: ["hallucination", "grounding"]
+
+  - id: "REQ-002"
+    title: "PII redaction before logging"
+    type: "safety"
+    priority: "must-have"
+    body: |
+      User inputs and model outputs must be scanned for PII (names, emails,
+      phone numbers, account numbers) and redacted before being written to
+      any log store or analytics pipeline.
+
+      Redacted fields should be replaced with [REDACTED:<type>] tokens.
+      Scanner must achieve ≥99% recall on the PII test suite.
+    linked_to: ["REQ-005"]
+    tags: ["privacy", "pii", "logging"]
+
+  - id: "REQ-003"
+    title: "Human escalation on low confidence"
+    type: "functional"
+    priority: "must-have"
+    body: |
+      When the model's confidence score (or retrieval score) falls below a
+      configurable threshold, the system must route the conversation to a
+      human support agent rather than return a low-quality answer.
+
+      The escalation threshold must be configurable without a code deployment.
+      Users receive a plain-language handoff message before transfer.
+    linked_to: []
+    tags: ["human-in-the-loop", "fallback"]
+
+  - id: "REQ-004"
+    title: "Response latency under load"
+    type: "performance"
+    priority: "must-have"
+    body: |
+      End-to-end response time (retrieval + generation) must meet SLA targets
+      at production traffic levels.
+
+      p50 ≤ 1.5s and p99 ≤ 4s at 500 concurrent users.
+      No degradation in citation quality under load.
+    linked_to: []
+    tags: ["latency", "scalability"]
+
+  - id: "REQ-005"
+    title: "Audit log retention"
+    type: "compliance"
+    priority: "should-have"
+    body: |
+      Post-redaction conversation logs must be retained for 90 days in
+      tamper-evident storage to support compliance audits.
+
+      Logs written to append-only, immutable store. Retention policy enforced
+      automatically. Log export available to authorized auditors within 24h.
+    linked_to: ["REQ-002"]
+    tags: ["audit", "retention", "compliance"]
+
+
+# ── CANVAS ────────────────────────────────────────────────────────────────────
+# Embedded Excalidraw canvas for architecture diagrams, flow diagrams, and
+# annotated images. Edited in the Specify UI; stored alongside requirements.
+#
+# On download, the package zip includes:
+#   canvas.excalidraw   — raw file, re-editable in Excalidraw or the Specify UI
+#   canvas.png          — flattened export for sharing / embedding in docs
+#
+# Videos are referenced as external links (Loom, YouTube) and render as
+# thumbnails in the canvas rather than stored files.
+
+canvas:
+  excalidraw_file: "canvas.excalidraw"   # relative path within package zip
+  png_export: "canvas.png"
+  external_media:
+    - type: "video"
+      title: "System architecture walkthrough"
+      url: "https://www.loom.com/share/example"
+    - type: "video"
+      title: "RAG pipeline demo"
+      url: "https://www.youtube.com/watch?v=example"
+
+
+# ── LINKED ARTIFACTS ──────────────────────────────────────────────────────────
+# Pinned references to external models, datasets, and code.
+
+artifacts:
+  models:
+    - name: "meta-llama/Llama-3.1-8B-Instruct"
+      provider: "huggingface"
+      url: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct"
+      version: "main"
+      purpose: "Primary generation model"
+
+    - name: "BAAI/bge-large-en-v1.5"
+      provider: "huggingface"
+      url: "https://huggingface.co/BAAI/bge-large-en-v1.5"
+      version: "main"
+      purpose: "Dense retrieval embeddings"
+
+  datasets:
+    - name: "nvidia/ChatRAG-Bench"
+      provider: "huggingface"
+      url: "https://huggingface.co/datasets/nvidia/ChatRAG-Bench"
+      purpose: "RAG evaluation benchmark"
+
+  code:
+    - name: "LangChain RAG template"
+      url: "https://github.com/langchain-ai/rag-app-template"
+      purpose: "Reference implementation scaffold"
+
+
+# ── STACK ─────────────────────────────────────────────────────────────────────
+stack:
+  languages:
+    - "Python 3.11"
+  frameworks:
+    - "LangChain"
+    - "FastAPI"
+  vector_store: "pgvector"
+  orchestration: "Kubernetes"
+
+
+# ── VENDORS ───────────────────────────────────────────────────────────────────
+# References to external vendors used for evals, red teaming, infra, hardware.
+# verified: true means the vendor has published an official Specify snippet.
+
+vendors:
+  evals:
+    - name: "Confident AI"
+      url: "https://www.confident-ai.com"
+      purpose: "RAG evaluation (faithfulness, answer relevancy, context recall)"
+      verified: false
+
+    - name: "Weights & Biases Weave"
+      url: "https://wandb.ai/site/weave"
+      purpose: "LLM tracing and eval tracking"
+      verified: true
+
+  red_teaming:
+    - name: "Garak"
+      url: "https://github.com/NVIDIA/garak"
+      purpose: "Open-source LLM vulnerability scanning"
+      verified: true
+
+    - name: "HiddenLayer"
+      url: "https://hiddenlayer.com"
+      purpose: "Model security scanning and adversarial testing"
+      verified: false
+
+  infrastructure:
+    - name: "NVIDIA NIM"
+      url: "https://www.nvidia.com/en-us/ai"
+      purpose: "Optimized LLM inference microservices"
+      verified: true
+
+    - name: "Weaviate"
+      url: "https://weaviate.io"
+      purpose: "Managed vector database (alternative to pgvector)"
+      verified: false
+
+  hardware:
+    - name: "NVIDIA H100 SXM"
+      url: "https://www.nvidia.com/en-us/data-center/h100"
+      purpose: "Training and high-throughput inference"
+      verified: true
+
+  observability:
+    - name: "Datadog LLM Observability"
+      url: "https://www.datadoghq.com/product/llm-observability"
+      purpose: "Production monitoring, latency tracking, cost attribution"
+      verified: false
+
+
+# ── GOVERNANCE ────────────────────────────────────────────────────────────────
+governance:
+  risk_tier: "limited"        # EU AI Act: minimal | limited | high | unacceptable
+
+  nist_ai_rmf:
+    functions:
+      - "GOVERN"
+      - "MAP"
+      - "MEASURE"
+    profile_url: ""           # link to org's full NIST profile doc if available
+
+  compliance:
+    - standard: "EU AI Act"
+      status: "in-progress"   # not-started | in-progress | compliant
+    - standard: "NIST AI RMF 1.0"
+      status: "in-progress"
+    - standard: "SOC 2 Type II"
+      status: "compliant"
+
+  data_privacy:
+    pii_handled: true
+    frameworks:
+      - "GDPR"
+      - "CCPA"
+    data_residency: "us-east-1"
+
+
+# ── INHERITANCE ───────────────────────────────────────────────────────────────
+# Extend a base package published on Specify.
+# Fields in this file override the parent; requirements merge by id.
+
+extends:
+  - package: "specify:base-llm-api/1.2.0"
+    url: "https://specify.dev/packages/base-llm-api"

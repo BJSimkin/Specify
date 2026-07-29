@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sp: #1E1B4B;
+  --sp2: #2D2A6E;
+  --sp3: #4338CA;
+  --am: #F59E0B;
+  --am2: #D97706;
+  --am3: #FEF3C7;
+  --am4: #78350F;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #F9FAFB;
+  color: #111827;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F3F4F6;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--sp3);
+  outline-offset: 2px;
+}
+
+/* Custom prose-like styles for requirement bodies */
+.req-body p { margin: 0.5rem 0; }
+.req-body code {
+  background: #F3F4F6;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.875em;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Amber accent selection */
+::selection {
+  background: var(--am3);
+  color: var(--am4);
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-colors;
+    background-color: var(--am);
+    color: var(--sp);
+  }
+  .btn-primary:hover {
+    background-color: var(--am2);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold border transition-colors;
+    border-color: #D1D5DB;
+    color: #374151;
+    background-color: white;
+  }
+  .btn-secondary:hover {
+    background-color: #F9FAFB;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-600;
+  }
+  .btn-ghost:hover {
+    @apply bg-gray-100;
+  }
+
+  .tag-pill {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .card {
+    @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:border-transparent;
+    --tw-ring-color: var(--sp3);
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+}

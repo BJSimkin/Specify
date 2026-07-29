@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Obligation {
+  SHALL
+  SHOULD
+}
+
+enum CertifierType {
+  TUV_SUD
+  BSI
+  EU_AI_OFFICE
+}
+
+enum TagCategory {
+  USE_CASE
+  INDUSTRY
+  MODEL_TYPE
+  DEPLOYMENT_ENV
+  RISK_TIER
+  CUSTOM
+}
+
+enum NotificationType {
+  COMMENT
+  FORK
+  MATCHING_PACKAGE
+  REPLY
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  username      String?   @unique
+  org           String?
+  bio           String?
+  githubId      String?   @unique
+  googleId      String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  packages      Package[]      @relation("AuthorPackages")
+  stars         Star[]
+  forks         Fork[]         @relation("ForkerForks")
+  comments      Comment[]
+  notifications Notification[]
+  preferences   UserPreference?
+  certifications Certification[] @relation("GrantedBy")
+  packageVersions PackageVersion[] @relation("PublishedBy")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Package {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  authorId        String
+  name            String
+  description     String?
+  license         String   @default("MIT")
+  specifyVersion  String   @default("0.1")
+  yamlUrl         String?
+  currentVersion  String   @default("0.1.0")
+  isPublished     Boolean  @default(false)
+  viewCount       Int      @default(0)
+  forkedFromId    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  author         User             @relation("AuthorPackages", fields: [authorId], references: [id])
+  forkedFrom     Package?         @relation("PackageForks", fields: [forkedFromId], references: [id])
+  forks          Package[]        @relation("PackageForks")
+  requirements   Requirement[]
+  comments       Comment[]
+  stars          Star[]
+  forkRecords    Fork[]           @relation("OriginalPackage")
+  forkedRecords  Fork[]           @relation("ForkedPackage")
+  certifications Certification[]
+  versions       PackageVersion[]
+  tags           Tag[]
+
+  @@index([authorId])
+  @@index([isPublished])
+  @@index([createdAt])
+}
+
+model PackageVersion {
+  id            String   @id @default(cuid())
+  packageId     String
+  version       String
+  yamlUrl       String
+  changelog     String?
+  publishedAt   DateTime @default(now())
+  publishedById String
+
+  package     Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  publishedBy User    @relation("PublishedBy", fields: [publishedById], references: [id])
+
+  @@unique([packageId, version])
+}
+
+model Requirement {
+  id          String   @id @default(cuid())
+  packageId   String
+  reqId       String
+  title       String
+  tags        String[]
+  obligation  Obligation @default(SHALL)
+  body        String?
+  dependsOn   String[]
+  order       Int      @default(0)
+
+  package         Package          @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  subRequirements SubRequirement[]
+  comments        Comment[]
+
+  @@unique([packageId, reqId])
+  @@index([packageId])
+}
+
+model SubRequirement {
+  id            String     @id @default(cuid())
+  requirementId String
+  subId         String
+  title         String
+  obligation    Obligation @default(SHALL)
+  body          String?
+  order         Int        @default(0)
+
+  requirement Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@unique([requirementId, subId])
+}
+
+model Comment {
+  id            String   @id @default(cuid())
+  authorId      String
+  packageId     String?
+  requirementId String?
+  body          String
+  createdAt     DateTime @default(now())
+
+  author      User         @relation(fields: [authorId], references: [id])
+  package     Package?     @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  requirement Requirement? @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@index([requirementId])
+}
+
+model Star {
+  id        String   @id @default(cuid())
+  userId    String
+  packageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, packageId])
+}
+
+model Fork {
+  id               String   @id @default(cuid())
+  originalPackageId String
+  forkedPackageId  String
+  forkerId         String
+  createdAt        DateTime @default(now())
+
+  originalPackage Package @relation("OriginalPackage", fields: [originalPackageId], references: [id])
+  forkedPackage   Package @relation("ForkedPackage", fields: [forkedPackageId], references: [id])
+  forker          User    @relation("ForkerForks", fields: [forkerId], references: [id])
+}
+
+model Certification {
+  id          String        @id @default(cuid())
+  packageId   String
+  certifier   CertifierType
+  grantedAt   DateTime      @default(now())
+  grantedById String
+  notes       String?
+
+  package    Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  grantedBy  User    @relation("GrantedBy", fields: [grantedById], references: [id])
+
+  @@unique([packageId, certifier])
+}
+
+model Tag {
+  id        String      @id @default(cuid())
+  packageId String
+  category  TagCategory
+  value     String
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@index([category, value])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  read      Boolean          @default(false)
+  packageId String?
+  actorId   String?
+  data      Json             @default("{}")
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  useCases        String[]
+  industries      String[]
+  certifiers      String[]
+  notifyOnMatch   Boolean  @default(true)
+  notifyOnComment Boolean  @default(true)
+  notifyOnFork    Boolean  @default(true)
+  notifyOnReply   Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
