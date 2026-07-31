@@ -259,6 +259,11 @@ export const MODEL_TYPES = [
 export const DEPLOYMENT_ENVS = ['cloud', 'on-prem', 'edge', 'hybrid'] as const
 export const RISK_TIERS = ['minimal', 'limited', 'high', 'unacceptable'] as const
 
+export const REQ_TAG_TYPES = [
+  'functional', 'performance', 'security', 'privacy', 'fairness',
+  'explainability', 'robustness', 'governance', 'data', 'monitoring',
+] as const
+
 export type UseCase = (typeof USE_CASES)[number]
 export type Industry = (typeof INDUSTRIES)[number]
 export type ModelType = (typeof MODEL_TYPES)[number]
