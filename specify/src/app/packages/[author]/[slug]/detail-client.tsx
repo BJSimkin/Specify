@@ -602,7 +602,7 @@ export default function PackageDetailClient({
                     <Link href={`/packages/${pkg.forkedFrom.slug}`} className="underline">
                       {pkg.forkedFrom.slug}
                     </Link>
-                    {' '}· '}
+                    {' · '}
                     <span className="text-green-700">+{forkDiff.added} added</span>
                     {', '}
                     <span className="text-amber-700">{forkDiff.modified} modified</span>
