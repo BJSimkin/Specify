@@ -40,6 +40,10 @@ const PackageBodySchema = z.object({
   customTags: z.array(z.string()).optional().default([]),
   requirements: z.array(RequirementSchema).optional().default([]),
   isPublished: z.boolean().optional().default(true),
+  aiModelUrls: z.array(z.string()).optional().default([]),
+  datasetUrls: z.array(z.string()).optional().default([]),
+  isOpenSource: z.boolean().optional().default(true),
+  publishedAt: z.string().optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -196,6 +200,10 @@ export async function POST(request: NextRequest) {
         yamlUrl,
         currentVersion: data.version,
         isPublished: data.isPublished,
+        aiModelUrls: data.aiModelUrls,
+        datasetUrls: data.datasetUrls,
+        isOpenSource: data.isOpenSource,
+        publishedAt: data.publishedAt ? new Date(data.publishedAt) : (data.isPublished ? new Date() : null),
         tags: { createMany: { data: tagRecords } },
         requirements: {
           create: data.requirements.map((req, order) => ({

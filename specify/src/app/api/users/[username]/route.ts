@@ -18,6 +18,11 @@ export async function GET(
         username: true,
         org: true,
         bio: true,
+        country: true,
+        occupation: true,
+        specialty: true,
+        linkedinUrl: true,
+        publications: true,
         createdAt: true,
         packages: {
           where: { isPublished: true },
@@ -54,7 +59,8 @@ export async function GET(
             },
           },
         },
-        _count: { select: { packages: true, stars: true, forks: true } },
+        preferences: true,
+        _count: { select: { packages: true, stars: true, forks: true, followers: true, following: true } },
       },
     })
 
@@ -77,6 +83,8 @@ const PreferencesSchema = z.object({
   notifyOnComment: z.boolean().optional(),
   notifyOnFork: z.boolean().optional(),
   notifyOnReply: z.boolean().optional(),
+  notifyOnStar: z.boolean().optional(),
+  notifyOnFollow: z.boolean().optional(),
 })
 
 export async function PUT(
@@ -105,6 +113,11 @@ export async function PUT(
         name: z.string().max(100).optional(),
         bio: z.string().max(500).optional(),
         org: z.string().max(100).optional(),
+        country: z.string().max(100).optional(),
+        occupation: z.string().max(100).optional(),
+        specialty: z.string().max(200).optional(),
+        linkedinUrl: z.string().url().optional().or(z.literal('')),
+        publications: z.array(z.string()).optional(),
       })
       const parsed = ProfileSchema.safeParse(body)
       if (!parsed.success) {

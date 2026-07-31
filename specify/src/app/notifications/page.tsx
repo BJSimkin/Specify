@@ -11,6 +11,8 @@ const TYPE_ICONS: Record<string, { icon: string; color: string }> = {
   FORK: { icon: '🍴', color: '#8B5CF6' },
   MATCHING_PACKAGE: { icon: '✨', color: '#F59E0B' },
   REPLY: { icon: '↩️', color: '#10B981' },
+  STAR: { icon: '⭐', color: '#F59E0B' },
+  FOLLOW: { icon: '👤', color: '#6366F1' },
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -18,6 +20,8 @@ const TYPE_LABELS: Record<string, string> = {
   FORK: 'forked',
   MATCHING_PACKAGE: 'published a matching package',
   REPLY: 'also commented on',
+  STAR: 'starred',
+  FOLLOW: 'started following you',
 }
 
 interface PageProps {
@@ -32,12 +36,14 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
 
   const filter = searchParams.filter ?? 'all'
 
-  type NotifType = 'COMMENT' | 'FORK' | 'MATCHING_PACKAGE' | 'REPLY'
+  type NotifType = 'COMMENT' | 'FORK' | 'MATCHING_PACKAGE' | 'REPLY' | 'STAR' | 'FOLLOW'
   const filterMap: Record<string, NotifType[]> = {
     all: [],
     comments: ['COMMENT', 'REPLY'],
     packages: ['MATCHING_PACKAGE'],
     forks: ['FORK'],
+    stars: ['STAR'],
+    follows: ['FOLLOW'],
   }
 
   const typeFilter = filterMap[filter] ?? []
@@ -82,6 +88,8 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
     { id: 'comments', label: 'Comments' },
     { id: 'packages', label: 'New packages' },
     { id: 'forks', label: 'Forks' },
+    { id: 'stars', label: 'Stars' },
+    { id: 'follows', label: 'Follows' },
   ]
 
   return (

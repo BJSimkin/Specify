@@ -19,6 +19,10 @@ const defaultFormData: PackageFormData = {
   riskTier: '',
   customTags: [],
   requirements: [],
+  aiModelUrls: [],
+  datasetUrls: [],
+  isOpenSource: true,
+  publishedAt: '',
 }
 
 interface PackageFormClientProps {
@@ -298,6 +302,105 @@ export default function PackageFormClient({
                   </button>
                 </span>
               ))}
+            </div>
+          </div>
+
+          {/* AI Models */}
+          <div>
+            <label className="label">AI model references</label>
+            <p className="text-xs text-gray-400 mb-1.5">HuggingFace or GitHub URLs for models used.</p>
+            <input
+              type="url"
+              placeholder="https://huggingface.co/... or https://github.com/..."
+              className="input"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const val = (e.target as HTMLInputElement).value.trim()
+                  if (val && !(form.aiModelUrls ?? []).includes(val)) {
+                    updateField('aiModelUrls', [...(form.aiModelUrls ?? []), val]);
+                    (e.target as HTMLInputElement).value = ''
+                  }
+                }
+              }}
+            />
+            <div className="space-y-1 mt-2">
+              {(form.aiModelUrls ?? []).map((url) => (
+                <div key={url} className="flex items-center gap-2 group">
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline flex-1 truncate">{url}</a>
+                  <button type="button" onClick={() => updateField('aiModelUrls', (form.aiModelUrls ?? []).filter((u) => u !== url))} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Datasets */}
+          <div>
+            <label className="label">Test dataset references</label>
+            <p className="text-xs text-gray-400 mb-1.5">HuggingFace or GitHub URLs for datasets used.</p>
+            <input
+              type="url"
+              placeholder="https://huggingface.co/datasets/... or https://github.com/..."
+              className="input"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const val = (e.target as HTMLInputElement).value.trim()
+                  if (val && !(form.datasetUrls ?? []).includes(val)) {
+                    updateField('datasetUrls', [...(form.datasetUrls ?? []), val]);
+                    (e.target as HTMLInputElement).value = ''
+                  }
+                }
+              }}
+            />
+            <div className="space-y-1 mt-2">
+              {(form.datasetUrls ?? []).map((url) => (
+                <div key={url} className="flex items-center gap-2 group">
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline flex-1 truncate">{url}</a>
+                  <button type="button" onClick={() => updateField('datasetUrls', (form.datasetUrls ?? []).filter((u) => u !== url))} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Open source flag + publication date */}
+          <div className="flex gap-6 items-start">
+            <div>
+              <label className="label">Component types</label>
+              <div className="flex items-center gap-3 mt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div
+                    onClick={() => updateField('isOpenSource', true)}
+                    className="w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0"
+                    style={{ backgroundColor: form.isOpenSource ? '#1E1B4B' : '#D1D5DB' }}
+                  >
+                    <div
+                      className="w-4 h-4 bg-white rounded-full shadow-sm transition-transform mt-0.5"
+                      style={{ transform: form.isOpenSource ? 'translateX(16px)' : 'translateX(2px)' }}
+                    />
+                  </div>
+                  <span className="text-sm text-gray-700">
+                    {form.isOpenSource ? 'All open-source components' : 'Includes paid / proprietary services'}
+                  </span>
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={() => updateField('isOpenSource', !form.isOpenSource)}
+                className="text-xs text-indigo-500 hover:underline mt-1"
+              >
+                Toggle
+              </button>
+            </div>
+            <div className="flex-1">
+              <label className="label" htmlFor="publishedAt">Publication date</label>
+              <input
+                id="publishedAt"
+                type="date"
+                value={form.publishedAt ?? ''}
+                onChange={(e) => updateField('publishedAt', e.target.value)}
+                className="input"
+              />
             </div>
           </div>
         </div>

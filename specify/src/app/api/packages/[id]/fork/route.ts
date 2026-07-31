@@ -51,7 +51,7 @@ export async function POST(
       newSlug = buildPackageSlug(user.username, `${originalName}-${attempt}`)
     }
 
-    // Create the forked package
+    // Create the forked package — copy all new fields too
     const forked = await prisma.package.create({
       data: {
         slug: newSlug,
@@ -63,6 +63,10 @@ export async function POST(
         currentVersion: original.currentVersion,
         isPublished: true,
         forkedFromId: original.id,
+        aiModelUrls: original.aiModelUrls,
+        datasetUrls: original.datasetUrls,
+        isOpenSource: original.isOpenSource,
+        publishedAt: new Date(),
         tags: {
           createMany: {
             data: original.tags.map((t) => ({ category: t.category, value: t.value })),
@@ -101,17 +105,15 @@ export async function POST(
     })
 
     // Notify original author
-    if (original.authorId !== userId) {
-      await prisma.notification.create({
-        data: {
-          userId: original.authorId,
-          type: NotificationType.FORK,
-          packageId: original.id,
-          actorId: userId,
-          data: { forkedSlug: forked.slug },
-        },
-      })
-    }
+    await prisma.notification.create({
+      data: {
+        userId: original.authorId,
+        type: NotificationType.FORK,
+        packageId: original.id,
+        actorId: userId,
+        data: { forkedSlug: forked.slug },
+      },
+    })
 
     return NextResponse.json(forked, { status: 201 })
   } catch (err) {

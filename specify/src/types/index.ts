@@ -22,7 +22,20 @@ export type PackageWithRelations = Prisma.PackageGetPayload<{
       include: { publishedBy: true }
     }
     forkedFrom: {
+      include: {
+        author: true
+        requirements: true
+      }
+    }
+    forks: {
       include: { author: true }
+    }
+    contributors: {
+      include: {
+        user: {
+          select: { id: true; name: true; username: true; image: true; org: true }
+        }
+      }
     }
     _count: {
       select: { stars: true; forks: true; comments: true }
@@ -142,6 +155,10 @@ export interface PackageFormData {
   requirements: RequirementFormData[]
   vendors?: VendorCategory
   governance?: GovernanceData
+  aiModelUrls?: string[]
+  datasetUrls?: string[]
+  isOpenSource?: boolean
+  publishedAt?: string
 }
 
 export interface RequirementFormData {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { NotificationType } from '@prisma/client'
 
 export async function POST(
   _request: NextRequest,
@@ -16,7 +17,7 @@ export async function POST(
 
     const pkg = await prisma.package.findUnique({
       where: { id: params.id },
-      select: { id: true },
+      select: { id: true, authorId: true, slug: true },
     })
 
     if (!pkg) {
@@ -35,6 +36,24 @@ export async function POST(
       await prisma.star.create({
         data: { userId, packageId: pkg.id },
       })
+      // Notify the package author (not if starring own package)
+      if (pkg.authorId !== userId) {
+        const authorPrefs = await prisma.userPreference.findUnique({
+          where: { userId: pkg.authorId },
+          select: { notifyOnStar: true },
+        })
+        if (!authorPrefs || authorPrefs.notifyOnStar) {
+          await prisma.notification.create({
+            data: {
+              userId: pkg.authorId,
+              type: NotificationType.STAR,
+              packageId: pkg.id,
+              actorId: userId,
+              data: { packageSlug: pkg.slug },
+            },
+          })
+        }
+      }
     }
 
     const count = await prisma.star.count({ where: { packageId: pkg.id } })

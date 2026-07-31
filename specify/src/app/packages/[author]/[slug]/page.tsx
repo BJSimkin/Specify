@@ -23,8 +23,14 @@ async function getPackage(author: string, slugPart: string) {
       certifications: { include: { grantedBy: true } },
       tags: true,
       versions: { orderBy: { publishedAt: 'desc' }, include: { publishedBy: true } },
-      forkedFrom: { include: { author: true } },
+      forkedFrom: {
+        include: {
+          author: true,
+          requirements: { orderBy: { order: 'asc' } },
+        },
+      },
       forks: { orderBy: { createdAt: 'desc' }, include: { author: true } },
+      contributors: { include: { user: { select: { id: true, name: true, username: true, image: true, org: true } } } },
       _count: { select: { stars: true, forks: true, comments: true } },
     },
   })
