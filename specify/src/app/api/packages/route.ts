@@ -27,17 +27,47 @@ const RequirementSchema = z.object({
     .default([]),
 })
 
+const AIModelRefSchema = z.object({
+  url: z.string().optional().default(''),
+  name: z.string().optional().default(''),
+  purpose: z.string().optional().default(''),
+  modelTypes: z.array(z.string()).optional().default([]),
+})
+
+const DatasetRefSchema = z.object({
+  url: z.string().optional().default(''),
+  name: z.string().optional().default(''),
+  purpose: z.string().optional().default(''),
+})
+
+const VendorRefSchema = z.object({
+  name: z.string().optional().default(''),
+  url: z.string().optional().default(''),
+  purpose: z.string().optional().default(''),
+})
+
 const PackageBodySchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Version must be semver (e.g. 0.1.0)'),
   license: z.string().default('MIT'),
+  // Legacy tag fields (kept for backward compat)
   useCases: z.array(z.string()).optional().default([]),
   industries: z.array(z.string()).optional().default([]),
   modelTypes: z.array(z.string()).optional().default([]),
   deploymentEnvs: z.array(z.string()).optional().default([]),
   riskTier: z.string().optional().default(''),
   customTags: z.array(z.string()).optional().default([]),
+  // New taxonomy
+  taxonomyData: z.record(z.record(z.array(z.string()))).optional().default({}),
+  // AI models, datasets, vendors
+  aiModels: z.array(AIModelRefSchema).optional().default([]),
+  datasetRefs: z.array(DatasetRefSchema).optional().default([]),
+  vendorList: z.array(VendorRefSchema).optional().default([]),
+  // Compliance
+  complianceTargets: z.array(z.string()).optional().default([]),
+  otherCompliance: z.string().optional().default(''),
+  // Other
   requirements: z.array(RequirementSchema).optional().default([]),
   isPublished: z.boolean().optional().default(true),
   aiModelUrls: z.array(z.string()).optional().default([]),
@@ -202,6 +232,12 @@ export async function POST(request: NextRequest) {
         isPublished: data.isPublished,
         aiModelUrls: data.aiModelUrls,
         datasetUrls: data.datasetUrls,
+        aiModels: data.aiModels,
+        datasetRefs: data.datasetRefs,
+        vendorList: data.vendorList,
+        taxonomyData: data.taxonomyData,
+        complianceTargets: data.complianceTargets,
+        otherCompliance: data.otherCompliance || null,
         isOpenSource: data.isOpenSource,
         publishedAt: data.publishedAt ? new Date(data.publishedAt) : (data.isPublished ? new Date() : null),
         tags: { createMany: { data: tagRecords } },

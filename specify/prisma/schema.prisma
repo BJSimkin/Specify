@@ -133,12 +133,18 @@ model Package {
   isPublished     Boolean   @default(false)
   viewCount       Int       @default(0)
   forkedFromId    String?
-  aiModelUrls     String[]
-  datasetUrls     String[]
-  isOpenSource    Boolean   @default(true)
-  publishedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  aiModelUrls        String[]
+  datasetUrls        String[]
+  aiModels           Json      @default("[]")
+  datasetRefs        Json      @default("[]")
+  vendorList         Json      @default("[]")
+  taxonomyData       Json      @default("{}")
+  complianceTargets  String[]
+  otherCompliance    String?
+  isOpenSource       Boolean   @default(true)
+  publishedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   author         User                 @relation("AuthorPackages", fields: [authorId], references: [id])
   forkedFrom     Package?             @relation("PackageForks", fields: [forkedFromId], references: [id])

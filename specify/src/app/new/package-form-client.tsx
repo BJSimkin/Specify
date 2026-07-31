@@ -4,25 +4,25 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RequirementEditor } from '@/components/requirement-editor'
 import { DepGraph } from '@/components/dep-graph'
-import type { PackageFormData, RequirementFormData } from '@/types'
-import { USE_CASES, INDUSTRIES, MODEL_TYPES, DEPLOYMENT_ENVS, RISK_TIERS, LICENSES } from '@/types'
+import type { PackageFormData, RequirementFormData, AIModelRef, DatasetRef, VendorRef, TaxonomyData } from '@/types'
+import { TAXONOMY, COMPLIANCE_OPTIONS, LICENSES } from '@/types'
 
 const defaultFormData: PackageFormData = {
   name: '',
   description: '',
   version: '0.1.0',
   license: 'MIT',
-  useCases: [],
-  industries: [],
-  modelTypes: [],
-  deploymentEnvs: [],
-  riskTier: '',
-  customTags: [],
-  requirements: [],
-  aiModelUrls: [],
-  datasetUrls: [],
+  taxonomyData: {},
+  customTaxonomyTags: [],
+  aiModels: [],
+  datasetRefs: [],
+  vendorList: [],
+  complianceTargets: [],
+  otherCompliance: '',
   isOpenSource: true,
   publishedAt: '',
+  customTags: [],
+  requirements: [],
 }
 
 interface PackageFormClientProps {
@@ -32,23 +32,32 @@ interface PackageFormClientProps {
   mode?: 'new' | 'edit'
 }
 
-function MultiSelect({
+// ─── Reusable chip-select with custom input ────────────────────────────────────
+function ChipGroup({
   label,
   options,
-  value,
+  selected,
   onChange,
+  allowCustom = true,
 }: {
   label: string
   options: readonly string[]
-  value: string[]
+  selected: string[]
   onChange: (v: string[]) => void
+  allowCustom?: boolean
 }) {
+  const [customInput, setCustomInput] = useState('')
   function toggle(opt: string) {
-    onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt])
+    onChange(selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt])
+  }
+  function addCustom() {
+    const val = customInput.trim()
+    if (val && !selected.includes(val)) onChange([...selected, val])
+    setCustomInput('')
   }
   return (
-    <div>
-      <label className="label">{label}</label>
+    <div className="mb-4">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => (
           <button
@@ -57,7 +66,7 @@ function MultiSelect({
             onClick={() => toggle(opt)}
             className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
             style={
-              value.includes(opt)
+              selected.includes(opt)
                 ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
                 : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
             }
@@ -65,7 +74,98 @@ function MultiSelect({
             {opt}
           </button>
         ))}
+        {/* custom tags already selected */}
+        {selected.filter((s) => !options.includes(s as any)).map((s) => (
+          <span
+            key={s}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border"
+            style={{ backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#C7D2FE' }}
+          >
+            {s}
+            <button type="button" onClick={() => onChange(selected.filter((v) => v !== s))} className="hover:text-red-500">×</button>
+          </span>
+        ))}
       </div>
+      {allowCustom && (
+        <div className="flex gap-1.5 mt-1.5">
+          <input
+            type="text"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom() } }}
+            placeholder="Add custom…"
+            className="px-2.5 py-1 text-xs border border-dashed border-gray-300 rounded-full focus:outline-none focus:border-indigo-400 bg-white"
+            style={{ minWidth: 120 }}
+          />
+          <button
+            type="button"
+            onClick={addCustom}
+            className="px-2 py-1 text-xs text-indigo-600 hover:underline"
+          >
+            + Add
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Taxonomy section accordion ───────────────────────────────────────────────
+function TaxonomySection({
+  typeKey,
+  typeLabel,
+  groups,
+  data,
+  onChange,
+}: {
+  typeKey: string
+  typeLabel: string
+  groups: Record<string, { label: string; values: readonly string[] }>
+  data: Record<string, string[]>
+  onChange: (group: string, values: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const totalSelected = Object.values(data).reduce((s, v) => s + v.length, 0)
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden mb-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+            className="text-gray-400 transition-transform"
+            style={{ transform: open ? 'rotate(90deg)' : 'none' }}
+          >
+            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+          </svg>
+          <span className="text-sm font-semibold text-gray-800">{typeLabel}</span>
+        </div>
+        {totalSelected > 0 && (
+          <span
+            className="text-xs font-semibold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}
+          >
+            {totalSelected} selected
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="px-4 py-4 space-y-1 bg-white">
+          {Object.entries(groups).map(([groupKey, { label, values }]) => (
+            <ChipGroup
+              key={groupKey}
+              label={label}
+              options={values}
+              selected={data[groupKey] ?? []}
+              onChange={(v) => onChange(groupKey, v)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -80,19 +180,72 @@ export default function PackageFormClient({
   const [form, setForm] = useState<PackageFormData>(initialData ?? defaultFormData)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeSection, setActiveSection] = useState<'metadata' | 'requirements'>('metadata')
+  const [activeSection, setActiveSection] = useState<'metadata' | 'taxonomy' | 'models' | 'requirements'>('metadata')
 
   function updateField<K extends keyof PackageFormData>(key: K, value: PackageFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  function updateTaxonomy(typeKey: string, group: string, values: string[]) {
+    setForm((prev) => ({
+      ...prev,
+      taxonomyData: {
+        ...prev.taxonomyData,
+        [typeKey]: {
+          ...(prev.taxonomyData[typeKey as keyof TaxonomyData] ?? {}),
+          [group]: values,
+        },
+      },
+    }))
+  }
+
+  // ── AI Model helpers ────────────────────────────────────────────────────────
+  function addAIModel() {
+    updateField('aiModels', [...form.aiModels, { url: '', name: '', purpose: '', modelTypes: [] }])
+  }
+  function updateAIModel(i: number, field: keyof AIModelRef, value: any) {
+    const updated = form.aiModels.map((m, idx) => idx === i ? { ...m, [field]: value } : m)
+    updateField('aiModels', updated)
+  }
+  function removeAIModel(i: number) {
+    updateField('aiModels', form.aiModels.filter((_, idx) => idx !== i))
+  }
+
+  // ── Dataset helpers ─────────────────────────────────────────────────────────
+  function addDataset() {
+    updateField('datasetRefs', [...form.datasetRefs, { url: '', name: '', purpose: '' }])
+  }
+  function updateDataset(i: number, field: keyof DatasetRef, value: string) {
+    const updated = form.datasetRefs.map((d, idx) => idx === i ? { ...d, [field]: value } : d)
+    updateField('datasetRefs', updated)
+  }
+  function removeDataset(i: number) {
+    updateField('datasetRefs', form.datasetRefs.filter((_, idx) => idx !== i))
+  }
+
+  // ── Vendor helpers ──────────────────────────────────────────────────────────
+  function addVendor() {
+    updateField('vendorList', [...form.vendorList, { name: '', url: '', purpose: '' }])
+  }
+  function updateVendor(i: number, field: keyof VendorRef, value: string) {
+    const updated = form.vendorList.map((v, idx) => idx === i ? { ...v, [field]: value } : v)
+    updateField('vendorList', updated)
+  }
+  function removeVendor(i: number) {
+    updateField('vendorList', form.vendorList.filter((_, idx) => idx !== i))
+  }
+
+  // ── Compliance helpers ──────────────────────────────────────────────────────
+  function toggleCompliance(val: string) {
+    const targets = form.complianceTargets
+    updateField('complianceTargets', targets.includes(val) ? targets.filter((v) => v !== val) : [...targets, val])
+  }
+
   async function handleSubmit(isPublished: boolean) {
     setSaving(true)
     setError(null)
-
     try {
       const payload = { ...form, isPublished }
-
       let res: Response
       if (mode === 'edit' && packageId) {
         res = await fetch(`/api/packages/${packageId}`, {
@@ -107,22 +260,30 @@ export default function PackageFormClient({
           body: JSON.stringify(payload),
         })
       }
-
       if (!res.ok) {
         const data = await res.json()
         setError(data.error ?? 'Something went wrong')
         return
       }
-
       const pkg = await res.json()
-      const [author, slug] = pkg.slug.split('/')
-      router.push(`/packages/${author}/${slug}`)
-    } catch (e) {
+      router.push(`/packages/${pkg.slug}`)
+    } catch {
       setError('Network error — please try again')
     } finally {
       setSaving(false)
     }
   }
+
+  const SECTIONS = [
+    { id: 'metadata', label: 'Metadata' },
+    { id: 'taxonomy', label: 'Classification' },
+    { id: 'models', label: 'Models & Data' },
+    { id: 'requirements', label: `Requirements (${form.requirements.length})` },
+  ] as const
+
+  // All model types from taxonomy for AI model type chips
+  const allModelTasks = TAXONOMY.model.groups.task.values
+  const allModelArchitectures = TAXONOMY.model.groups.modelArchitecture.values
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -131,10 +292,7 @@ export default function PackageFormClient({
           {mode === 'edit' ? `Edit ${editSlug}` : 'New package'}
         </h1>
         {mode === 'edit' && editSlug && (
-          <a
-            href={`/packages/${editSlug}`}
-            className="text-sm text-gray-500 hover:text-indigo-600"
-          >
+          <a href={`/packages/${editSlug}`} className="text-sm text-gray-500 hover:text-indigo-600">
             ← Back to package
           </a>
         )}
@@ -148,13 +306,10 @@ export default function PackageFormClient({
 
       {/* Section tabs */}
       <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
-        {[
-          { id: 'metadata', label: 'Metadata & Tags' },
-          { id: 'requirements', label: `Requirements (${form.requirements.length})` },
-        ].map((s) => (
+        {SECTIONS.map((s) => (
           <button
             key={s.id}
-            onClick={() => setActiveSection(s.id as 'metadata' | 'requirements')}
+            onClick={() => setActiveSection(s.id as any)}
             className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
             style={
               activeSection === s.id
@@ -167,21 +322,19 @@ export default function PackageFormClient({
         ))}
       </div>
 
+      {/* ── Metadata ── */}
       {activeSection === 'metadata' && (
         <div className="max-w-2xl space-y-5">
           <div>
             <label className="label" htmlFor="name">Package name *</label>
             <input
-              id="name"
-              type="text"
-              value={form.name}
+              id="name" type="text" value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
               placeholder="e.g. rag-customer-support"
-              className="input"
-              required
+              className="input" required
             />
             <p className="mt-1 text-xs text-gray-400">
-              Lowercase, hyphens allowed. Will be published as{' '}
+              Lowercase, hyphens allowed. Published as{' '}
               <span className="font-mono">username/{form.name || 'package-name'}</span>
             </p>
           </div>
@@ -189,216 +342,89 @@ export default function PackageFormClient({
           <div>
             <label className="label" htmlFor="description">Description</label>
             <textarea
-              id="description"
-              value={form.description}
+              id="description" value={form.description}
               onChange={(e) => updateField('description', e.target.value)}
               placeholder="Brief description of your AI system requirements package"
-              rows={3}
-              className="input resize-none"
+              rows={3} className="input resize-none"
             />
           </div>
 
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="label" htmlFor="version">Version</label>
-              <input
-                id="version"
-                type="text"
-                value={form.version}
+              <input id="version" type="text" value={form.version}
                 onChange={(e) => updateField('version', e.target.value)}
-                placeholder="0.1.0"
-                className="input"
-              />
+                placeholder="0.1.0" className="input" />
             </div>
             <div className="flex-1">
               <label className="label" htmlFor="license">License</label>
-              <select
-                id="license"
-                value={form.license}
-                onChange={(e) => updateField('license', e.target.value)}
-                className="input"
-              >
-                {LICENSES.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
+              <select id="license" value={form.license}
+                onChange={(e) => updateField('license', e.target.value)} className="input">
+                {LICENSES.map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
           </div>
 
-          <MultiSelect
-            label="Use cases"
-            options={USE_CASES}
-            value={form.useCases}
-            onChange={(v) => updateField('useCases', v)}
-          />
-
-          <MultiSelect
-            label="Industries"
-            options={INDUSTRIES}
-            value={form.industries}
-            onChange={(v) => updateField('industries', v)}
-          />
-
-          <MultiSelect
-            label="Model types"
-            options={MODEL_TYPES}
-            value={form.modelTypes}
-            onChange={(v) => updateField('modelTypes', v)}
-          />
-
-          <MultiSelect
-            label="Deployment environments"
-            options={DEPLOYMENT_ENVS}
-            value={form.deploymentEnvs}
-            onChange={(v) => updateField('deploymentEnvs', v)}
-          />
-
-          <div>
-            <label className="label" htmlFor="riskTier">EU AI Act risk tier</label>
-            <select
-              id="riskTier"
-              value={form.riskTier}
-              onChange={(e) => updateField('riskTier', e.target.value)}
-              className="input"
-            >
-              <option value="">Select risk tier...</option>
-              {RISK_TIERS.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="label">Custom tags</label>
-            <input
-              type="text"
-              placeholder="Add tag and press Enter (e.g. citation, pii-redaction)"
-              className="input"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const val = (e.target as HTMLInputElement).value.trim()
-                  if (val && !form.customTags.includes(val)) {
-                    updateField('customTags', [...form.customTags, val]);
-                    (e.target as HTMLInputElement).value = ''
-                  }
-                }
-              }}
-            />
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {form.customTags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
-                  style={{ backgroundColor: '#F3F4F6', color: '#374151', borderColor: '#E5E7EB' }}
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => updateField('customTags', form.customTags.filter((t) => t !== tag))}
-                    className="text-gray-400 hover:text-red-500"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
+          <div className="flex gap-4 items-start">
+            <div className="flex-1">
+              <label className="label" htmlFor="publishedAt">Publication date</label>
+              <input id="publishedAt" type="date" value={form.publishedAt ?? ''}
+                onChange={(e) => updateField('publishedAt', e.target.value)} className="input" />
             </div>
-          </div>
-
-          {/* AI Models */}
-          <div>
-            <label className="label">AI model references</label>
-            <p className="text-xs text-gray-400 mb-1.5">HuggingFace or GitHub URLs for models used.</p>
-            <input
-              type="url"
-              placeholder="https://huggingface.co/... or https://github.com/..."
-              className="input"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const val = (e.target as HTMLInputElement).value.trim()
-                  if (val && !(form.aiModelUrls ?? []).includes(val)) {
-                    updateField('aiModelUrls', [...(form.aiModelUrls ?? []), val]);
-                    (e.target as HTMLInputElement).value = ''
-                  }
-                }
-              }}
-            />
-            <div className="space-y-1 mt-2">
-              {(form.aiModelUrls ?? []).map((url) => (
-                <div key={url} className="flex items-center gap-2 group">
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline flex-1 truncate">{url}</a>
-                  <button type="button" onClick={() => updateField('aiModelUrls', (form.aiModelUrls ?? []).filter((u) => u !== url))} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100">×</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Datasets */}
-          <div>
-            <label className="label">Test dataset references</label>
-            <p className="text-xs text-gray-400 mb-1.5">HuggingFace or GitHub URLs for datasets used.</p>
-            <input
-              type="url"
-              placeholder="https://huggingface.co/datasets/... or https://github.com/..."
-              className="input"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const val = (e.target as HTMLInputElement).value.trim()
-                  if (val && !(form.datasetUrls ?? []).includes(val)) {
-                    updateField('datasetUrls', [...(form.datasetUrls ?? []), val]);
-                    (e.target as HTMLInputElement).value = ''
-                  }
-                }
-              }}
-            />
-            <div className="space-y-1 mt-2">
-              {(form.datasetUrls ?? []).map((url) => (
-                <div key={url} className="flex items-center gap-2 group">
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline flex-1 truncate">{url}</a>
-                  <button type="button" onClick={() => updateField('datasetUrls', (form.datasetUrls ?? []).filter((u) => u !== url))} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100">×</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Open source flag + publication date */}
-          <div className="flex gap-6 items-start">
-            <div>
+            <div className="flex-1">
               <label className="label">Component types</label>
-              <div className="flex items-center gap-3 mt-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div
-                    onClick={() => updateField('isOpenSource', true)}
-                    className="w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0"
-                    style={{ backgroundColor: form.isOpenSource ? '#1E1B4B' : '#D1D5DB' }}
-                  >
-                    <div
-                      className="w-4 h-4 bg-white rounded-full shadow-sm transition-transform mt-0.5"
-                      style={{ transform: form.isOpenSource ? 'translateX(16px)' : 'translateX(2px)' }}
-                    />
-                  </div>
-                  <span className="text-sm text-gray-700">
-                    {form.isOpenSource ? 'All open-source components' : 'Includes paid / proprietary services'}
-                  </span>
-                </label>
-              </div>
               <button
                 type="button"
                 onClick={() => updateField('isOpenSource', !form.isOpenSource)}
-                className="text-xs text-indigo-500 hover:underline mt-1"
+                className="flex items-center gap-2 mt-1"
               >
-                Toggle
+                <div
+                  className="w-10 h-6 rounded-full transition-colors flex-shrink-0"
+                  style={{ backgroundColor: form.isOpenSource ? '#1E1B4B' : '#D1D5DB' }}
+                >
+                  <div className="w-5 h-5 bg-white rounded-full shadow-sm transition-transform mt-0.5"
+                    style={{ transform: form.isOpenSource ? 'translateX(18px)' : 'translateX(2px)' }} />
+                </div>
+                <span className="text-sm text-gray-700">
+                  {form.isOpenSource ? 'All open-source components' : 'Includes paid / proprietary services'}
+                </span>
               </button>
             </div>
-            <div className="flex-1">
-              <label className="label" htmlFor="publishedAt">Publication date</label>
+          </div>
+
+          {/* Compliance */}
+          <div>
+            <label className="label">Intended compliance</label>
+            <p className="text-xs text-gray-400 mb-2">Select all frameworks this package is designed to support.</p>
+            <div className="space-y-2 mb-3">
+              {COMPLIANCE_OPTIONS.map((opt) => (
+                <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
+                  <div
+                    onClick={() => toggleCompliance(opt)}
+                    className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer"
+                    style={
+                      form.complianceTargets.includes(opt)
+                        ? { backgroundColor: '#1E1B4B', borderColor: '#1E1B4B' }
+                        : { backgroundColor: 'white', borderColor: '#D1D5DB' }
+                    }
+                  >
+                    {form.complianceTargets.includes(opt) && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-700">{opt}</span>
+                </label>
+              ))}
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1">Other regulations or standards</label>
               <input
-                id="publishedAt"
-                type="date"
-                value={form.publishedAt ?? ''}
-                onChange={(e) => updateField('publishedAt', e.target.value)}
+                type="text"
+                value={form.otherCompliance}
+                onChange={(e) => updateField('otherCompliance', e.target.value)}
+                placeholder="e.g. UK Product Security and Telecoms Infrastructure Act"
                 className="input"
               />
             </div>
@@ -406,6 +432,209 @@ export default function PackageFormClient({
         </div>
       )}
 
+      {/* ── Classification / Taxonomy ── */}
+      {activeSection === 'taxonomy' && (
+        <div className="max-w-3xl">
+          <p className="text-sm text-gray-500 mb-5">
+            Select all that apply. You can also type custom values in each category.
+          </p>
+          {Object.entries(TAXONOMY).map(([typeKey, { label, groups }]) => (
+            <TaxonomySection
+              key={typeKey}
+              typeKey={typeKey}
+              typeLabel={label}
+              groups={groups as any}
+              data={(form.taxonomyData[typeKey as keyof TaxonomyData] ?? {}) as Record<string, string[]>}
+              onChange={(group, values) => updateTaxonomy(typeKey, group, values)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Models & Data ── */}
+      {activeSection === 'models' && (
+        <div className="max-w-3xl space-y-8">
+
+          {/* AI Models */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">AI model references</h2>
+                <p className="text-xs text-gray-400">Add HuggingFace or GitHub URLs for each model used.</p>
+              </div>
+              <button type="button" onClick={addAIModel}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
+                + Add model
+              </button>
+            </div>
+            {form.aiModels.length === 0 ? (
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-sm text-gray-400">
+                No models added yet. Click &quot;Add model&quot; to start.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {form.aiModels.map((model, i) => (
+                  <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">Model {i + 1}</span>
+                      <button type="button" onClick={() => removeAIModel(i)}
+                        className="text-xs text-gray-400 hover:text-red-500">Remove</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Name / identifier</label>
+                        <input type="text" value={model.name}
+                          onChange={(e) => updateAIModel(i, 'name', e.target.value)}
+                          placeholder="e.g. GPT-4o" className="input text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">URL (HuggingFace / GitHub)</label>
+                        <input type="url" value={model.url}
+                          onChange={(e) => updateAIModel(i, 'url', e.target.value)}
+                          placeholder="https://huggingface.co/..." className="input text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-1">Purpose</label>
+                      <input type="text" value={model.purpose}
+                        onChange={(e) => updateAIModel(i, 'purpose', e.target.value)}
+                        placeholder="e.g. Main language model for response generation"
+                        className="input text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-2">Model types (task & architecture)</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[...allModelTasks, ...allModelArchitectures].map((t) => (
+                          <button key={t} type="button"
+                            onClick={() => {
+                              const current = model.modelTypes
+                              updateAIModel(i, 'modelTypes', current.includes(t) ? current.filter((v) => v !== t) : [...current, t])
+                            }}
+                            className="px-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
+                            style={
+                              model.modelTypes.includes(t)
+                                ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+                                : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+                            }
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Datasets */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Test dataset references</h2>
+                <p className="text-xs text-gray-400">Add HuggingFace or GitHub URLs for datasets used in testing/evaluation.</p>
+              </div>
+              <button type="button" onClick={addDataset}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
+                + Add dataset
+              </button>
+            </div>
+            {form.datasetRefs.length === 0 ? (
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-sm text-gray-400">
+                No datasets added yet. Click &quot;Add dataset&quot; to start.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {form.datasetRefs.map((ds, i) => (
+                  <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">Dataset {i + 1}</span>
+                      <button type="button" onClick={() => removeDataset(i)}
+                        className="text-xs text-gray-400 hover:text-red-500">Remove</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Name</label>
+                        <input type="text" value={ds.name}
+                          onChange={(e) => updateDataset(i, 'name', e.target.value)}
+                          placeholder="e.g. MMLU" className="input text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">URL</label>
+                        <input type="url" value={ds.url}
+                          onChange={(e) => updateDataset(i, 'url', e.target.value)}
+                          placeholder="https://huggingface.co/datasets/..." className="input text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-1">Purpose</label>
+                      <input type="text" value={ds.purpose}
+                        onChange={(e) => updateDataset(i, 'purpose', e.target.value)}
+                        placeholder="e.g. Benchmark for reasoning capability"
+                        className="input text-sm" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Vendors */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Vendors</h2>
+                <p className="text-xs text-gray-400">List third-party vendors or services used in this AI system.</p>
+              </div>
+              <button type="button" onClick={addVendor}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
+                + Add vendor
+              </button>
+            </div>
+            {form.vendorList.length === 0 ? (
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-sm text-gray-400">
+                No vendors added yet. Click &quot;Add vendor&quot; to start.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {form.vendorList.map((v, i) => (
+                  <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">Vendor {i + 1}</span>
+                      <button type="button" onClick={() => removeVendor(i)}
+                        className="text-xs text-gray-400 hover:text-red-500">Remove</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Vendor name</label>
+                        <input type="text" value={v.name}
+                          onChange={(e) => updateVendor(i, 'name', e.target.value)}
+                          placeholder="e.g. OpenAI" className="input text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Website URL</label>
+                        <input type="url" value={v.url}
+                          onChange={(e) => updateVendor(i, 'url', e.target.value)}
+                          placeholder="https://openai.com" className="input text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-1">Purpose / role</label>
+                      <input type="text" value={v.purpose}
+                        onChange={(e) => updateVendor(i, 'purpose', e.target.value)}
+                        placeholder="e.g. LLM inference provider"
+                        className="input text-sm" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Requirements ── */}
       {activeSection === 'requirements' && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           <div>
@@ -439,10 +668,7 @@ export default function PackageFormClient({
         >
           Save as draft
         </button>
-        <button
-          onClick={() => router.back()}
-          className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700"
-        >
+        <button onClick={() => router.back()} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700">
           Cancel
         </button>
       </div>

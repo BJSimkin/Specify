@@ -50,12 +50,35 @@ const UpdateSchema = z.object({
   description: z.string().max(500).optional(),
   version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
   license: z.string().optional(),
+  // Legacy
   useCases: z.array(z.string()).optional(),
   industries: z.array(z.string()).optional(),
   modelTypes: z.array(z.string()).optional(),
   deploymentEnvs: z.array(z.string()).optional(),
   riskTier: z.string().optional(),
   customTags: z.array(z.string()).optional(),
+  // New taxonomy & structured data
+  taxonomyData: z.record(z.record(z.array(z.string()))).optional(),
+  aiModels: z.array(z.object({
+    url: z.string().optional().default(''),
+    name: z.string().optional().default(''),
+    purpose: z.string().optional().default(''),
+    modelTypes: z.array(z.string()).optional().default([]),
+  })).optional(),
+  datasetRefs: z.array(z.object({
+    url: z.string().optional().default(''),
+    name: z.string().optional().default(''),
+    purpose: z.string().optional().default(''),
+  })).optional(),
+  vendorList: z.array(z.object({
+    name: z.string().optional().default(''),
+    url: z.string().optional().default(''),
+    purpose: z.string().optional().default(''),
+  })).optional(),
+  complianceTargets: z.array(z.string()).optional(),
+  otherCompliance: z.string().optional(),
+  isOpenSource: z.boolean().optional(),
+  publishedAt: z.string().optional(),
   requirements: z
     .array(
       z.object({
@@ -212,6 +235,14 @@ export async function PUT(
         ...(data.license !== undefined && { license: data.license }),
         ...(data.version !== undefined && { currentVersion: data.version }),
         ...(data.isPublished !== undefined && { isPublished: data.isPublished }),
+        ...(data.taxonomyData !== undefined && { taxonomyData: data.taxonomyData }),
+        ...(data.aiModels !== undefined && { aiModels: data.aiModels }),
+        ...(data.datasetRefs !== undefined && { datasetRefs: data.datasetRefs }),
+        ...(data.vendorList !== undefined && { vendorList: data.vendorList }),
+        ...(data.complianceTargets !== undefined && { complianceTargets: data.complianceTargets }),
+        ...(data.otherCompliance !== undefined && { otherCompliance: data.otherCompliance || null }),
+        ...(data.isOpenSource !== undefined && { isOpenSource: data.isOpenSource }),
+        ...(data.publishedAt !== undefined && { publishedAt: data.publishedAt ? new Date(data.publishedAt) : null }),
         ...(yamlUrl !== pkg.yamlUrl && { yamlUrl }),
       },
       include: {
