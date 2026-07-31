@@ -68,9 +68,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true
     },
   },
-  pages: {
-    signIn: '/auth/signin',
-  },
   session: {
     strategy: 'database',
   },
@@ -112,3 +109,4 @@ export async function getCurrentUser() {
 
   return user
 }
+
