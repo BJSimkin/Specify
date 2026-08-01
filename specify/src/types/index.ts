@@ -318,6 +318,12 @@ export interface PackageFormData {
   requirements: RequirementFormData[]
 }
 
+export interface RequirementMedia {
+  url: string
+  type: 'image' | 'video'
+  caption: string
+}
+
 export interface RequirementFormData {
   id: string
   title: string
@@ -326,6 +332,7 @@ export interface RequirementFormData {
   body: string
   dependsOn: string[]
   subRequirements: SubRequirementFormData[]
+  media: RequirementMedia[]
 }
 
 export interface SubRequirementFormData {

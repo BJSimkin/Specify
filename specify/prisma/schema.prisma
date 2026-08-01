@@ -69,6 +69,7 @@ model User {
   followers       Follow[]            @relation("Following")
   following       Follow[]            @relation("Follower")
   contributions   PackageContributor[]
+  vendorSubmissions Vendor[]           @relation("VendorSubmissions")
 }
 
 model Follow {
@@ -205,6 +206,8 @@ model Requirement {
   dependsOn   String[]
   order       Int        @default(0)
 
+  media           Json      @default("[]")
+
   package         Package          @relation(fields: [packageId], references: [id], onDelete: Cascade)
   subRequirements SubRequirement[]
   comments        Comment[]
@@ -306,6 +309,24 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+}
+
+model Vendor {
+  id          String   @id @default(cuid())
+  name        String
+  website     String?
+  description String?
+  logoUrl     String?
+  categories  String[]
+  verified    Boolean  @default(false)
+  submittedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submittedBy User? @relation("VendorSubmissions", fields: [submittedById], references: [id])
+
+  @@index([verified])
+  @@index([categories])
 }
 
 model UserPreference {

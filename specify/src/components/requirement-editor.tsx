@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import type { RequirementFormData, SubRequirementFormData } from '@/types'
+import { useState, useRef } from 'react'
+import type { RequirementFormData, SubRequirementFormData, RequirementMedia } from '@/types'
 import { REQ_TAG_TYPES } from '@/types'
 
 interface RequirementEditorProps {
@@ -45,6 +45,7 @@ function emptyRequirement(id: string): RequirementFormData {
     body: '',
     dependsOn: [],
     subRequirements: [],
+    media: [],
   }
 }
 
@@ -105,6 +106,8 @@ function RequirementItem({
   onRemove: () => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function toggleTag(tag: string) {
     const hasTag = req.tags.includes(tag)
@@ -112,6 +115,34 @@ function RequirementItem({
       ...req,
       tags: hasTag ? req.tags.filter((t) => t !== tag) : [...req.tags, tag],
     })
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        const media: RequirementMedia = { url: data.url, type: data.type, caption: '' }
+        onChange({ ...req, media: [...(req.media ?? []), media] })
+      }
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function updateMediaCaption(idx: number, caption: string) {
+    const updated = (req.media ?? []).map((m, i) => i === idx ? { ...m, caption } : m)
+    onChange({ ...req, media: updated })
+  }
+
+  function removeMedia(idx: number) {
+    onChange({ ...req, media: (req.media ?? []).filter((_, i) => i !== idx) })
   }
 
   function addSubRequirement() {
@@ -290,6 +321,72 @@ function RequirementItem({
               onClick={(e) => e.stopPropagation()}
               className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-y font-mono"
             />
+          </div>
+
+          {/* Media attachments */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-500">
+                Media <span className="font-normal text-gray-400">(images &amp; videos)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50"
+              >
+                {uploading ? (
+                  <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                  </svg>
+                )}
+                {uploading ? 'Uploading…' : 'Upload file'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
+            {(req.media ?? []).length > 0 && (
+              <div className="space-y-2">
+                {(req.media ?? []).map((m, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-lg p-2 flex gap-2">
+                    {m.type === 'image' ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.url} alt={m.caption || 'attachment'} className="w-16 h-16 object-cover rounded flex-shrink-0" />
+                    ) : (
+                      <video src={m.url} className="w-16 h-16 object-cover rounded flex-shrink-0" controls={false} />
+                    )}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <input
+                        type="text" value={m.caption}
+                        onChange={(e) => updateMediaCaption(idx, e.target.value)}
+                        placeholder="Caption (optional)"
+                        className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <a href={m.url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-indigo-500 hover:underline truncate block">
+                        {m.url.split('/').pop()}
+                      </a>
+                    </div>
+                    <button type="button" onClick={() => removeMedia(idx)}
+                      className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Sub-requirements */}
