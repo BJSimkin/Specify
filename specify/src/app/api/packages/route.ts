@@ -69,6 +69,7 @@ const PackageBodySchema = z.object({
   otherCompliance: z.string().optional().default(''),
   // Other
   requirements: z.array(RequirementSchema).optional().default([]),
+  contributorIds: z.array(z.string()).optional().default([]),
   isPublished: z.boolean().optional().default(true),
   aiModelUrls: z.array(z.string()).optional().default([]),
   datasetUrls: z.array(z.string()).optional().default([]),
@@ -269,6 +270,18 @@ export async function POST(request: NextRequest) {
         tags: true,
       },
     })
+
+    // Add contributors
+    if (data.contributorIds.length > 0) {
+      await prisma.packageContributor.createMany({
+        data: data.contributorIds.map((userId) => ({
+          packageId: pkg.id,
+          userId,
+          role: 'contributor',
+        })),
+        skipDuplicates: true,
+      })
+    }
 
     // Store version record
     if (yamlUrl) {

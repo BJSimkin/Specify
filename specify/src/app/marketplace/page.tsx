@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Nav } from '@/components/nav'
 
 const VENDOR_CATEGORIES = [
   'LLM / Foundation Model',
@@ -40,9 +39,7 @@ export default async function MarketplacePage({
   })
 
   return (
-    <>
-      <Nav user={user} />
-      <main className="max-w-screen-xl mx-auto px-4 py-8">
+    <div className="max-w-screen-xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -163,7 +160,6 @@ export default async function MarketplacePage({
             )}
           </div>
         </div>
-      </main>
-    </>
+    </div>
   )
 }

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Nav } from '@/components/nav'
 
 const VENDOR_CATEGORIES = [
   'LLM / Foundation Model',
@@ -64,9 +63,7 @@ export default function SubmitVendorPage() {
   }
 
   return (
-    <>
-      <Nav />
-      <main className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="flex items-center gap-3 mb-6">
           <a href="/marketplace" className="text-sm text-gray-500 hover:text-indigo-600">← Marketplace</a>
           <h1 className="text-xl font-bold" style={{ color: '#1E1B4B' }}>List a vendor</h1>
@@ -159,7 +156,6 @@ export default function SubmitVendorPage() {
         <p className="text-xs text-gray-400 mt-4">
           Listings are publicly visible. Verified badges are awarded by the Specify team.
         </p>
-      </main>
-    </>
+    </div>
   )
 }

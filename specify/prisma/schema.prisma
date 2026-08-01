@@ -311,6 +311,11 @@ model Notification {
   @@index([userId, read])
 }
 
+model CardTemplate {
+  id            String @id  // 'system-card' | 'model-card' | 'dataset-card' | 'provenance-record'
+  downloadCount Int    @default(0)
+}
+
 model Vendor {
   id          String   @id @default(cuid())
   name        String

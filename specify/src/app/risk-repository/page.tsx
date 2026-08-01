@@ -1,15 +1,8 @@
 import Link from 'next/link'
-import { auth } from '@/lib/auth'
-import { Nav } from '@/components/nav'
 
 export default async function RiskRepositoryPage() {
-  const session = await auth()
-  const user = session?.user as any
-
   return (
-    <>
-      <Nav user={user} />
-      <main className="max-w-4xl mx-auto px-4 py-16 text-center">
+    <div className="max-w-4xl mx-auto px-4 py-16 text-center">
         <div
           className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mb-6"
           style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}
@@ -36,13 +29,9 @@ export default async function RiskRepositoryPage() {
             </div>
           ))}
         </div>
-        <Link
-          href="/"
-          className="text-sm font-medium text-indigo-600 hover:underline"
-        >
+        <Link href="/" className="text-sm font-medium text-indigo-600 hover:underline">
           ← Back to Explore
         </Link>
-      </main>
-    </>
+    </div>
   )
 }

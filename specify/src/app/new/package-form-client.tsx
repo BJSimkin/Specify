@@ -1,11 +1,135 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { RequirementEditor } from '@/components/requirement-editor'
 import { DepGraph } from '@/components/dep-graph'
 import type { PackageFormData, RequirementFormData, AIModelRef, DatasetRef, VendorRef, TaxonomyData } from '@/types'
 import { TAXONOMY, COMPLIANCE_OPTIONS, LICENSES } from '@/types'
+
+// ─── Contributor types ─────────────────────────────────────────────────────────
+interface UserResult {
+  id: string
+  name: string | null
+  username: string | null
+  image: string | null
+  org: string | null
+}
+
+// ─── Contributor search component ──────────────────────────────────────────────
+function ContributorSearch({
+  contributors,
+  onChange,
+}: {
+  contributors: UserResult[]
+  onChange: (c: UserResult[]) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<UserResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (debounce.current) clearTimeout(debounce.current)
+    if (query.trim().length < 2) { setResults([]); return }
+    debounce.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query.trim())}`)
+        if (res.ok) {
+          const data: UserResult[] = await res.json()
+          setResults(data.filter((u) => !contributors.find((c) => c.id === u.id)))
+        }
+      } finally { setLoading(false) }
+    }, 300)
+  }, [query, contributors])
+
+  function add(user: UserResult) {
+    onChange([...contributors, user])
+    setQuery('')
+    setResults([])
+  }
+
+  function remove(id: string) {
+    onChange(contributors.filter((c) => c.id !== id))
+  }
+
+  const initials = (name: string | null) =>
+    (name ?? '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+
+  return (
+    <div>
+      <label className="label">Contributors</label>
+      <p className="text-xs text-gray-400 mb-2">Tag other Specify users who contributed to this package.</p>
+
+      {/* Current contributors */}
+      {contributors.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {contributors.map((c) => (
+            <span
+              key={c.id}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+              style={{ backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#C7D2FE' }}
+            >
+              {c.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.image} alt="" className="w-4 h-4 rounded-full" />
+              ) : (
+                <span className="w-4 h-4 rounded-full bg-indigo-400 text-white flex items-center justify-center text-xs font-bold" style={{ fontSize: 8 }}>
+                  {initials(c.name)}
+                </span>
+              )}
+              {c.name ?? c.username}
+              <button type="button" onClick={() => remove(c.id)} className="hover:text-red-500 ml-0.5">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name or username…"
+          className="input w-full"
+        />
+        {loading && (
+          <svg className="animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        )}
+        {results.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
+            {results.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => add(u)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 text-left"
+              >
+                {u.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={u.image} alt="" className="w-7 h-7 rounded-full flex-shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{ backgroundColor: '#4338CA', color: 'white' }}>
+                    {initials(u.name)}
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{u.name ?? u.username}</p>
+                  {u.username && <p className="text-xs text-gray-400">@{u.username}{u.org ? ` · ${u.org}` : ''}</p>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const defaultFormData: PackageFormData = {
   name: '',
@@ -178,6 +302,7 @@ export default function PackageFormClient({
 }: PackageFormClientProps) {
   const router = useRouter()
   const [form, setForm] = useState<PackageFormData>(initialData ?? defaultFormData)
+  const [contributors, setContributors] = useState<UserResult[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<'metadata' | 'taxonomy' | 'models' | 'requirements'>('metadata')
@@ -245,7 +370,7 @@ export default function PackageFormClient({
     setSaving(true)
     setError(null)
     try {
-      const payload = { ...form, isPublished }
+      const payload = { ...form, isPublished, contributorIds: contributors.map((c) => c.id) }
       let res: Response
       if (mode === 'edit' && packageId) {
         res = await fetch(`/api/packages/${packageId}`, {
@@ -429,6 +554,9 @@ export default function PackageFormClient({
               />
             </div>
           </div>
+
+          {/* Contributors */}
+          <ContributorSearch contributors={contributors} onChange={setContributors} />
         </div>
       )}
 

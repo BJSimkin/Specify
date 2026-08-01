@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Nav } from '@/components/nav'
 
 export default async function VendorDetailPage({ params }: { params: { id: string } }) {
   const session = await auth()
@@ -29,9 +28,7 @@ export default async function VendorDetailPage({ params }: { params: { id: strin
   }).catch(() => []) // JSON path query may vary by DB; graceful fallback
 
   return (
-    <>
-      <Nav user={user} />
-      <main className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8">
         <Link href="/marketplace" className="text-sm text-gray-500 hover:text-indigo-600 mb-6 inline-block">
           ← Marketplace
         </Link>
@@ -116,7 +113,6 @@ export default async function VendorDetailPage({ params }: { params: { id: strin
             </div>
           )}
         </div>
-      </main>
-    </>
+    </div>
   )
 }
