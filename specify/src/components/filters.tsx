@@ -120,6 +120,18 @@ export function Filters({ filters, onChange }: FiltersProps) {
           )}
         </div>
 
+        <FilterSection title="Workflow">
+          <AnyCheckbox active={filters.workflows.length === 0} onClear={() => onChange({ ...filters, workflows: [] })} />
+          {WORKFLOWS.map((v) => (
+            <FilterCheckbox
+              key={v}
+              label={v}
+              checked={filters.workflows.includes(v)}
+              onChange={() => toggle('workflows', v)}
+            />
+          ))}
+        </FilterSection>
+
         <FilterSection title="Industry">
           <AnyCheckbox active={filters.industries.length === 0} onClear={() => onChange({ ...filters, industries: [] })} />
           {INDUSTRIES.map((v) => (
@@ -140,18 +152,6 @@ export function Filters({ filters, onChange }: FiltersProps) {
               label={v}
               checked={filters.businessFunctions.includes(v)}
               onChange={() => toggle('businessFunctions', v)}
-            />
-          ))}
-        </FilterSection>
-
-        <FilterSection title="Workflow">
-          <AnyCheckbox active={filters.workflows.length === 0} onClear={() => onChange({ ...filters, workflows: [] })} />
-          {WORKFLOWS.map((v) => (
-            <FilterCheckbox
-              key={v}
-              label={v}
-              checked={filters.workflows.includes(v)}
-              onChange={() => toggle('workflows', v)}
             />
           ))}
         </FilterSection>

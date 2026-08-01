@@ -70,6 +70,9 @@ model User {
   following       Follow[]            @relation("Follower")
   contributions   PackageContributor[]
   vendorSubmissions Vendor[]           @relation("VendorSubmissions")
+  riskVotes       RiskVote[]           @relation("RiskVotes")
+  riskComments    RiskComment[]        @relation("RiskComments")
+  riskSubmissions RiskSubmission[]     @relation("RiskSubmissions")
 }
 
 model Follow {
@@ -333,6 +336,77 @@ model Vendor {
 
   @@index([verified])
   @@index([categories])
+}
+
+// ─── Risk Repository ───────────────────────────────────────────────────────────
+
+model RiskVersion {
+  id        String   @id @default(cuid())
+  version   String   @unique  // e.g. "1.0"
+  label     String?           // e.g. "Initial Release"
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  risks Risk[]
+}
+
+model Risk {
+  id          String @id @default(cuid())
+  riskNum     Int               // stable numeric ID within the list
+  category    String            // Tier 1
+  title       String
+  description String @db.Text
+  versionId   String
+
+  version  RiskVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  votes    RiskVote[]
+  comments RiskComment[]
+
+  @@index([versionId])
+  @@index([category])
+  @@unique([versionId, riskNum])
+}
+
+model RiskVote {
+  id        String   @id @default(cuid())
+  riskId    String
+  userId    String
+  score     Int      // 0-10
+  createdAt DateTime @default(now())
+
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  user User @relation("RiskVotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([riskId, userId])
+  @@index([riskId])
+}
+
+model RiskComment {
+  id        String   @id @default(cuid())
+  riskId    String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  user User @relation("RiskComments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([riskId])
+}
+
+model RiskSubmission {
+  id          String   @id @default(cuid())
+  category    String
+  title       String
+  description String   @db.Text
+  userId      String?
+  status      String   @default("pending") // pending | accepted | rejected
+  reviewNotes String?
+  createdAt   DateTime @default(now())
+
+  user User? @relation("RiskSubmissions", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
 }
 
 model UserPreference {
