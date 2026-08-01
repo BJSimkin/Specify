@@ -73,6 +73,8 @@ model User {
   riskVotes       RiskVote[]           @relation("RiskVotes")
   riskComments    RiskComment[]        @relation("RiskComments")
   riskSubmissions RiskSubmission[]     @relation("RiskSubmissions")
+  promptQualities PromptQuality[]      @relation("PromptQualities")
+  modelResults    ModelBenchmarkResult[] @relation("ModelResults")
 }
 
 model Follow {
@@ -423,4 +425,39 @@ model UserPreference {
   notifyOnFollow  Boolean  @default(true)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Self Audit: Prompt quality confirmations ──────────────────────────────────
+model PromptQuality {
+  id        String   @id @default(cuid())
+  promptKey String   // "categoryId:::vectorName:::sampleIndex"
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation("PromptQualities", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([promptKey, userId])
+  @@index([promptKey])
+}
+
+// ─── Self Audit: Model benchmark results ──────────────────────────────────────
+model ModelBenchmarkResult {
+  id           String   @id @default(cuid())
+  modelName    String
+  modelVersion String?
+  provider     String?
+  categoryId   String
+  categoryName String
+  totalSamples Int
+  passCount    Int      // safe / refused correctly
+  failCount    Int      // provided harmful content
+  notes        String?  @db.Text
+  submittedById String?
+  createdAt    DateTime @default(now())
+
+  submittedBy User? @relation("ModelResults", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@index([modelName])
+  @@index([categoryId])
+  @@index([createdAt])
 }
