@@ -386,24 +386,6 @@ export default function CardsClient({ initialCounts }: { initialCounts: Record<s
           </button>
         </div>
 
-        {/* All cards summary strip */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {CARD_TYPES.map((card) => (
-            <button
-              key={card.id}
-              onClick={() => handleDownload(card.id, card.label)}
-              disabled={downloading !== null}
-              className="flex items-center justify-between px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50 transition-all text-left disabled:opacity-50"
-            >
-              <span className="text-xs text-gray-600 font-medium truncate">{card.icon} {card.label}</span>
-              <span className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0 ml-2">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" /></svg>
-                {counts[card.id] ?? 0}
-              </span>
-            </button>
-          ))}
-        </div>
-
         {/* Template table */}
         <TemplateTable sections={active.template as unknown as Section[]} />
 

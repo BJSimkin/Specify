@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import { prisma } from '@/lib/prisma'
 import { PackageCard } from '@/components/package-card'
 import type { SearchParams, FilterState } from '@/types'
-import { TagCategory } from '@prisma/client'
 import HomeClient from './home-client'
 
 const CERTIFIER_MAP: Record<string, string> = {
@@ -13,8 +12,10 @@ const CERTIFIER_MAP: Record<string, string> = {
 
 async function getPackages(searchParams: SearchParams) {
   const q = searchParams.q ?? ''
-  const uc = searchParams.uc?.split(',').filter(Boolean) ?? []
   const ind = searchParams.ind?.split(',').filter(Boolean) ?? []
+  const bf = searchParams.bf?.split(',').filter(Boolean) ?? []
+  const wf = searchParams.wf?.split(',').filter(Boolean) ?? []
+  const mt = searchParams.mt?.split(',').filter(Boolean) ?? []
   const cert = searchParams.cert?.split(',').filter(Boolean) ?? []
   const sort = (searchParams.sort ?? 'recent') as 'stars' | 'forks' | 'recent' | 'downloads'
   const page = parseInt(searchParams.page ?? '1', 10)
@@ -29,14 +30,27 @@ async function getPackages(searchParams: SearchParams) {
     ]
   }
 
-  const tagFilters: unknown[] = []
-  if (uc.length > 0) tagFilters.push({ tags: { some: { category: TagCategory.USE_CASE, value: { in: uc } } } })
-  if (ind.length > 0) tagFilters.push({ tags: { some: { category: TagCategory.INDUSTRY, value: { in: ind } } } })
+  // Taxonomy JSON filters — each selected value must appear in the respective JSONB path
+  const andFilters: unknown[] = []
+
+  for (const value of ind) {
+    andFilters.push({ taxonomyData: { path: ['useCase', 'industry'], array_contains: value } })
+  }
+  for (const value of bf) {
+    andFilters.push({ taxonomyData: { path: ['useCase', 'businessFunction'], array_contains: value } })
+  }
+  for (const value of wf) {
+    andFilters.push({ taxonomyData: { path: ['useCase', 'workflow'], array_contains: value } })
+  }
+  for (const value of mt) {
+    andFilters.push({ taxonomyData: { path: ['model', 'task'], array_contains: value } })
+  }
   if (cert.length > 0) {
     const dbCerts = cert.map((c) => CERTIFIER_MAP[c]).filter(Boolean)
-    if (dbCerts.length > 0) tagFilters.push({ certifications: { some: { certifier: { in: dbCerts } } } })
+    if (dbCerts.length > 0) andFilters.push({ certifications: { some: { certifier: { in: dbCerts } } } })
   }
-  if (tagFilters.length > 0) where.AND = tagFilters
+
+  if (andFilters.length > 0) where.AND = andFilters
 
   const orderBy: Record<string, unknown>[] = []
   if (sort === 'stars') orderBy.push({ stars: { _count: 'desc' } })
@@ -73,14 +87,21 @@ export default async function HomePage({ searchParams }: PageProps) {
   const sort = (searchParams.sort ?? 'recent') as 'stars' | 'forks' | 'recent' | 'downloads'
   const q = searchParams.q ?? ''
   const currentFilters: FilterState = {
-    useCases: searchParams.uc?.split(',').filter(Boolean) ?? [],
     industries: searchParams.ind?.split(',').filter(Boolean) ?? [],
+    businessFunctions: searchParams.bf?.split(',').filter(Boolean) ?? [],
+    workflows: searchParams.wf?.split(',').filter(Boolean) ?? [],
+    modelTasks: searchParams.mt?.split(',').filter(Boolean) ?? [],
     certifiers: searchParams.cert?.split(',').filter(Boolean) ?? [],
     verifiedOnly: false,
   }
 
   const hasFilters =
-    q || currentFilters.useCases.length > 0 || currentFilters.industries.length > 0 || currentFilters.certifiers.length > 0
+    q ||
+    currentFilters.industries.length > 0 ||
+    currentFilters.businessFunctions.length > 0 ||
+    currentFilters.workflows.length > 0 ||
+    currentFilters.modelTasks.length > 0 ||
+    currentFilters.certifiers.length > 0
 
   return (
     <HomeClient initialFilters={currentFilters} initialSort={sort} initialQ={q}>

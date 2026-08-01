@@ -75,6 +75,7 @@ const PackageBodySchema = z.object({
   datasetUrls: z.array(z.string()).optional().default([]),
   isOpenSource: z.boolean().optional().default(true),
   publishedAt: z.string().optional(),
+  referenceUrls: z.array(z.string()).optional().default([]),
 })
 
 export async function GET(request: NextRequest) {
@@ -241,6 +242,7 @@ export async function POST(request: NextRequest) {
         otherCompliance: data.otherCompliance || null,
         isOpenSource: data.isOpenSource,
         publishedAt: data.publishedAt ? new Date(data.publishedAt) : (data.isPublished ? new Date() : null),
+        referenceUrls: data.referenceUrls,
         tags: { createMany: { data: tagRecords } },
         requirements: {
           create: data.requirements.map((req, order) => ({

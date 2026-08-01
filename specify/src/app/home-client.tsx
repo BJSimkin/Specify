@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Filters } from '@/components/filters'
 import type { FilterState } from '@/types'
 
@@ -21,7 +21,6 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialFilters, initialSort, initialQ, children }: HomeClientProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
   const [filters, setFilters] = useState<FilterState>(initialFilters)
   const [sort, setSort] = useState(initialSort)
@@ -29,8 +28,10 @@ export default function HomeClient({ initialFilters, initialSort, initialQ, chil
   function buildUrl(newFilters: FilterState, newSort: string) {
     const params = new URLSearchParams()
     if (initialQ) params.set('q', initialQ)
-    if (newFilters.useCases.length > 0) params.set('uc', newFilters.useCases.join(','))
     if (newFilters.industries.length > 0) params.set('ind', newFilters.industries.join(','))
+    if (newFilters.businessFunctions.length > 0) params.set('bf', newFilters.businessFunctions.join(','))
+    if (newFilters.workflows.length > 0) params.set('wf', newFilters.workflows.join(','))
+    if (newFilters.modelTasks.length > 0) params.set('mt', newFilters.modelTasks.join(','))
     if (newFilters.certifiers.length > 0) params.set('cert', newFilters.certifiers.join(','))
     if (newSort !== 'recent') params.set('sort', newSort)
     const qs = params.toString()

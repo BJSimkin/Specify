@@ -141,6 +141,7 @@ const defaultFormData: PackageFormData = {
   aiModels: [],
   datasetRefs: [],
   vendorList: [],
+  referenceUrls: [],
   complianceTargets: [],
   otherCompliance: '',
   isOpenSource: true,
@@ -171,6 +172,8 @@ function ChipGroup({
   allowCustom?: boolean
 }) {
   const [customInput, setCustomInput] = useState('')
+  const isAny = selected.length === 0
+
   function toggle(opt: string) {
     onChange(selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt])
   }
@@ -183,6 +186,19 @@ function ChipGroup({
     <div className="mb-4">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</p>
       <div className="flex flex-wrap gap-1.5">
+        {/* ANY chip */}
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+          style={
+            isAny
+              ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+              : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+          }
+        >
+          ANY
+        </button>
         {options.map((opt) => (
           <button
             key={opt}
@@ -408,7 +424,6 @@ export default function PackageFormClient({
 
   // All model types from taxonomy for AI model type chips
   const allModelTasks = TAXONOMY.model.groups.task.values
-  const allModelArchitectures = TAXONOMY.model.groups.modelArchitecture.values
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -555,6 +570,44 @@ export default function PackageFormClient({
             </div>
           </div>
 
+          {/* Reference documents */}
+          <div>
+            <label className="label">Reference documents</label>
+            <p className="text-xs text-gray-400 mb-2">Add URLs to external reference documents (standards, papers, specifications).</p>
+            <div className="space-y-2">
+              {(form.referenceUrls ?? []).map((url, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => {
+                      const updated = [...(form.referenceUrls ?? [])]
+                      updated[i] = e.target.value
+                      updateField('referenceUrls', updated)
+                    }}
+                    placeholder="https://example.com/reference-doc"
+                    className="input flex-1 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateField('referenceUrls', (form.referenceUrls ?? []).filter((_, idx) => idx !== i))}
+                    className="text-gray-400 hover:text-red-500 px-1"
+                    title="Remove"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => updateField('referenceUrls', [...(form.referenceUrls ?? []), ''])}
+                className="text-sm text-indigo-600 hover:underline flex items-center gap-1"
+              >
+                + Add URL
+              </button>
+            </div>
+          </div>
+
           {/* Contributors */}
           <ContributorSearch contributors={contributors} onChange={setContributors} />
         </div>
@@ -630,9 +683,9 @@ export default function PackageFormClient({
                         className="input text-sm" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600 block mb-2">Model types (task & architecture)</label>
+                      <label className="text-xs font-medium text-gray-600 block mb-2">Model task</label>
                       <div className="flex flex-wrap gap-1.5">
-                        {[...allModelTasks, ...allModelArchitectures].map((t) => (
+                        {allModelTasks.map((t) => (
                           <button key={t} type="button"
                             onClick={() => {
                               const current = model.modelTypes

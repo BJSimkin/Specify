@@ -1,7 +1,12 @@
 'use client'
 
-import { USE_CASES, INDUSTRIES, CERTIFIERS } from '@/types'
+import { TAXONOMY, CERTIFIERS } from '@/types'
 import type { FilterState } from '@/types'
+
+const INDUSTRIES = TAXONOMY.useCase.groups.industry.values
+const BUSINESS_FUNCTIONS = TAXONOMY.useCase.groups.businessFunction.values
+const WORKFLOWS = TAXONOMY.useCase.groups.workflow.values
+const MODEL_TASKS = TAXONOMY.model.groups.task.values
 
 interface FiltersProps {
   filters: FilterState
@@ -56,38 +61,38 @@ function FilterCheckbox({
         onChange={(e) => onChange(e.target.checked)}
         className="sr-only"
       />
-      <span className="text-sm text-gray-700 group-hover:text-gray-900 capitalize">
+      <span className="text-sm text-gray-700 group-hover:text-gray-900">
         {label}
       </span>
     </label>
   )
 }
 
+// "ANY" row — checked when the group array is empty
+function AnyCheckbox({ active, onClear }: { active: boolean; onClear: () => void }) {
+  return (
+    <FilterCheckbox
+      label="ANY"
+      checked={active}
+      onChange={(checked) => { if (checked) onClear() }}
+    />
+  )
+}
+
 export function Filters({ filters, onChange }: FiltersProps) {
-  function toggleUseCase(value: string) {
-    const next = filters.useCases.includes(value)
-      ? filters.useCases.filter((v) => v !== value)
-      : [...filters.useCases, value]
-    onChange({ ...filters, useCases: next })
-  }
-
-  function toggleIndustry(value: string) {
-    const next = filters.industries.includes(value)
-      ? filters.industries.filter((v) => v !== value)
-      : [...filters.industries, value]
-    onChange({ ...filters, industries: next })
-  }
-
-  function toggleCertifier(value: string) {
-    const next = filters.certifiers.includes(value)
-      ? filters.certifiers.filter((v) => v !== value)
-      : [...filters.certifiers, value]
-    onChange({ ...filters, certifiers: next })
+  function toggle(key: keyof Pick<FilterState, 'industries' | 'businessFunctions' | 'workflows' | 'modelTasks' | 'certifiers'>, value: string) {
+    const current = filters[key] as string[]
+    const next = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value]
+    onChange({ ...filters, [key]: next })
   }
 
   const activeCount =
-    filters.useCases.length +
     filters.industries.length +
+    filters.businessFunctions.length +
+    filters.workflows.length +
+    filters.modelTasks.length +
     filters.certifiers.length +
     (filters.verifiedOnly ? 1 : 0)
 
@@ -99,7 +104,14 @@ export function Filters({ filters, onChange }: FiltersProps) {
           {activeCount > 0 && (
             <button
               onClick={() =>
-                onChange({ useCases: [], industries: [], certifiers: [], verifiedOnly: false })
+                onChange({
+                  industries: [],
+                  businessFunctions: [],
+                  workflows: [],
+                  modelTasks: [],
+                  certifiers: [],
+                  verifiedOnly: false,
+                })
               }
               className="text-xs text-indigo-600 hover:text-indigo-800"
             >
@@ -108,35 +120,62 @@ export function Filters({ filters, onChange }: FiltersProps) {
           )}
         </div>
 
-        <FilterSection title="Use case">
-          {USE_CASES.map((uc) => (
+        <FilterSection title="Industry">
+          <AnyCheckbox active={filters.industries.length === 0} onClear={() => onChange({ ...filters, industries: [] })} />
+          {INDUSTRIES.map((v) => (
             <FilterCheckbox
-              key={uc}
-              label={uc}
-              checked={filters.useCases.includes(uc)}
-              onChange={() => toggleUseCase(uc)}
+              key={v}
+              label={v}
+              checked={filters.industries.includes(v)}
+              onChange={() => toggle('industries', v)}
             />
           ))}
         </FilterSection>
 
-        <FilterSection title="Industry">
-          {INDUSTRIES.map((ind) => (
+        <FilterSection title="Business function">
+          <AnyCheckbox active={filters.businessFunctions.length === 0} onClear={() => onChange({ ...filters, businessFunctions: [] })} />
+          {BUSINESS_FUNCTIONS.map((v) => (
             <FilterCheckbox
-              key={ind}
-              label={ind}
-              checked={filters.industries.includes(ind)}
-              onChange={() => toggleIndustry(ind)}
+              key={v}
+              label={v}
+              checked={filters.businessFunctions.includes(v)}
+              onChange={() => toggle('businessFunctions', v)}
+            />
+          ))}
+        </FilterSection>
+
+        <FilterSection title="Workflow">
+          <AnyCheckbox active={filters.workflows.length === 0} onClear={() => onChange({ ...filters, workflows: [] })} />
+          {WORKFLOWS.map((v) => (
+            <FilterCheckbox
+              key={v}
+              label={v}
+              checked={filters.workflows.includes(v)}
+              onChange={() => toggle('workflows', v)}
+            />
+          ))}
+        </FilterSection>
+
+        <FilterSection title="Model task">
+          <AnyCheckbox active={filters.modelTasks.length === 0} onClear={() => onChange({ ...filters, modelTasks: [] })} />
+          {MODEL_TASKS.map((v) => (
+            <FilterCheckbox
+              key={v}
+              label={v}
+              checked={filters.modelTasks.includes(v)}
+              onChange={() => toggle('modelTasks', v)}
             />
           ))}
         </FilterSection>
 
         <FilterSection title="Certified by">
+          <AnyCheckbox active={filters.certifiers.length === 0} onClear={() => onChange({ ...filters, certifiers: [] })} />
           {CERTIFIERS.map((cert) => (
             <FilterCheckbox
               key={cert}
               label={cert}
               checked={filters.certifiers.includes(cert)}
-              onChange={() => toggleCertifier(cert)}
+              onChange={() => toggle('certifiers', cert)}
             />
           ))}
         </FilterSection>

@@ -72,7 +72,7 @@ export const TAXONOMY = {
     groups: {
       market: {
         label: 'Market',
-        values: ['US', 'Canada', 'UK', 'EU', 'China'],
+        values: ['Global', 'US', 'Canada', 'UK', 'EU', 'China'],
       },
       organisation: {
         label: 'Organisation',
@@ -96,6 +96,13 @@ export const TAXONOMY = {
           'Cross-functional',
         ],
       },
+      workflow: {
+        label: 'Workflow',
+        values: [
+          'Governance structure', 'Full system architecture', 'Model lifecycle',
+          'Data lifecycle', 'Verification and validation', 'Post-market monitoring',
+        ],
+      },
       deploymentScale: {
         label: 'Deployment scale',
         values: ['Widespread deployment', 'Broad deployment', 'Narrow deployment', 'Pilot project'],
@@ -110,77 +117,26 @@ export const TAXONOMY = {
     label: 'Model',
     groups: {
       task: {
-        label: 'Task',
+        label: 'Model task',
         values: [
-          'Regression', 'Classification', 'Clustering', 'Computer vision',
-          'Dimensionality reduction', 'Image recognition', 'Natural language processing',
-          'Recommender system', 'Drug discovery', 'Deepfake', 'Semantic segmentation',
-          'Anomaly detection', 'Similarity search', 'Biometric identification', 'Emotion recognition',
+          'Image / video generation', 'Image / video editing', 'Robot actuation',
+          'Embedding', 'Classification', 'Text generation', 'Visual reasoning',
+          'Computer vision', 'Biological design', 'Clustering',
         ],
       },
-      modelArchitecture: {
-        label: 'Model architecture',
-        values: [
-          'AdaBoost', 'Adam optimization', 'Agglomerative clustering', 'ARMA / ARIMA',
-          'Generative adversarial network', 'Transformer', 'Bayesian network',
-          'Capsule network', 'Convolutional neural network', 'Decision tree',
-          'Deep boltzmann machine', 'Diffusion model', 'K-means clustering',
-          'Language model', 'Linear regression', 'Logistic regression',
-          'Long short-term memory network', 'Neural radiance field', 'Random forest',
-          'Support vector machine', 'Structured perceptron', 'Variational Autoencoders',
-        ],
+      inputDataFormat: {
+        label: 'Input data format',
+        values: ['Audio', 'Code', 'Geospatial', 'Graph', 'Tabular', 'Image', 'Text', 'Video'],
       },
-      learningParadigm: {
-        label: 'Learning paradigm',
-        values: [
-          'Active learning', 'Constitutional AI', 'Continuous learning', 'Contrastive learning',
-          'Ensemble learning', 'Federated learning', 'Fine-tuning', 'Reinforcement learning',
-          'Reinforcement learning from human feedback', 'Imitation learning',
-          'Self supervised learning', 'Self alignment', 'Supervised learning',
-          'Transfer learning', 'Unsupervised learning', 'Grounding',
-          'Retrieval augmented generation',
-        ],
-      },
-      dataSource: {
-        label: 'Data source',
-        values: [
-          'Data collected by humans', 'Data from automated sensors',
-          'Derived data', 'Observed data', 'Synthetic data',
-        ],
-      },
-      dataProperties: {
-        label: 'Data properties',
-        values: ['Personal data', 'Proprietary data', 'Public data'],
-      },
-      dataStructure: {
-        label: 'Data structure',
-        values: ['Complex data structure', 'Structured data', 'Unstructured data', 'Semi-structured data'],
-      },
-      dataType: {
-        label: 'Data type',
-        values: ['Qualitative data', 'Quantitative data'],
-      },
-      datasetSize: {
-        label: 'Dataset size',
-        values: ['Very large dataset', 'Large dataset', 'Medium dataset', 'Small dataset'],
-      },
-      dataFormat: {
-        label: 'Data format',
-        values: ['Audio', 'Code', 'Geospatial', 'Graph', 'Tabular', 'Image', 'Text', 'Video', 'Multimodal'],
+      outputDataFormat: {
+        label: 'Output data format',
+        values: ['Audio', 'Code', 'Geospatial', 'Graph', 'Tabular', 'Image', 'Text', 'Video'],
       },
     },
   },
   aiSystem: {
     label: 'AI System',
     groups: {
-      learningLocation: {
-        label: 'Learning location',
-        values: [
-          'Model trained at edge',
-          'Model trained in the cloud',
-          'Model trained in the cloud and the edge',
-        ],
-      },
       learningTime: {
         label: 'Learning time',
         values: ['Offline learning', 'Online learning'],
@@ -277,7 +233,7 @@ export interface AIModelRef {
   url: string
   name: string
   purpose: string
-  modelTypes: string[] // from model.task + model.modelArchitecture
+  modelTypes: string[] // from model.task
 }
 
 export interface DatasetRef {
@@ -306,6 +262,8 @@ export interface PackageFormData {
   datasetRefs: DatasetRef[]
   // Vendors
   vendorList: VendorRef[]
+  // Reference document URLs
+  referenceUrls: string[]
   // Compliance
   complianceTargets: string[]
   otherCompliance: string
@@ -371,16 +329,20 @@ export interface ComplianceEntry {
 }
 
 export interface FilterState {
-  useCases: string[]
   industries: string[]
+  businessFunctions: string[]
+  workflows: string[]
+  modelTasks: string[]
   certifiers: string[]
   verifiedOnly: boolean
 }
 
 export interface SearchParams {
   q?: string
-  uc?: string
   ind?: string
+  bf?: string
+  wf?: string
+  mt?: string
   cert?: string
   sort?: 'stars' | 'forks' | 'recent' | 'downloads'
   page?: string

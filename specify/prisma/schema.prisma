@@ -143,6 +143,7 @@ model Package {
   complianceTargets  String[]
   otherCompliance    String?
   isOpenSource       Boolean   @default(true)
+  referenceUrls      String[]
   publishedAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
