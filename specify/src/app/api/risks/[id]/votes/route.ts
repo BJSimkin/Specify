@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 
 // GET vote distribution + user's vote
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const session = await auth()
     const userId = (session?.user as { id?: string } | undefined)?.id
 
     const votes = await prisma.riskVote.findMany({
-      where: { riskId: params.id },
+      where: { riskId: id },
       select: { score: true, userId: true },
     })
 
@@ -40,15 +41,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       q3,
       userVote,
     })
-  } catch (err) {
-    console.error('GET /api/risks/[id]/votes error:', err)
+  } catch (err: any) {
+    console.error('GET /api/risks/[id]/votes error:', err?.message ?? err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// POST cast or update a vote
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+// POST cast a vote (one per user per risk, permanent)
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const session = await auth()
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const userId = (session.user as { id: string }).id
@@ -59,29 +61,26 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Check risk exists
-    const risk = await prisma.risk.findUnique({ where: { id: params.id } })
+    const risk = await prisma.risk.findUnique({ where: { id } })
     if (!risk) return NextResponse.json({ error: 'Risk not found' }, { status: 404 })
 
-    // Upsert vote (one per user per risk)
+    // Check already voted
     const existing = await prisma.riskVote.findUnique({
-      where: { riskId_userId: { riskId: params.id, userId } },
+      where: { riskId_userId: { riskId: id, userId } },
     })
-
     if (existing) {
-      // User already voted — do NOT allow changes
       return NextResponse.json({ error: 'You have already voted on this risk', alreadyVoted: true }, { status: 409 })
     }
 
     const vote = await prisma.riskVote.create({
-      data: { riskId: params.id, userId, score },
+      data: { riskId: id, userId, score },
     })
 
     return NextResponse.json({ vote, message: 'Vote recorded' })
   } catch (err: any) {
     console.error('POST /api/risks/[id]/votes error:', err?.message ?? err)
-    // Surface DB table-not-found as a clear message
     if (err?.code === 'P2021' || err?.message?.includes('does not exist')) {
-      return NextResponse.json({ error: 'Database tables not set up. Run supabase-migration-v6.sql first.' }, { status: 503 })
+      return NextResponse.json({ error: 'Database tables not set up — run supabase-migration-v6.sql' }, { status: 503 })
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
