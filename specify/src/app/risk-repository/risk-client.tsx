@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -38,6 +38,21 @@ interface Comment {
   body: string
   createdAt: string
   user: { id: string; name: string | null; username: string | null; image: string | null }
+}
+
+interface TopRisk {
+  id: string
+  riskNum: number
+  category: string
+  title: string
+  description: string
+  voteCount: number
+  mean: number
+  median: number
+  q1: number
+  q3: number
+  distribution: Record<string, number>
+  commentCount: number
 }
 
 interface DiffResult {
@@ -556,6 +571,117 @@ function VersionDiff({ fromId, toId }: { fromId: string; toId: string }) {
   )
 }
 
+// ─── Severity bar (mini) ──────────────────────────────────────────────────────
+function SeverityBar({ mean, q1, q3 }: { mean: number; q1: number; q3: number }) {
+  const pct = (v: number) => `${(v / 10) * 100}%`
+  const color = mean >= 7.5 ? '#EF4444' : mean >= 5 ? '#F59E0B' : '#22C55E'
+  return (
+    <div className="relative w-full h-2 bg-gray-100 rounded-full overflow-visible mt-1">
+      {/* IQR band */}
+      <div
+        className="absolute top-0 h-2 rounded-full opacity-30"
+        style={{ left: pct(q1), width: `${((q3 - q1) / 10) * 100}%`, backgroundColor: color }}
+      />
+      {/* Mean marker */}
+      <div
+        className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm -translate-y-1/2"
+        style={{ left: `calc(${pct(mean)} - 5px)`, backgroundColor: color }}
+      />
+    </div>
+  )
+}
+
+// ─── Top 10 panel ─────────────────────────────────────────────────────────────
+function Top10Panel({ versionId }: { versionId: string | null }) {
+  const [top, setTop] = useState<TopRisk[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(true)
+
+  useEffect(() => {
+    if (!versionId) return
+    setLoading(true)
+    fetch(`/api/risks/top?versionId=${versionId}&limit=10`)
+      .then((r) => r.json())
+      .then((d) => { setTop(Array.isArray(d) ? d : []); setLoading(false) })
+  }, [versionId])
+
+  if (!loading && top.length === 0) return null
+
+  return (
+    <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#EF4444">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+          </svg>
+          <span className="text-sm font-semibold text-gray-900">Top 10 highest-rated risks</span>
+          <span className="text-xs text-gray-400 ml-1">— based on community votes</span>
+        </div>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-gray-400 transition-transform"
+          style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}
+        >
+          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-gray-100">
+          {loading ? (
+            <div className="px-5 py-8 text-center text-sm text-gray-400">Loading…</div>
+          ) : (
+            top.map((risk, idx) => {
+              const col = CAT_COLORS[risk.category] ?? { bg: '#F9FAFB', text: '#374151', border: '#E5E7EB' }
+              const severity = risk.mean >= 8 ? 'Critical' : risk.mean >= 6 ? 'High' : risk.mean >= 4 ? 'Medium' : 'Low'
+              const sevColor = risk.mean >= 8 ? '#DC2626' : risk.mean >= 6 ? '#D97706' : risk.mean >= 4 ? '#CA8A04' : '#16A34A'
+              return (
+                <div key={risk.id} className="px-5 py-3 flex items-start gap-4 hover:bg-gray-50 transition-colors">
+                  {/* Rank */}
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    style={{
+                      backgroundColor: idx === 0 ? '#FEF3C7' : idx === 1 ? '#F3F4F6' : idx === 2 ? '#FEF9C3' : '#F9FAFB',
+                      color: idx === 0 ? '#92400E' : idx === 1 ? '#374151' : idx === 2 ? '#78350F' : '#6B7280',
+                    }}
+                  >
+                    {idx + 1}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                      <span
+                        className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
+                        style={{ backgroundColor: col.bg, color: col.text, borderColor: col.border }}
+                      >
+                        {risk.category}
+                      </span>
+                      <span className="text-xs font-semibold" style={{ color: sevColor }}>{severity}</span>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{risk.title}</p>
+                    <SeverityBar mean={risk.mean} q1={risk.q1} q3={risk.q3} />
+                  </div>
+
+                  {/* Score + votes */}
+                  <div className="flex-shrink-0 text-right">
+                    <div className="text-xl font-bold" style={{ color: sevColor }}>{risk.mean}</div>
+                    <div className="text-xs text-gray-400">/10</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{risk.voteCount} vote{risk.voteCount !== 1 ? 's' : ''}</div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function RiskClient() {
   const [versions, setVersions] = useState<RiskVersion[]>([])
@@ -661,6 +787,9 @@ export default function RiskClient() {
       {showDiff && prevVersion && currentVersionId && (
         <VersionDiff fromId={prevVersion.id} toId={currentVersionId} />
       )}
+
+      {/* Top 10 */}
+      <Top10Panel versionId={currentVersionId} />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5">

@@ -77,8 +77,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     })
 
     return NextResponse.json({ vote, message: 'Vote recorded' })
-  } catch (err) {
-    console.error('POST /api/risks/[id]/votes error:', err)
+  } catch (err: any) {
+    console.error('POST /api/risks/[id]/votes error:', err?.message ?? err)
+    // Surface DB table-not-found as a clear message
+    if (err?.code === 'P2021' || err?.message?.includes('does not exist')) {
+      return NextResponse.json({ error: 'Database tables not set up. Run supabase-migration-v6.sql first.' }, { status: 503 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
