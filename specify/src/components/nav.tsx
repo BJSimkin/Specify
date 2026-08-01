@@ -112,6 +112,12 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           Risk
         </Link>
         <Link
+          href="/hazards"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+        >
+          Hazards
+        </Link>
+        <Link
           href="/cards"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
@@ -122,6 +128,12 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
           Docs
+        </Link>
+        <Link
+          href="/contact"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+        >
+          Contact
         </Link>
       </div>
 

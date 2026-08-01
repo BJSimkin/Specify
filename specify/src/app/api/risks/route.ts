@@ -27,12 +27,27 @@ export async function GET(request: NextRequest) {
         orderBy: [{ category: 'asc' }, { riskNum: 'asc' }],
         include: {
           _count: { select: { votes: true, comments: true } },
+          votes: { select: { score: true } },
         },
       }),
       prisma.riskVersion.findUnique({ where: { id: resolvedVersionId } }),
     ])
 
-    return NextResponse.json({ risks, version })
+    // Compute vote averages for client-side sorting
+    const risksWithAvg = risks.map((risk) => {
+      const scores = risk.votes.map((v) => v.score)
+      const count = scores.length
+      const avg = count > 0 ? scores.reduce((s, v) => s + v, 0) / count : null
+      const { votes: _votes, ...rest } = risk
+      void _votes
+      return {
+        ...rest,
+        voteAvg: avg !== null ? Math.round(avg * 10) / 10 : null,
+        voteCount: count,
+      }
+    })
+
+    return NextResponse.json({ risks: risksWithAvg, version })
   } catch (err) {
     console.error('GET /api/risks error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

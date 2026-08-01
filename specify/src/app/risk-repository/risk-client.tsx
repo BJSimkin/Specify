@@ -21,6 +21,8 @@ interface Risk {
   description: string
   versionId: string
   _count?: { votes: number; comments: number }
+  voteAvg: number | null
+  voteCount: number
 }
 
 interface VoteData {
@@ -38,21 +40,6 @@ interface Comment {
   body: string
   createdAt: string
   user: { id: string; name: string | null; username: string | null; image: string | null }
-}
-
-interface TopRisk {
-  id: string
-  riskNum: number
-  category: string
-  title: string
-  description: string
-  voteCount: number
-  mean: number
-  median: number
-  q1: number
-  q3: number
-  distribution: Record<string, number>
-  commentCount: number
 }
 
 interface DiffResult {
@@ -76,6 +63,62 @@ const CAT_COLORS: Record<string, { bg: string; text: string; border: string }> =
 
 const CATEGORIES = Object.keys(CAT_COLORS)
 
+// ─── Benchmarks per category ───────────────────────────────────────────────────
+const CATEGORY_BENCHMARKS: Record<string, { name: string; url: string }[]> = {
+  'Harmful Knowledge & Capability Uplift': [
+    { name: 'HarmBench', url: 'https://www.harmbench.org' },
+    { name: 'WMDP', url: 'https://www.wmdp.ai' },
+    { name: 'CyberSecEval', url: 'https://github.com/meta-llama/PurpleLlama' },
+    { name: 'StrongREJECT', url: 'https://strongreject.com' },
+  ],
+  'Autonomous & Agentic Harm': [
+    { name: 'AgentBench', url: 'https://github.com/THUDM/AgentBench' },
+    { name: 'AgentHarm', url: 'https://huggingface.co/datasets/ai-safety-institute/AgentHarm' },
+    { name: 'GAIA', url: 'https://huggingface.co/spaces/gaia-benchmark/leaderboard' },
+  ],
+  'Manipulation, Deception & Societal Harm': [
+    { name: 'TruthfulQA', url: 'https://github.com/sylinrl/TruthfulQA' },
+    { name: 'SycophancyBench', url: 'https://github.com/anthropics/evals/tree/main/sycophancy' },
+    { name: 'FACTS Grounding', url: 'https://deepmind.google/research/publications/facts-grounding' },
+  ],
+  'Loss of Control & Alignment Failure': [
+    { name: 'MACHIAVELLI', url: 'https://aypan17.github.io/machiavelli' },
+    { name: 'Sandbagging Evals', url: 'https://arxiv.org/abs/2406.07358' },
+    { name: 'Specification Gaming', url: 'https://deepmind.com/research/publications/specification-gaming-list' },
+  ],
+  'Cyber Offence & Security': [
+    { name: 'CyberSecEval 2', url: 'https://ai.meta.com/research/publications/cyberseceval-2' },
+    { name: 'CTFBench', url: 'https://github.com/thu-coai/CTFBench' },
+    { name: 'InterCode', url: 'https://intercode-benchmark.github.io' },
+  ],
+  'Systemic & Civilisational Risks': [
+    { name: 'GPQA', url: 'https://github.com/idavidrein/gpqa' },
+    { name: 'MMLU-Pro', url: 'https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro' },
+  ],
+  'Content Harms': [
+    { name: 'BBQ', url: 'https://github.com/nyu-mll/BBQ' },
+    { name: 'SafetyBench', url: 'https://github.com/thu-coai/SafetyBench' },
+    { name: 'ToxiGen', url: 'https://github.com/microsoft/TOXIGEN' },
+  ],
+  'Privacy, Discrimination & Rights Violations': [
+    { name: 'WinoBias', url: 'https://uclanlp.github.io/corefBias/overview' },
+    { name: 'PrivacyLens', url: 'https://github.com/SALT-NLP/PrivacyLens' },
+    { name: 'FairBench', url: 'https://github.com/mitre/fairbench' },
+  ],
+}
+
+// ─── Hazard type sources per category (links to /hazards) ─────────────────────
+const CATEGORY_HAZARD_TYPES: Record<string, string[]> = {
+  'Harmful Knowledge & Capability Uplift': ['Exploitation attacks', 'Adversarial attacks', 'Evasion attacks'],
+  'Autonomous & Agentic Harm': ['Operational hazards', 'System complexity', 'System dependencies'],
+  'Manipulation, Deception & Societal Harm': ['Cognitive bias', 'Lack of transparency', 'Social and behavioral hazards'],
+  'Loss of Control & Alignment Failure': ['Functional insufficiencies', 'Generalisation issues', 'Epistemic uncertainty'],
+  'Cyber Offence & Security': ['Adversarial attacks', 'Exploitation attacks', 'Inference attacks', 'Poisoning attack'],
+  'Systemic & Civilisational Risks': ['System complexity', 'Resource limitations', 'Computational resource'],
+  'Content Harms': ['Unfair behaviour', 'Social and behavioral hazards', 'User experience'],
+  'Privacy, Discrimination & Rights Violations': ['Privacy violation', 'Inference attacks', 'Unfair behaviour', 'Data quality issues'],
+}
+
 // ─── Distribution Chart (SVG) ──────────────────────────────────────────────────
 function DistributionChart({ data }: { data: VoteData }) {
   const W = 260, H = 90, PAD_L = 20, PAD_R = 8, PAD_T = 8, PAD_B = 24
@@ -92,20 +135,14 @@ function DistributionChart({ data }: { data: VoteData }) {
     return { i, count, h, x, y }
   })
 
-  // Quartile x-positions
   const xOf = (v: number) => PAD_L + v * (chartW / 10)
 
   return (
     <svg width={W} height={H} className="overflow-visible">
-      {/* Bars */}
       {bars.map(({ i, h, x, y, count }) => (
         <g key={i}>
           <rect
-            x={x + 1}
-            y={y}
-            width={barW}
-            height={Math.max(h, 1)}
-            rx={2}
+            x={x + 1} y={y} width={barW} height={Math.max(h, 1)} rx={2}
             fill={i <= 3 ? '#86EFAC' : i <= 6 ? '#FCD34D' : '#FCA5A5'}
             opacity={count === 0 ? 0.25 : 0.85}
           />
@@ -114,30 +151,14 @@ function DistributionChart({ data }: { data: VoteData }) {
           )}
         </g>
       ))}
-
-      {/* Q1–Q3 box overlay */}
       {data.count > 0 && (
-        <rect
-          x={xOf(data.q1)}
-          y={PAD_T}
-          width={xOf(data.q3) - xOf(data.q1)}
-          height={chartH}
-          fill="#1E1B4B"
-          opacity={0.07}
-          rx={2}
-        />
+        <rect x={xOf(data.q1)} y={PAD_T} width={xOf(data.q3) - xOf(data.q1)} height={chartH}
+          fill="#1E1B4B" opacity={0.07} rx={2} />
       )}
-
-      {/* Median line */}
       {data.count > 0 && (
-        <line
-          x1={xOf(data.median)} y1={PAD_T - 2}
-          x2={xOf(data.median)} y2={PAD_T + chartH + 2}
-          stroke="#1E1B4B" strokeWidth={1.5} strokeDasharray="3,2"
-        />
+        <line x1={xOf(data.median)} y1={PAD_T - 2} x2={xOf(data.median)} y2={PAD_T + chartH + 2}
+          stroke="#1E1B4B" strokeWidth={1.5} strokeDasharray="3,2" />
       )}
-
-      {/* Q1 / Q3 tick labels */}
       {data.count > 0 && (
         <>
           <text x={xOf(data.q1)} y={H - 2} textAnchor="middle" fontSize={8} fill="#6B7280">Q1={data.q1}</text>
@@ -145,8 +166,6 @@ function DistributionChart({ data }: { data: VoteData }) {
           <text x={xOf(data.q3)} y={H - 2} textAnchor="middle" fontSize={8} fill="#6B7280">Q3={data.q3}</text>
         </>
       )}
-
-      {/* X-axis labels 0 and 10 */}
       <text x={PAD_L} y={H} textAnchor="middle" fontSize={8} fill="#9CA3AF">0</text>
       <text x={W - PAD_R} y={H} textAnchor="middle" fontSize={8} fill="#9CA3AF">10</text>
     </svg>
@@ -171,8 +190,7 @@ function VotingWidget({ riskId, onVoted }: { riskId: string; onVoted?: () => voi
   async function castVote(score: number) {
     if (!session) { setMessage('Sign in to vote'); return }
     if (voteData?.userVote !== null && voteData?.userVote !== undefined) return
-    setSubmitting(true)
-    setMessage(null)
+    setSubmitting(true); setMessage(null)
     try {
       const res = await fetch(`/api/risks/${riskId}/votes`, {
         method: 'POST',
@@ -195,18 +213,27 @@ function VotingWidget({ riskId, onVoted }: { riskId: string; onVoted?: () => voi
 
   return (
     <div className="space-y-3">
-      {/* Chart */}
-      {!isLoading && (
+      {/* Chart — only shown after user has voted to prevent anchoring bias */}
+      {!isLoading && hasVoted && (
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Risk severity distribution</span>
-            <span className="text-xs text-gray-400">{voteData!.count} vote{voteData!.count !== 1 ? 's' : ''}{voteData!.count > 0 ? ` · avg ${voteData!.mean}` : ''}</span>
+            <span className="text-xs text-gray-400">
+              {voteData!.count} vote{voteData!.count !== 1 ? 's' : ''}{voteData!.count > 0 ? ` · avg ${voteData!.mean}` : ''}
+            </span>
           </div>
           {voteData!.count === 0 ? (
             <div className="text-xs text-gray-400 italic py-2">No votes yet — be the first to rate this risk.</div>
           ) : (
             <DistributionChart data={voteData!} />
           )}
+        </div>
+      )}
+
+      {/* Pre-vote nudge */}
+      {!isLoading && !hasVoted && (
+        <div className="text-xs text-gray-400 italic px-1">
+          Cast your vote below to reveal how the community has rated this risk.
         </div>
       )}
 
@@ -294,7 +321,6 @@ function CommentsSection({ riskId }: { riskId: string }) {
   return (
     <div className="mt-5 border-t border-gray-100 pt-4 space-y-4">
       <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Comments ({comments.length})</h4>
-
       {comments.length === 0 && <p className="text-xs text-gray-400 italic">No comments yet.</p>}
       <div className="space-y-3 max-h-64 overflow-y-auto">
         {comments.map((c) => (
@@ -316,7 +342,6 @@ function CommentsSection({ riskId }: { riskId: string }) {
           </div>
         ))}
       </div>
-
       {session ? (
         <div className="flex gap-2 pt-1">
           <textarea
@@ -343,10 +368,73 @@ function CommentsSection({ riskId }: { riskId: string }) {
   )
 }
 
+// ─── Benchmarks section ────────────────────────────────────────────────────────
+function BenchmarksSection({ category }: { category: string }) {
+  const benchmarks = CATEGORY_BENCHMARKS[category] ?? []
+  if (benchmarks.length === 0) return null
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Evaluation benchmarks</h4>
+      <div className="flex flex-wrap gap-2">
+        {benchmarks.map((b) => (
+          <a
+            key={b.name}
+            href={b.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all hover:border-indigo-400 hover:bg-indigo-50"
+            style={{ borderColor: '#E5E7EB', color: '#374151', backgroundColor: 'white' }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-indigo-400 flex-shrink-0">
+              <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+            </svg>
+            {b.name}
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Hazard sources section ────────────────────────────────────────────────────
+function HazardSourcesSection({ category }: { category: string }) {
+  const types = CATEGORY_HAZARD_TYPES[category] ?? []
+  if (types.length === 0) return null
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Hazard sources</h4>
+      <p className="text-xs text-gray-400 mb-2">
+        View the underlying hazard types and their control mappings.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {types.map((type) => (
+          <a
+            key={type}
+            href={`/hazards`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all hover:border-red-300 hover:bg-red-50"
+            style={{ borderColor: '#FCA5A5', color: '#991B1B', backgroundColor: '#FEF2F2' }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+            {type}
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Risk Row ──────────────────────────────────────────────────────────────────
-function RiskRow({ risk }: { risk: Risk }) {
+function RiskRow({ risk, rank }: { risk: Risk; rank?: number }) {
   const [expanded, setExpanded] = useState(false)
   const col = CAT_COLORS[risk.category] ?? { bg: '#F9FAFB', text: '#374151', border: '#E5E7EB' }
+  const hasScore = risk.voteAvg !== null && risk.voteCount > 0
+  const scoreColor = hasScore
+    ? risk.voteAvg! >= 7.5 ? '#DC2626' : risk.voteAvg! >= 5 ? '#D97706' : '#16A34A'
+    : '#9CA3AF'
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden mb-2">
@@ -355,7 +443,17 @@ function RiskRow({ risk }: { risk: Risk }) {
         onClick={() => setExpanded((e) => !e)}
         className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
       >
-        <span className="text-xs font-mono text-gray-400 mt-0.5 w-8 flex-shrink-0">#{risk.riskNum}</span>
+        {/* Rank / risk number */}
+        <div className="flex flex-col items-center flex-shrink-0 mt-0.5 w-8">
+          {rank !== undefined ? (
+            <span className="text-xs font-bold" style={{ color: rank === 0 ? '#92400E' : rank === 1 ? '#374151' : rank === 2 ? '#78350F' : '#9CA3AF' }}>
+              #{rank + 1}
+            </span>
+          ) : (
+            <span className="text-xs font-mono text-gray-400">#{risk.riskNum}</span>
+          )}
+        </div>
+
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span
@@ -366,13 +464,22 @@ function RiskRow({ risk }: { risk: Risk }) {
             </span>
           </div>
           <p className="text-sm font-semibold text-gray-900">{risk.title}</p>
-          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{risk.description}</p>
         </div>
+
+        {/* Score + vote info */}
         <div className="flex items-center gap-3 ml-2 flex-shrink-0">
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
-            {risk._count?.votes ?? 0}
-          </span>
+          {hasScore ? (
+            <div className="text-right">
+              <span className="text-base font-bold" style={{ color: scoreColor }}>{risk.voteAvg}</span>
+              <span className="text-xs text-gray-400">/10</span>
+              <div className="text-xs text-gray-400">{risk.voteCount}v</div>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
+              {risk._count?.votes ?? 0}
+            </span>
+          )}
           <span className="text-xs text-gray-400 flex items-center gap-1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z" /></svg>
             {risk._count?.comments ?? 0}
@@ -389,8 +496,17 @@ function RiskRow({ risk }: { risk: Risk }) {
 
       {/* Expanded panel */}
       {expanded && (
-        <div className="px-4 pb-4 border-t border-gray-100 bg-white">
+        <div className="px-4 pb-5 border-t border-gray-100 bg-white">
+          {/* Risk description — only shown here, not in collapsed header */}
           <p className="text-sm text-gray-700 mt-4 leading-relaxed">{risk.description}</p>
+
+          {/* Hazard sources */}
+          <HazardSourcesSection category={risk.category} />
+
+          {/* Benchmarks */}
+          <BenchmarksSection category={risk.category} />
+
+          {/* Voting + Comments */}
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <VotingWidget riskId={risk.id} />
             <CommentsSection riskId={risk.id} />
@@ -434,10 +550,9 @@ function SubmitRiskForm() {
       {result && (
         <div
           className="mb-4 px-4 py-3 rounded-lg text-sm font-medium border"
-          style={
-            result.success
-              ? { backgroundColor: '#F0FDF4', borderColor: '#86EFAC', color: '#166534' }
-              : { backgroundColor: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B' }
+          style={result.success
+            ? { backgroundColor: '#F0FDF4', borderColor: '#86EFAC', color: '#166534' }
+            : { backgroundColor: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B' }
           }
         >
           {result.message}
@@ -460,19 +575,16 @@ function SubmitRiskForm() {
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Risk title *</label>
           <input
-            type="text"
-            value={form.title}
+            type="text" value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="e.g. Adversarial fine-tuning attacks"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
             required minLength={5}
           />
         </div>
-
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Description *</label>
           <textarea
@@ -484,10 +596,8 @@ function SubmitRiskForm() {
             required minLength={20}
           />
         </div>
-
         <button
-          type="submit"
-          disabled={submitting}
+          type="submit" disabled={submitting}
           className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
           style={{ backgroundColor: '#1E1B4B', color: 'white' }}
         >
@@ -522,7 +632,6 @@ function VersionDiff({ fromId, toId }: { fromId: string; toId: string }) {
         <span className="text-amber-600 font-medium">~{diff.modified.length} modified</span>
         <span className="text-gray-400">{diff.unchanged} unchanged</span>
       </div>
-
       {diff.added.length > 0 && (
         <div className="mb-3">
           <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Added</p>
@@ -535,7 +644,6 @@ function VersionDiff({ fromId, toId }: { fromId: string; toId: string }) {
           </div>
         </div>
       )}
-
       {diff.removed.length > 0 && (
         <div className="mb-3">
           <p className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2">Removed</p>
@@ -548,7 +656,6 @@ function VersionDiff({ fromId, toId }: { fromId: string; toId: string }) {
           </div>
         </div>
       )}
-
       {diff.modified.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Modified</p>
@@ -571,117 +678,6 @@ function VersionDiff({ fromId, toId }: { fromId: string; toId: string }) {
   )
 }
 
-// ─── Severity bar (mini) ──────────────────────────────────────────────────────
-function SeverityBar({ mean, q1, q3 }: { mean: number; q1: number; q3: number }) {
-  const pct = (v: number) => `${(v / 10) * 100}%`
-  const color = mean >= 7.5 ? '#EF4444' : mean >= 5 ? '#F59E0B' : '#22C55E'
-  return (
-    <div className="relative w-full h-2 bg-gray-100 rounded-full overflow-visible mt-1">
-      {/* IQR band */}
-      <div
-        className="absolute top-0 h-2 rounded-full opacity-30"
-        style={{ left: pct(q1), width: `${((q3 - q1) / 10) * 100}%`, backgroundColor: color }}
-      />
-      {/* Mean marker */}
-      <div
-        className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm -translate-y-1/2"
-        style={{ left: `calc(${pct(mean)} - 5px)`, backgroundColor: color }}
-      />
-    </div>
-  )
-}
-
-// ─── Top 10 panel ─────────────────────────────────────────────────────────────
-function Top10Panel({ versionId }: { versionId: string | null }) {
-  const [top, setTop] = useState<TopRisk[]>([])
-  const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(true)
-
-  useEffect(() => {
-    if (!versionId) return
-    setLoading(true)
-    fetch(`/api/risks/top?versionId=${versionId}&limit=10`)
-      .then((r) => r.json())
-      .then((d) => { setTop(Array.isArray(d) ? d : []); setLoading(false) })
-  }, [versionId])
-
-  if (!loading && top.length === 0) return null
-
-  return (
-    <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#EF4444">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-          </svg>
-          <span className="text-sm font-semibold text-gray-900">Top 10 highest-rated risks</span>
-          <span className="text-xs text-gray-400 ml-1">— based on community votes</span>
-        </div>
-        <svg
-          width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-gray-400 transition-transform"
-          style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}
-        >
-          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-        </svg>
-      </button>
-
-      {expanded && (
-        <div className="divide-y divide-gray-100">
-          {loading ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-400">Loading…</div>
-          ) : (
-            top.map((risk, idx) => {
-              const col = CAT_COLORS[risk.category] ?? { bg: '#F9FAFB', text: '#374151', border: '#E5E7EB' }
-              const severity = risk.mean >= 8 ? 'Critical' : risk.mean >= 6 ? 'High' : risk.mean >= 4 ? 'Medium' : 'Low'
-              const sevColor = risk.mean >= 8 ? '#DC2626' : risk.mean >= 6 ? '#D97706' : risk.mean >= 4 ? '#CA8A04' : '#16A34A'
-              return (
-                <div key={risk.id} className="px-5 py-3 flex items-start gap-4 hover:bg-gray-50 transition-colors">
-                  {/* Rank */}
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                    style={{
-                      backgroundColor: idx === 0 ? '#FEF3C7' : idx === 1 ? '#F3F4F6' : idx === 2 ? '#FEF9C3' : '#F9FAFB',
-                      color: idx === 0 ? '#92400E' : idx === 1 ? '#374151' : idx === 2 ? '#78350F' : '#6B7280',
-                    }}
-                  >
-                    {idx + 1}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                      <span
-                        className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-                        style={{ backgroundColor: col.bg, color: col.text, borderColor: col.border }}
-                      >
-                        {risk.category}
-                      </span>
-                      <span className="text-xs font-semibold" style={{ color: sevColor }}>{severity}</span>
-                    </div>
-                    <p className="text-sm font-semibold text-gray-900 truncate">{risk.title}</p>
-                    <SeverityBar mean={risk.mean} q1={risk.q1} q3={risk.q3} />
-                  </div>
-
-                  {/* Score + votes */}
-                  <div className="flex-shrink-0 text-right">
-                    <div className="text-xl font-bold" style={{ color: sevColor }}>{risk.mean}</div>
-                    <div className="text-xs text-gray-400">/10</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{risk.voteCount} vote{risk.voteCount !== 1 ? 's' : ''}</div>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function RiskClient() {
   const [versions, setVersions] = useState<RiskVersion[]>([])
@@ -690,9 +686,11 @@ export default function RiskClient() {
   const [showDiff, setShowDiff] = useState(false)
   const [risks, setRisks] = useState<Risk[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])  // empty = all
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'risks' | 'submit'>('risks')
+
+  void compareVersionId
 
   // Load versions
   useEffect(() => {
@@ -711,8 +709,16 @@ export default function RiskClient() {
       .then(({ risks }) => { setRisks(risks ?? []); setLoading(false) })
   }, [currentVersionId])
 
-  // Filtered risks
-  const filtered = risks.filter((r) => {
+  // Sort by community vote average (high → low); unvoted risks go to bottom
+  const sortedRisks = [...risks].sort((a, b) => {
+    if (a.voteAvg === null && b.voteAvg === null) return 0
+    if (a.voteAvg === null) return 1
+    if (b.voteAvg === null) return -1
+    return b.voteAvg - a.voteAvg
+  })
+
+  // Apply filters
+  const filtered = sortedRisks.filter((r) => {
     const matchCat = selectedCategories.length === 0 || selectedCategories.includes(r.category)
     const q = search.toLowerCase()
     const matchSearch = !q || r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)
@@ -730,24 +736,32 @@ export default function RiskClient() {
     ? versions[versions.findIndex((v) => v.id === currentVersionId) - 1]
     : undefined
 
-  // Category counts for current filtered set (before category filter)
   const catCounts: Record<string, number> = {}
   for (const r of risks) catCounts[r.category] = (catCounts[r.category] ?? 0) + 1
+
+  const votedRisks = risks.filter((r) => r.voteAvg !== null).length
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
+          <div className="flex-1 min-w-0 max-w-3xl">
             <h1 className="text-2xl font-bold" style={{ color: '#1E1B4B' }}>Risk Repository</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Community-maintained catalogue of AI system risks. Rate severity, comment, and propose new risks.
+            <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+              A community-maintained catalogue of AI system risks, organised across eight harm categories. Each risk is independently rated by the community on a <strong>0–10 severity scale</strong>, where 0 represents negligible impact and 10 represents catastrophic, potentially irreversible harm.
             </p>
+            <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+              <strong>How severity is calculated:</strong> Community members rate each risk after reviewing its definition — voting is blinded so that individual judgements remain independent. The aggregate score uses the arithmetic mean of all submitted votes. The distribution chart (visible after you vote) shows the full spread with interquartile range and median, giving a richer picture than a single number. Risks are ordered by descending average score so the most severe concerns surface first.
+            </p>
+            <div className="flex gap-4 mt-3 text-xs text-gray-400">
+              <span><strong className="text-gray-700">{risks.length}</strong> risks tracked</span>
+              <span><strong className="text-gray-700">{votedRisks}</strong> with community ratings</span>
+            </div>
           </div>
 
           {/* Version selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Version</label>
             <select
               value={currentVersionId ?? ''}
@@ -775,7 +789,6 @@ export default function RiskClient() {
           </div>
         </div>
 
-        {/* Version notes */}
         {currentVersion?.notes && (
           <div className="mt-3 px-4 py-2.5 rounded-lg text-sm text-gray-600 border border-gray-200 bg-gray-50">
             {currentVersion.notes}
@@ -787,9 +800,6 @@ export default function RiskClient() {
       {showDiff && prevVersion && currentVersionId && (
         <VersionDiff fromId={prevVersion.id} toId={currentVersionId} />
       )}
-
-      {/* Top 10 */}
-      <Top10Panel versionId={currentVersionId} />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5">
@@ -822,7 +832,6 @@ export default function RiskClient() {
           {/* Sidebar filters */}
           <div className="w-56 flex-shrink-0">
             <div className="sticky top-16">
-              {/* Search */}
               <div className="mb-4">
                 <input
                   type="text"
@@ -842,7 +851,6 @@ export default function RiskClient() {
                 )}
               </div>
 
-              {/* Select all */}
               <label className="flex items-center gap-2 cursor-pointer mb-1">
                 <div
                   onClick={() => setSelectedCategories([])}
@@ -912,8 +920,9 @@ export default function RiskClient() {
                 <p className="text-xs text-gray-400 mb-3">
                   Showing <span className="font-semibold text-gray-700">{filtered.length}</span> of {risks.length} risks
                   {search && <> matching &ldquo;<span className="text-indigo-600">{search}</span>&rdquo;</>}
+                  {votedRisks > 0 && <span className="ml-1">· sorted by community severity rating</span>}
                 </p>
-                {filtered.map((r) => <RiskRow key={r.id} risk={r} />)}
+                {filtered.map((r, idx) => <RiskRow key={r.id} risk={r} rank={idx} />)}
               </div>
             )}
           </div>
