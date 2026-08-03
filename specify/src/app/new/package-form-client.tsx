@@ -6,6 +6,7 @@ import { RequirementEditor } from '@/components/requirement-editor'
 import { DepGraph } from '@/components/dep-graph'
 import type { PackageFormData, RequirementFormData, AIModelRef, DatasetRef, VendorRef, TaxonomyData } from '@/types'
 import { TAXONOMY, COMPLIANCE_OPTIONS, LICENSES } from '@/types'
+import { ARTICLES, REGULATIONS } from '@/lib/regulatory-data'
 
 // ─── Contributor types ─────────────────────────────────────────────────────────
 interface UserResult {
@@ -491,7 +492,7 @@ export default function PackageFormClient({
   const [contributors, setContributors] = useState<UserResult[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeSection, setActiveSection] = useState<'metadata' | 'taxonomy' | 'models' | 'requirements' | 'claims'>('metadata')
+  const [activeSection, setActiveSection] = useState<'metadata' | 'taxonomy' | 'models' | 'claims'>('metadata')
   const [claims, setClaims] = useState<ClaimDraft[]>([])
   const [activeClaim, setActiveClaim] = useState<string | null>(null)
 
@@ -647,7 +648,6 @@ export default function PackageFormClient({
     { id: 'metadata', label: 'Metadata' },
     { id: 'taxonomy', label: 'Classification' },
     { id: 'models', label: 'Models & Data' },
-    { id: 'requirements', label: `Requirements (${form.requirements.length})` },
     { id: 'claims', label: `Claims & Evidence (${claims.length})` },
   ] as const
 
@@ -1044,23 +1044,6 @@ export default function PackageFormClient({
         </div>
       )}
 
-      {/* ── Requirements ── */}
-      {activeSection === 'requirements' && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Requirements</h2>
-            <RequirementEditor
-              requirements={form.requirements}
-              onChange={(reqs: RequirementFormData[]) => updateField('requirements', reqs)}
-            />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Dependency graph</h2>
-            <DepGraph requirements={form.requirements} />
-          </div>
-        </div>
-      )}
-
       {/* ── Claims & Evidence (GSN) ── */}
       {activeSection === 'claims' && (
         <div className="flex gap-6">
@@ -1201,23 +1184,38 @@ export default function PackageFormClient({
                           </div>
                           {claim.obligations.map((obl) => (
                             <div key={obl.id} className="border border-amber-200 rounded-lg p-3 space-y-2 mb-2" style={{ backgroundColor: '#FFFBEB' }}>
-                              <div className="flex gap-2">
-                                <input
-                                  type="text" value={obl.source}
-                                  onChange={(e) => updateObligation(claim.id, obl.id, { source: e.target.value })}
-                                  placeholder="Source (e.g. EU AI Act Article 9)"
+                              <div className="flex gap-2 items-start">
+                                <select
+                                  value={obl.source}
+                                  onChange={(e) => {
+                                    const article = ARTICLES.find(a => a.number === e.target.value)
+                                    const reg = article ? REGULATIONS.find(r => r.id === article.regulationId) : null
+                                    updateObligation(claim.id, obl.id, {
+                                      source: e.target.value,
+                                      text: article ? `${reg?.shortName ?? ''} ${article.number} — ${article.title}: ${article.summary}` : '',
+                                    })
+                                  }}
                                   className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white"
-                                />
+                                >
+                                  <option value="">Select a legal obligation…</option>
+                                  {REGULATIONS.map(reg => (
+                                    <optgroup key={reg.id} label={reg.shortName}>
+                                      {ARTICLES.filter(a => a.regulationId === reg.id).map(a => (
+                                        <option key={a.id} value={a.number}>{a.number} — {a.title}</option>
+                                      ))}
+                                    </optgroup>
+                                  ))}
+                                </select>
                                 <button
                                   type="button"
                                   onClick={() => removeObligation(claim.id, obl.id)}
-                                  className="text-xs text-red-400 hover:text-red-600"
+                                  className="text-xs text-red-400 hover:text-red-600 mt-1.5"
                                 >Remove</button>
                               </div>
                               <textarea
                                 value={obl.text}
                                 onChange={(e) => updateObligation(claim.id, obl.id, { text: e.target.value })}
-                                placeholder="Obligation text or summary"
+                                placeholder="Obligation text or summary (auto-filled from selection above)"
                                 rows={2}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs resize-none focus:outline-none focus:border-amber-400 bg-white"
                               />

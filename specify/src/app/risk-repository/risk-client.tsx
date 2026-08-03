@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import HazardsClient from '../hazards/hazards-client'
 import { KnowledgeGraph } from './knowledge-graph'
+import { HAZARDS, HAZARD_CONTROLS, CONTROL_MAP } from '@/lib/hazards-data'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface RiskVersion {
@@ -210,6 +211,98 @@ const CATEGORY_HAZARD_TYPES: Record<string, string[]> = {
   'Systemic & Civilisational Risks': ['System complexity', 'Resource limitations', 'Computational resource'],
   'Content Harms': ['Unfair behaviour', 'Social and behavioral hazards', 'User experience'],
   'Privacy, Discrimination & Rights Violations': ['Privacy violation', 'Inference attacks', 'Unfair behaviour', 'Data quality issues'],
+}
+
+// ─── Hazard type definitions ───────────────────────────────────────────────────
+const HAZARD_TYPE_DEFS: Record<string, string> = {
+  'Adversarial attacks': 'Deliberate inputs crafted to deceive or destabilise an AI system, causing incorrect outputs or unexpected behaviour.',
+  'Cognitive bias': 'Systematic errors in AI reasoning or outputs that stem from biases in training data, design choices, or human-in-the-loop decisions.',
+  'Computational resource': 'Constraints or demands related to the processing power, memory, and infrastructure required to train or run an AI system.',
+  'Data quality issues': 'Problems with the data used to train or operate an AI system, including noise, errors, imbalance, or coverage gaps.',
+  'Distribution shift': 'Divergence between the data distribution seen during training and the distribution encountered during deployment, degrading performance.',
+  'Epistemic uncertainty': 'Uncertainty arising from incomplete knowledge or lack of information, affecting the reliability of model predictions.',
+  'Evasion attacks': 'Inputs designed to cause a deployed model to misclassify or produce incorrect outputs without being detected.',
+  'Exploitation attacks': 'Attacks that exploit known vulnerabilities in an AI system or its supporting infrastructure to cause harm.',
+  'Functional insufficiencies': 'Limitations in the capability or coverage of an AI system that prevent it from fulfilling its intended function reliably.',
+  'Generalisation issues': 'Failure of a model to perform well on data or tasks outside its training distribution, leading to poor real-world performance.',
+  'Hardware limitations': 'Physical constraints of compute hardware (memory, latency, throughput) that limit AI system performance or deployment options.',
+  'Inference attacks': 'Attacks that extract sensitive information about training data or model parameters by querying the model.',
+  'Insufficient knowledge': 'Cases where the AI system lacks the domain knowledge needed to respond correctly or safely.',
+  'Lack of transparency': 'Inability to explain or interpret how an AI system reached a particular output, reducing trust and auditability.',
+  'Model instability': 'Sensitivity of model outputs to small perturbations in input, leading to unpredictable or inconsistent behaviour.',
+  'Operational hazards': 'Risks arising from how an AI system is deployed and operated in real-world environments, including misuse and edge cases.',
+  'Performance insufficiency': 'Failure to meet required accuracy, speed, or reliability standards for the intended use case.',
+  'Poisoning attack': 'Injection of malicious data into training or fine-tuning pipelines to manipulate model behaviour at inference time.',
+  'Privacy violation': 'Unauthorised disclosure or inference of personally identifiable or sensitive information from model outputs or training data.',
+  'Resource limitations': 'Constraints on available data, compute, time, or expertise that limit the quality or safety of an AI system.',
+  'Social and behavioral hazards': 'Risks arising from AI system influence on human behaviour, social norms, or interpersonal dynamics.',
+  'System complexity': 'Risks that emerge from the interactions between many components in a large AI system, making behaviour hard to predict.',
+  'System dependencies': 'Risks arising from reliance on external services, libraries, APIs, or data pipelines that may fail or change.',
+  'Unfair behaviour': 'Outputs that systematically disadvantage certain groups due to biases in training data or model design.',
+  'User experience': 'Risks arising from poor usability, unclear interfaces, or misalignment between AI outputs and user expectations.',
+}
+
+const CONCEPT_DEFS: Record<string, string> = {
+  'Access control': 'Mechanisms that restrict who can interact with an AI system or its underlying data and infrastructure.',
+  'Adversarial robustness': 'The ability of a model to maintain correct behaviour when inputs are intentionally perturbed to cause errors.',
+  'Algorithm selection': 'The process of choosing appropriate machine learning algorithms for a given task and dataset.',
+  'Anomaly detection': 'Methods for identifying inputs or outputs that deviate significantly from expected patterns.',
+  'Data analysis': 'Techniques for examining datasets to extract insights, validate quality, and inform model design.',
+  'Data augmentation': 'Methods for artificially expanding training data diversity through transformations or synthetic generation.',
+  'Data collection': 'Processes for gathering data from various sources for AI system training or operation.',
+  'Data enrichment': 'Adding supplementary information to existing datasets to improve model coverage and accuracy.',
+  'Data governance': 'Policies and processes for managing data quality, lineage, access, and compliance.',
+  'Data labelling': 'The process of annotating raw data with ground-truth labels for supervised learning.',
+  'Data minimisation': 'Collecting and retaining only the minimum data necessary for the intended purpose.',
+  'Data privacy': 'Protections that prevent unauthorised access to or inference of sensitive personal information from data.',
+  'Data quality': 'Measures to ensure training and inference data is accurate, complete, consistent, and timely.',
+  'Data sampling': 'Methods for selecting representative subsets of data for training, evaluation, or analysis.',
+  'Fairness': 'Ensuring AI system outputs do not systematically disadvantage individuals based on protected characteristics.',
+  'Human machine interface': 'The design of interactions between human operators and AI systems, including dashboards and controls.',
+  'Human oversight': 'Mechanisms for humans to monitor, review, and intervene in AI system decisions.',
+  'In-use monitoring': 'Continuous observation of AI system behaviour and performance during deployment.',
+  'Interpretability': 'Methods that make AI decision-making processes understandable to humans.',
+  'Model documentation': "Structured records describing an AI model's design, training, intended use, and limitations.",
+  'Model explanations': 'Techniques that provide human-understandable reasons for individual model predictions.',
+  'Model testing': 'Evaluation of model behaviour against defined requirements before and during deployment.',
+  'Model validation': 'Formal verification that a model meets its specifications across relevant conditions.',
+  'Privacy by design': 'Embedding privacy protections into AI system architecture from the outset.',
+  'Red teaming': 'Structured adversarial testing to identify vulnerabilities and failure modes in AI systems.',
+  'Risk assessment': 'Systematic evaluation of potential harms, their likelihood, and severity across the AI lifecycle.',
+  'Secure coding': 'Development practices that minimise security vulnerabilities in AI system software.',
+  'Security testing': 'Evaluation of AI system resistance to attacks, misuse, and unauthorised access.',
+  'Supply chain security': 'Measures to ensure the integrity and safety of third-party components used in AI systems.',
+  'Transparency': 'Providing clear information about AI system capabilities, limitations, and decision-making processes.',
+  'User training': 'Education and guidance for users on safe and effective interaction with AI systems.',
+  'Workload scheduling': 'Management of computational tasks to optimise resource use and system performance.',
+}
+
+const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  'Adversarial attacks':           { bg: '#FEE2E2', text: '#991B1B', border: '#FCA5A5' },
+  'Cognitive bias':                { bg: '#FEF3C7', text: '#92400E', border: '#FCD34D' },
+  'Computational resource':        { bg: '#EDE9FE', text: '#5B21B6', border: '#C4B5FD' },
+  'Data quality issues':           { bg: '#FFF7ED', text: '#9A3412', border: '#FDBA74' },
+  'Distribution shift':            { bg: '#F0FDF4', text: '#166534', border: '#86EFAC' },
+  'Epistemic uncertainty':         { bg: '#EFF6FF', text: '#1D4ED8', border: '#93C5FD' },
+  'Evasion attacks':               { bg: '#FDF4FF', text: '#86198F', border: '#E879F9' },
+  'Exploitation attacks':          { bg: '#FFF1F2', text: '#9F1239', border: '#FDA4AF' },
+  'Functional insufficiencies':    { bg: '#F8FAFC', text: '#334155', border: '#CBD5E1' },
+  'Generalisation issues':         { bg: '#ECFDF5', text: '#065F46', border: '#6EE7B7' },
+  'Hardware limitations':          { bg: '#F1F5F9', text: '#1E293B', border: '#94A3B8' },
+  'Inference attacks':             { bg: '#FEF9C3', text: '#713F12', border: '#FDE047' },
+  'Insufficient knowledge':        { bg: '#FDF2F8', text: '#9D174D', border: '#F9A8D4' },
+  'Lack of transparency':          { bg: '#F5F3FF', text: '#4C1D95', border: '#DDD6FE' },
+  'Model instability':             { bg: '#FFF8F1', text: '#7C2D12', border: '#FED7AA' },
+  'Operational hazards':           { bg: '#F0F9FF', text: '#0C4A6E', border: '#7DD3FC' },
+  'Performance insufficiency':     { bg: '#FFFBEB', text: '#78350F', border: '#FDE68A' },
+  'Poisoning attack':              { bg: '#FEF2F2', text: '#7F1D1D', border: '#FCA5A5' },
+  'Privacy violation':             { bg: '#EFF6FF', text: '#1E3A5F', border: '#BFDBFE' },
+  'Resource limitations':          { bg: '#F3F4F6', text: '#111827', border: '#D1D5DB' },
+  'Social and behavioral hazards': { bg: '#ECFDF5', text: '#14532D', border: '#A7F3D0' },
+  'System complexity':             { bg: '#FAF5FF', text: '#581C87', border: '#D8B4FE' },
+  'System dependencies':           { bg: '#FFF7ED', text: '#7C2D12', border: '#FDBA74' },
+  'Unfair behaviour':              { bg: '#FEF3C7', text: '#78350F', border: '#FCD34D' },
+  'User experience':               { bg: '#F0FDFA', text: '#134E4A', border: '#99F6E4' },
 }
 
 // ─── Distribution Chart (SVG) ──────────────────────────────────────────────────
@@ -783,6 +876,8 @@ export default function RiskClient() {
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'risks' | 'submit' | 'hazards' | 'graph'>('risks')
+  const [selectedRisk, setSelectedRisk] = useState<Risk | null>(null)
+  const [selectedHazardTypes, setSelectedHazardTypes] = useState<string[]>([])
 
   void compareVersionId
 
@@ -810,6 +905,14 @@ export default function RiskClient() {
     if (b.voteAvg === null) return -1
     return b.voteAvg - a.voteAvg
   })
+
+  const controlConcepts = useMemo(() => {
+    if (selectedHazardTypes.length === 0) return []
+    const hazardIds = HAZARDS.filter(h => selectedHazardTypes.includes(h.type ?? '')).map(h => h.id)
+    const controlIds = new Set(hazardIds.flatMap(hId => HAZARD_CONTROLS[hId] ?? []))
+    const concepts = new Set([...controlIds].map(cId => CONTROL_MAP[cId]?.concept).filter(Boolean) as string[])
+    return [...concepts].sort()
+  }, [selectedHazardTypes])
 
   // Effective category set: union of manual picks + task-implied categories
   const taskCategories = selectedTask
@@ -954,137 +1057,164 @@ export default function RiskClient() {
       )}
 
       {activeTab === 'risks' && (
-        <div className="flex gap-6">
-          {/* Sidebar filters */}
-          <div className="w-56 flex-shrink-0">
-            <div className="sticky top-16">
-              <div className="mb-4">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search risks…"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-400"
-                />
-              </div>
-
-              {/* Model task filter */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Model task</h3>
-                  {selectedTask && (
-                    <button onClick={() => setSelectedTask(null)} className="text-xs text-indigo-600 hover:underline">Clear</button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {MODEL_TASKS.map((t) => {
-                    const active = selectedTask === t.label
-                    return (
-                      <button
-                        key={t.label}
-                        onClick={() => selectTask(t.label)}
-                        title={t.label}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border transition-colors"
-                        style={active
-                          ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
-                          : { backgroundColor: 'white', color: '#374151', borderColor: '#D1D5DB' }
+        <div className="border border-gray-200 rounded-xl overflow-hidden flex" style={{ height: '70vh', minHeight: 500 }}>
+          {/* Panel 1 — Risk tree */}
+          <div className="w-56 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
+            <div className="p-3 border-b border-gray-200">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search risks…"
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-400 bg-white"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {CATEGORIES.map(cat => {
+                const q = search.toLowerCase()
+                const catRisks = sortedRisks.filter(r =>
+                  r.category === cat &&
+                  (!q || r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q))
+                )
+                return (
+                  <div key={cat}>
+                    <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-100 border-b border-gray-200 flex items-center justify-between">
+                      <span className="truncate">{cat.split(' ').slice(0, 2).join(' ')}</span>
+                      <span className="ml-1 text-gray-400 flex-shrink-0">({catCounts[cat] ?? 0})</span>
+                    </div>
+                    {catRisks.map(risk => (
+                      <div
+                        key={risk.id}
+                        onClick={() => { setSelectedRisk(risk); setSelectedHazardTypes([]) }}
+                        className="px-3 py-2 cursor-pointer border-b border-gray-100 hover:bg-white transition-colors"
+                        style={selectedRisk?.id === risk.id
+                          ? { backgroundColor: '#EEF2FF', borderLeft: '2px solid #4338CA' }
+                          : { borderLeft: '2px solid transparent' }
                         }
                       >
-                        <span>{t.emoji}</span>
-                        <span className="truncate max-w-[80px]">{t.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                {selectedTask && (
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    Showing risks relevant to <strong className="text-gray-600">{selectedTask}</strong>
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</h3>
-                {selectedCategories.length > 0 && (
-                  <button onClick={() => setSelectedCategories([])} className="text-xs text-indigo-600 hover:underline">
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer mb-1">
-                <div
-                  onClick={() => { setSelectedCategories([]); setSelectedTask(null) }}
-                  className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer"
-                  style={{
-                    backgroundColor: selectedCategories.length === 0 && !selectedTask ? '#1E1B4B' : 'white',
-                    borderColor: selectedCategories.length === 0 && !selectedTask ? '#1E1B4B' : '#D1D5DB',
-                  }}
-                >
-                  {selectedCategories.length === 0 && !selectedTask && (
-                    <svg width="10" height="10" viewBox="0 0 12 12" fill="white">
-                      <path d="M1.5 6l3 3 6-6" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className="text-sm text-gray-700">All categories</span>
-                <span className="ml-auto text-xs text-gray-400">{risks.length}</span>
-              </label>
-
-              <div className="space-y-0.5 mt-1">
-                {CATEGORIES.map((cat) => {
-                  const count = catCounts[cat] ?? 0
-                  const manualChecked = selectedCategories.includes(cat)
-                  const taskImplied = selectedTask && taskCategories.includes(cat) && selectedCategories.length === 0
-                  const checked = manualChecked || !!taskImplied
-                  return (
-                    <label key={cat} className="flex items-start gap-2 cursor-pointer group py-0.5">
-                      <div
-                        onClick={() => { toggleCategory(cat); setSelectedTask(null) }}
-                        className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: checked ? (taskImplied ? '#6366F1' : '#1E1B4B') : 'white',
-                          borderColor: checked ? (taskImplied ? '#6366F1' : '#1E1B4B') : '#D1D5DB',
-                        }}
-                      >
-                        {checked && (
-                          <svg width="10" height="10" viewBox="0 0 12 12" fill="white">
-                            <path d="M1.5 6l3 3 6-6" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-mono text-gray-400">R-{String(risk.riskNum).padStart(3, '0')}</span>
+                          {risk.voteAvg !== null && (
+                            <span className="ml-auto text-xs font-bold" style={{ color: risk.voteAvg >= 7 ? '#991B1B' : risk.voteAvg >= 4 ? '#92400E' : '#166534' }}>
+                              {risk.voteAvg.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-700 mt-0.5 leading-snug line-clamp-2">{risk.title}</p>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs text-gray-700 leading-tight block">{cat}</span>
-                      </div>
-                      <span className="text-xs text-gray-400 flex-shrink-0">{count}</span>
-                    </label>
-                  )
-                })}
-              </div>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
-          {/* Risk list */}
-          <div className="flex-1 min-w-0">
-            {loading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
-                ))}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <p className="text-lg font-semibold text-gray-600 mb-1">No risks found</p>
-                <p className="text-sm">Try adjusting your filters or search query.</p>
+          {/* Panel 2 — Risk detail + hazard types */}
+          <div className="w-80 flex-shrink-0 border-r border-gray-200 overflow-y-auto">
+            {selectedRisk ? (
+              <div className="p-4 space-y-4">
+                <div>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium border"
+                    style={CAT_COLORS[selectedRisk.category] ?? { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}
+                  >
+                    {selectedRisk.category}
+                  </span>
+                  <h3 className="text-sm font-bold text-gray-900 mt-2">{selectedRisk.title}</h3>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{selectedRisk.description}</p>
+                </div>
+                <VotingWidget riskId={selectedRisk.id} />
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Linked hazard types</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(CATEGORY_HAZARD_TYPES[selectedRisk.category] ?? []).map(type => {
+                      const active = selectedHazardTypes.includes(type)
+                      const colors = TYPE_COLORS[type] ?? { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' }
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => setSelectedHazardTypes(prev => active ? prev.filter(t => t !== type) : [...prev, type])}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all"
+                          style={active
+                            ? { backgroundColor: colors.bg, color: colors.text, borderColor: colors.border, boxShadow: '0 0 0 1.5px ' + colors.border }
+                            : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+                          }
+                        >
+                          {type}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {selectedHazardTypes.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-2">See definitions and controls →</p>
+                  )}
+                </div>
               </div>
             ) : (
-              <div>
-                <p className="text-xs text-gray-400 mb-3">
-                  Showing <span className="font-semibold text-gray-700">{filtered.length}</span> of {risks.length} risks
-                  {search && <> matching &ldquo;<span className="text-indigo-600">{search}</span>&rdquo;</>}
-                  {votedRisks > 0 && <span className="ml-1">· sorted by community severity rating</span>}
-                </p>
-                {filtered.map((r, idx) => <RiskRow key={r.id} risk={r} rank={idx} />)}
+              <div className="h-full flex items-center justify-center p-6">
+                <p className="text-xs text-gray-400 text-center">Select a risk from the list to explore linked hazard types</p>
+              </div>
+            )}
+          </div>
+
+          {/* Panel 3 — Hazard definitions */}
+          <div className="flex-1 min-w-[280px] border-r border-gray-200 overflow-y-auto">
+            <div className="sticky top-0 px-4 py-2 bg-white border-b border-gray-200 z-10">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Hazard Definitions{selectedHazardTypes.length > 0 && <span> ({selectedHazardTypes.length})</span>}
+              </p>
+            </div>
+            {selectedHazardTypes.length > 0 ? (
+              <div className="p-4 space-y-3">
+                {selectedHazardTypes.map(type => {
+                  const colors = TYPE_COLORS[type] ?? { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' }
+                  return (
+                    <div key={type} className="rounded-xl border p-3" style={{ backgroundColor: colors.bg, borderColor: colors.border }}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold" style={{ color: colors.text }}>{type}</span>
+                        <button
+                          onClick={() => setSelectedHazardTypes(prev => prev.filter(t => t !== type))}
+                          className="text-xs opacity-50 hover:opacity-100"
+                          style={{ color: colors.text }}
+                        >
+                          × Remove
+                        </button>
+                      </div>
+                      <p className="text-xs leading-relaxed" style={{ color: colors.text, opacity: 0.85 }}>
+                        {HAZARD_TYPE_DEFS[type] ?? 'No definition available.'}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center p-6">
+                <p className="text-xs text-gray-400 text-center">Select hazard types from the middle panel to see their definitions here</p>
+              </div>
+            )}
+          </div>
+
+          {/* Panel 4 — Control concepts */}
+          <div className="w-72 flex-shrink-0 overflow-y-auto">
+            <div className="sticky top-0 px-4 py-2 bg-white border-b border-gray-200 z-10">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Controls{controlConcepts.length > 0 && <span> ({controlConcepts.length})</span>}
+              </p>
+            </div>
+            {controlConcepts.length > 0 ? (
+              <div className="p-4 space-y-2">
+                {controlConcepts.map(concept => (
+                  <div key={concept} className="rounded-lg border border-green-200 p-3" style={{ backgroundColor: '#F0FDF4' }}>
+                    <p className="text-xs font-semibold text-green-900">{concept}</p>
+                    {CONCEPT_DEFS[concept] && (
+                      <p className="text-xs text-green-700 mt-1 leading-relaxed opacity-80">{CONCEPT_DEFS[concept]}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center p-6">
+                <p className="text-xs text-gray-400 text-center">Controls appear when hazard types are selected</p>
               </div>
             )}
           </div>
