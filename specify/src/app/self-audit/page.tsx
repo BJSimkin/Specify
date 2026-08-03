@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import SelfAuditClient from './self-audit-client'
 
 export const metadata = {
@@ -6,5 +7,9 @@ export const metadata = {
 }
 
 export default function SelfAuditPage() {
-  return <SelfAuditClient />
+  return (
+    <Suspense>
+      <SelfAuditClient />
+    </Suspense>
+  )
 }

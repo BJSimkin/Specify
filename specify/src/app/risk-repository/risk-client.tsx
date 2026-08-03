@@ -66,6 +66,16 @@ const CAT_COLORS: Record<string, { bg: string; text: string; border: string }> =
 
 const CATEGORIES = Object.keys(CAT_COLORS)
 
+// Maps risk categories → self-audit category IDs
+const RISK_TO_AUDIT_CAT: Record<string, string> = {
+  'Harmful Knowledge & Capability Uplift': 'harmful-knowledge-uplift',
+  'Autonomous & Agentic Harm':             'autonomous-harmful-action',
+  'Cyber Offence & Security':              'cyber-capability-uplift-publishing-cod',
+  'Manipulation, Deception & Societal Harm': 'manipulation-and-mass-influence-genera',
+  'Content Harms':                         'content-safety-harmful-content',
+  'Privacy, Discrimination & Rights Violations': 'privacy-violation-revealing-personal-i',
+}
+
 // ─── Benchmarks per category ───────────────────────────────────────────────────
 const CATEGORY_BENCHMARKS: Record<string, { name: string; url: string }[]> = {
   'Harmful Knowledge & Capability Uplift': [
@@ -1124,6 +1134,15 @@ export default function RiskClient() {
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">{selectedRisk.description}</p>
                 </div>
                 <VotingWidget riskId={selectedRisk.id} />
+                {RISK_TO_AUDIT_CAT[selectedRisk.category] && (
+                  <a href={`/self-audit?cat=${RISK_TO_AUDIT_CAT[selectedRisk.category]}`}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                    </svg>
+                    View test cases in Self Audit
+                  </a>
+                )}
                 <div>
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Linked hazard types</p>
                   <div className="flex flex-wrap gap-1.5">

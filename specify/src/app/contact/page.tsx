@@ -4,12 +4,20 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 
 // ─── Newsletter Section ────────────────────────────────────────────────────────
+const NEWSLETTER_TOPICS = ['Risk', 'Regulatory', 'Research', 'Tooling'] as const
+type NewsletterTopic = typeof NEWSLETTER_TOPICS[number]
+
 function NewsletterSection() {
   const { data: session } = useSession()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [org, setOrg] = useState('')
+  const [topics, setTopics] = useState<NewsletterTopic[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'already' | 'error'>('idle')
+
+  function toggleTopic(t: NewsletterTopic) {
+    setTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+  }
 
   // Auto-populate from session
   useEffect(() => {
@@ -42,7 +50,7 @@ function NewsletterSection() {
       const res = await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, org }),
+        body: JSON.stringify({ email, name, org, topics }),
       })
       if (res.ok) {
         setStatus('success')
@@ -105,6 +113,24 @@ function NewsletterSection() {
                 placeholder="Company or institution (optional)"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                Topics of interest <span className="text-gray-400 normal-case font-normal">(select one or more)</span>
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {NEWSLETTER_TOPICS.map(t => (
+                  <button key={t} type="button" onClick={() => toggleTopic(t)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+                    style={topics.includes(t)
+                      ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
+                      : { backgroundColor: 'white', color: '#6B7280', borderColor: '#E5E7EB' }
+                    }
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
             {status === 'error' && (
               <p className="text-xs text-red-600">Something went wrong. Please try again.</p>

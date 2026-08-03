@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { AUDIT_CATEGORIES, type RiskCategory } from '@/lib/scenarios-data'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -215,7 +216,11 @@ function CriteriaPips({ value, color, label }: { value: number | null; color: st
   )
 }
 
-// ─── Alignment panel ─────────────────────────────────────────────────────────
+// ─── Alignment panel (compact) ───────────────────────────────────────────────
+const LEVEL_SHORT: Record<AlignmentLevel, string> = {
+  'Fully Allow': 'Allow', 'Conditional': 'Cond.', 'Restricted': 'Rest.', 'Prohibited': 'Prohib.',
+}
+
 function AlignmentPanel({ prefs, onChange }: {
   prefs: Record<string, AlignmentLevel>
   onChange: (domain: string, level: AlignmentLevel) => void
@@ -229,98 +234,70 @@ function AlignmentPanel({ prefs, onChange }: {
   }
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-base font-bold text-gray-900">Model alignment parameters</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Configure how the model should respond across different risk domains.
-            Compare your preferences to the aggregated community view.
-          </p>
+    <div className="py-3">
+      {/* Legend + save */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400">Policy:</span>
+          {ALIGNMENT_LEVELS.map(level => {
+            const col = LEVEL_COLORS[level]
+            return (
+              <span key={level} className="text-xs px-2 py-0.5 rounded-full font-semibold border"
+                style={{ backgroundColor: col.bg, color: col.text, borderColor: col.border }}>
+                {LEVEL_SHORT[level]}
+              </span>
+            )
+          })}
+          <span className="text-xs text-gray-300 ml-1">· hover domain for description · 🏘 = community majority</span>
         </div>
         <button onClick={save}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          style={{ backgroundColor: savedMsg ? '#D1FAE5' : '#1E1B4B', color: savedMsg ? '#065F46' : 'white' }}
-        >
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex-shrink-0"
+          style={{ backgroundColor: savedMsg ? '#D1FAE5' : '#1E1B4B', color: savedMsg ? '#065F46' : 'white' }}>
           {savedMsg ? '✓ Saved' : 'Save preferences'}
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <span className="text-xs text-gray-400 font-medium">Response policy:</span>
-        {ALIGNMENT_LEVELS.map(level => {
-          const col = LEVEL_COLORS[level]
-          return (
-            <span key={level} className="text-xs px-2.5 py-1 rounded-full font-semibold border"
-              style={{ backgroundColor: col.bg, color: col.text, borderColor: col.border }}>
-              {level}
-            </span>
-          )
-        })}
-      </div>
-
-      <div className="space-y-4">
+      {/* Compact grid: 2 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
         {ALIGNMENT_DOMAINS.map(domain => {
+          const myPref = prefs[domain.id] ?? 'Conditional'
           const communityData = COMMUNITY_ALIGNMENT[domain.id] ?? {}
           const totalVotes = Object.values(communityData).reduce((a, b) => a + b, 0)
-          const myPref = prefs[domain.id] ?? 'Conditional'
+          const communityTop = (Object.entries(communityData).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Conditional') as AlignmentLevel
 
           return (
-            <div key={domain.id} className="border border-gray-200 rounded-xl p-4">
-              <div className="flex items-start gap-6">
-                {/* Domain info */}
-                <div className="w-56 flex-shrink-0">
-                  <p className="text-sm font-semibold text-gray-900 leading-snug">{domain.label}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 leading-snug">{domain.desc}</p>
-                </div>
-
-                {/* My preference */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Your preference</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {ALIGNMENT_LEVELS.map(level => {
-                      const col = LEVEL_COLORS[level]
-                      const active = myPref === level
-                      return (
-                        <button key={level} onClick={() => onChange(domain.id, level)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
-                          style={active
-                            ? { backgroundColor: col.bg, color: col.text, borderColor: col.border, boxShadow: '0 0 0 2px ' + col.border }
-                            : { backgroundColor: 'white', color: '#9CA3AF', borderColor: '#E5E7EB' }
-                          }
-                        >
-                          {level}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Community aggregate */}
-                <div className="w-64 flex-shrink-0">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Community ({totalVotes.toLocaleString()} responses)
-                  </p>
-                  <div className="space-y-1">
-                    {ALIGNMENT_LEVELS.map(level => {
-                      const count = communityData[level] ?? 0
-                      const pct = totalVotes > 0 ? (count / totalVotes) * 100 : 0
-                      const col = LEVEL_COLORS[level]
-                      return (
-                        <div key={level} className="flex items-center gap-2">
-                          <span className="text-xs w-20 text-gray-500 text-right">{level}</span>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all"
-                              style={{ width: `${pct}%`, backgroundColor: col.border }} />
-                          </div>
-                          <span className="text-xs text-gray-500 w-8">{Math.round(pct)}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+            <div key={domain.id}
+              className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg bg-white hover:border-indigo-200 transition-colors"
+              title={domain.desc}>
+              {/* Domain label */}
+              <p className="text-xs font-medium text-gray-700 truncate flex-shrink-0" style={{ width: 148 }}>
+                {domain.label}
+              </p>
+              {/* Level buttons */}
+              <div className="flex gap-1 flex-1 min-w-0">
+                {ALIGNMENT_LEVELS.map(level => {
+                  const col = LEVEL_COLORS[level]
+                  const active = myPref === level
+                  return (
+                    <button key={level} onClick={() => onChange(domain.id, level)}
+                      title={level}
+                      className="flex-1 py-0.5 rounded text-xs font-semibold border transition-all text-center"
+                      style={active
+                        ? { backgroundColor: col.bg, color: col.text, borderColor: col.border }
+                        : { backgroundColor: 'white', color: '#D1D5DB', borderColor: '#F3F4F6' }
+                      }
+                    >
+                      {LEVEL_SHORT[level]}
+                    </button>
+                  )
+                })}
               </div>
+              {/* Community badge */}
+              <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-semibold"
+                title={`Community (${totalVotes} responses): ${communityTop}`}
+                style={{ backgroundColor: LEVEL_COLORS[communityTop].bg, color: LEVEL_COLORS[communityTop].text }}>
+                🏘
+              </span>
             </div>
           )
         })}
@@ -574,6 +551,35 @@ export default function SelfAuditClient() {
     } catch { /* ignore */ }
   }, [])
 
+  // URL param: ?cat=<categoryId> to pre-select a category
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const cat = searchParams.get('cat')
+    if (!cat) return
+    const found = AUDIT_CATEGORIES.find(c => c.id === cat)
+    if (found) { setSelectedCategoryId(found.id); setAlignmentOpen(false) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Benchmark aggregation
+  const benchmarkData = useMemo(() => {
+    const map: Record<string, { count: number; categories: Set<string> }> = {}
+    for (const cat of AUDIT_CATEGORIES) {
+      for (const vec of cat.vectors) {
+        for (const s of vec.samples) {
+          const src = s.source
+          if (!src) continue
+          if (!map[src]) map[src] = { count: 0, categories: new Set() }
+          map[src].count++
+          map[src].categories.add(cat.shortName)
+        }
+      }
+    }
+    return Object.entries(map)
+      .map(([name, { count, categories }]) => ({ name, count, categories: Array.from(categories).sort() }))
+      .sort((a, b) => b.count - a.count)
+  }, [])
+
   const selectedCategory = useMemo(
     () => AUDIT_CATEGORIES.find(c => c.id === selectedCategoryId) ?? null,
     [selectedCategoryId]
@@ -780,6 +786,41 @@ export default function SelfAuditClient() {
 
       {/* ── Submit test samples (always visible) ─────────────────────────── */}
       <SubmitForm />
+
+      {/* ── Benchmark sources ────────────────────────────────────────────── */}
+      <div className="mb-5">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Benchmark sources · {benchmarkData.length} datasets · {totalSamples.toLocaleString()} samples total
+        </p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {benchmarkData.map(bm => {
+            const col = SOURCE_COLORS[bm.name] ?? { bg: '#F3F4F6', text: '#374151' }
+            return (
+              <div key={bm.name}
+                className="flex-shrink-0 border rounded-xl px-3 py-2.5 min-w-[140px]"
+                style={{ backgroundColor: col.bg, borderColor: col.bg === '#1F2937' ? '#374151' : '#E5E7EB' }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold" style={{ color: col.text }}>{bm.name}</span>
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-white/60"
+                    style={{ color: col.text }}>{bm.count}</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {bm.categories.slice(0, 3).map(cat => (
+                    <span key={cat} className="text-xs opacity-70 leading-tight" style={{ color: col.text, fontSize: 9 }}>
+                      {cat.split(/[–—\-]/)[0].trim().slice(0, 18)}
+                    </span>
+                  ))}
+                  {bm.categories.length > 3 && (
+                    <span className="text-xs opacity-50" style={{ color: col.text, fontSize: 9 }}>
+                      +{bm.categories.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* ── Dataset explorer ─────────────────────────────────────────────── */}
       <div className="flex gap-5">

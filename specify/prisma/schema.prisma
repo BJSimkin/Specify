@@ -76,6 +76,7 @@ model User {
   promptQualities PromptQuality[]      @relation("PromptQualities")
   modelResults    ModelBenchmarkResult[] @relation("ModelResults")
   newsletterSub   NewsletterSubscriber? @relation("NewsletterSub")
+  metricVotes     PackageMetricVote[]   @relation("UserMetricVotes")
 }
 
 model Follow {
@@ -167,6 +168,7 @@ model Package {
   versions       PackageVersion[]
   tags           Tag[]
   contributors   PackageContributor[]
+  metricVotes    PackageMetricVote[]  @relation("PackageMetricVotes")
 
   @@index([authorId])
   @@index([isPublished])
@@ -535,4 +537,21 @@ model PackageEvidence {
 
   requirement PackageRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
   @@index([requirementId])
+}
+
+model PackageMetricVote {
+  id        String   @id @default(cuid())
+  packageId String
+  userId    String
+  metric    String   // "completeness" | "actionable"
+  score     Int      // 1–5
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  package   Package  @relation("PackageMetricVotes", fields: [packageId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserMetricVotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, userId, metric])
+  @@index([packageId])
 }

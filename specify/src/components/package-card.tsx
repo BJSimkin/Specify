@@ -114,6 +114,18 @@ export function PackageCard({ pkg }: PackageCardProps) {
           )}
         </div>
 
+        {/* Metric vote indicators */}
+        <div className="flex items-center gap-3 mb-3">
+          <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+            <span style={{ color: '#4338CA' }}>●</span>
+            Completeness <span className="font-medium text-gray-400">—/5</span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+            <span style={{ color: '#D97706' }}>●</span>
+            Actionable <span className="font-medium text-gray-400">—/5</span>
+          </span>
+        </div>
+
         {/* Footer stats */}
         <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
           <span className="flex items-center gap-1 text-xs text-gray-500">

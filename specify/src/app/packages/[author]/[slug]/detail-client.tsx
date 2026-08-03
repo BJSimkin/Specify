@@ -7,6 +7,7 @@ import type { PackageWithRelations } from '@/types'
 import { CERTIFIER_DISPLAY_MAP } from '@/types'
 import { CertBadge } from '@/components/cert-badge'
 import { formatDate, formatRelativeDate, formatNumber, getInitials } from '@/lib/utils'
+import { PackageMetricVotes } from '@/components/package-metric-votes'
 
 type Tab = 'requirements' | 'discussion' | 'canvas' | 'vendors' | 'governance' | 'versions' | 'audit'
 
@@ -660,6 +661,9 @@ export default function PackageDetailClient({
                 )}
               </div>
             </div>
+
+            {/* Quality metric votes */}
+            <PackageMetricVotes packageId={pkg.id} />
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1.5 mt-4 pt-4 border-t border-gray-100">
