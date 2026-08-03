@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import HazardsClient from '../hazards/hazards-client'
+import { KnowledgeGraph } from './knowledge-graph'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface RiskVersion {
@@ -780,7 +782,7 @@ export default function RiskClient() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'risks' | 'submit'>('risks')
+  const [activeTab, setActiveTab] = useState<'risks' | 'submit' | 'hazards' | 'graph'>('risks')
 
   void compareVersionId
 
@@ -912,14 +914,16 @@ export default function RiskClient() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200 mb-5">
+      <div className="flex items-center gap-1 border-b border-gray-200 mb-5 flex-wrap">
         {[
           { id: 'risks', label: `Risk list (${risks.length})` },
+          { id: 'hazards', label: 'Hazards & Controls' },
+          { id: 'graph', label: 'Knowledge Graph' },
           { id: 'submit', label: 'Submit a risk' },
         ].map((t) => (
           <button
             key={t.id}
-            onClick={() => setActiveTab(t.id as 'risks' | 'submit')}
+            onClick={() => setActiveTab(t.id as typeof activeTab)}
             className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
             style={activeTab === t.id
               ? { color: '#1E1B4B', borderColor: '#1E1B4B' }
@@ -934,6 +938,18 @@ export default function RiskClient() {
       {activeTab === 'submit' && (
         <div className="max-w-2xl">
           <SubmitRiskForm />
+        </div>
+      )}
+
+      {activeTab === 'hazards' && (
+        <div>
+          <HazardsClient />
+        </div>
+      )}
+
+      {activeTab === 'graph' && (
+        <div className="py-2">
+          <KnowledgeGraph />
         </div>
       )}
 

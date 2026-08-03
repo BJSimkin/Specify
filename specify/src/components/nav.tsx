@@ -97,7 +97,7 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           href="/"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
-          Explore
+          Requirements
         </Link>
         <Link
           href="/marketplace"
@@ -109,25 +109,13 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           href="/risk-repository"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
-          Risk
-        </Link>
-        <Link
-          href="/hazards"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
-        >
-          Hazards
+          Risk & Hazards
         </Link>
         <Link
           href="/self-audit"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
           Self Audit
-        </Link>
-        <Link
-          href="/definitions"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
-        >
-          Definitions
         </Link>
         <Link
           href="/education"
@@ -167,15 +155,6 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
-          </Link>
-
-          {/* New package button */}
-          <Link
-            href="/new"
-            className="px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
-            style={{ backgroundColor: '#F59E0B', color: '#1E1B4B' }}
-          >
-            New package
           </Link>
 
           {/* Avatar dropdown */}
@@ -232,13 +211,6 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <Link
-            href="/new"
-            className="px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
-            style={{ backgroundColor: '#F59E0B', color: '#1E1B4B' }}
-          >
-            New package
-          </Link>
           <Link
             href="/api/auth/signin"
             className="px-3 py-1.5 rounded-md text-sm font-medium border border-indigo-400 text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"

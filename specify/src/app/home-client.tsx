@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Filters } from '@/components/filters'
 import type { FilterState } from '@/types'
 
@@ -60,6 +61,19 @@ export default function HomeClient({ initialFilters, initialSort, initialQ, chil
 
         {/* Main content */}
         <div className="flex-1 min-w-0">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <h1 className="text-xl font-bold" style={{ color: '#1E1B4B' }}>Requirements packages</h1>
+            <Link
+              href="/new"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              style={{ backgroundColor: '#F59E0B', color: '#1E1B4B' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              New package
+            </Link>
+          </div>
+
           {/* Sort bar */}
           <div className="flex items-center gap-1 mb-5">
             {SORT_OPTIONS.map((opt) => (

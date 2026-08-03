@@ -250,6 +250,176 @@ function ChipGroup({
   )
 }
 
+// ─── GSN types ────────────────────────────────────────────────────────────────
+const SYSTEM_LEVELS = ['Infrastructure', 'System', 'Model', 'Dataset', 'Software', 'Hardware'] as const
+type SystemLevel = typeof SYSTEM_LEVELS[number]
+const LEVEL_ICONS: Record<SystemLevel, string> = {
+  Infrastructure: '🏗️', System: '🔧', Model: '🤖', Dataset: '📊', Software: '💻', Hardware: '⚙️',
+}
+const REQ_TYPES = ['Architecture', 'Functional', 'Process'] as const
+type ReqType = typeof REQ_TYPES[number]
+const REQ_COLORS: Record<ReqType, { bg: string; text: string; border: string }> = {
+  Architecture: { bg: '#EEF2FF', text: '#3730A3', border: '#C7D2FE' },
+  Functional:   { bg: '#FFF7ED', text: '#9A3412', border: '#FED7AA' },
+  Process:      { bg: '#F0FDF4', text: '#166534', border: '#BBF7D0' },
+}
+
+interface EvidenceDraft  { id: string; title: string; description: string; url: string }
+interface RequirementDraft { id: string; type: ReqType; text: string; evidence: EvidenceDraft[] }
+interface LegalRefDraft    { id: string; source: string; text: string }
+interface ClaimDraft {
+  id: string
+  text: string
+  systemLevels: SystemLevel[]
+  obligations: LegalRefDraft[]
+  requirements: RequirementDraft[]
+}
+
+function uid() { return Math.random().toString(36).slice(2) }
+
+// ─── System abstraction sidebar ───────────────────────────────────────────────
+function AbstractionSidebar({ claims, activeClaim }: { claims: ClaimDraft[]; activeClaim: string | null }) {
+  const levelCoverage = Object.fromEntries(
+    SYSTEM_LEVELS.map((l) => [l, claims.filter((c) => c.systemLevels.includes(l)).length])
+  ) as Record<SystemLevel, number>
+
+  const activeClaimObj = claims.find((c) => c.id === activeClaim)
+
+  return (
+    <div className="w-52 flex-shrink-0">
+      <div className="sticky top-20">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">System abstraction</p>
+          <div className="space-y-2">
+            {SYSTEM_LEVELS.map((level) => {
+              const count = levelCoverage[level]
+              const activelyViewing = activeClaimObj?.systemLevels.includes(level)
+              return (
+                <div key={level}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors"
+                  style={activelyViewing
+                    ? { backgroundColor: '#EEF2FF', border: '1px solid #C7D2FE' }
+                    : { border: '1px solid transparent' }
+                  }
+                >
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: count > 0 ? '#1E1B4B' : '#D1D5DB' }}
+                  />
+                  <span className={`text-xs flex-1 ${count > 0 ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                    {LEVEL_ICONS[level]} {level}
+                  </span>
+                  {count > 0 && (
+                    <span className="text-xs font-bold text-indigo-600">{count}</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
+            <p className="text-xs text-gray-700 font-medium">{claims.length} claim{claims.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-gray-400">
+              {Object.values(levelCoverage).filter(Boolean).length}/{SYSTEM_LEVELS.length} levels covered
+            </p>
+            <p className="text-xs text-gray-400">
+              {claims.reduce((s, c) => s + c.requirements.length, 0)} requirements
+            </p>
+            <p className="text-xs text-gray-400">
+              {claims.reduce((s, c) => s + c.requirements.reduce((r, req) => r + req.evidence.length, 0), 0)} evidence items
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Evidence row ──────────────────────────────────────────────────────────────
+function EvidenceRow({
+  ev, onChange, onRemove,
+}: { ev: EvidenceDraft; onChange: (e: EvidenceDraft) => void; onRemove: () => void }) {
+  return (
+    <div className="pl-4 border-l-2 border-green-200 space-y-2 mt-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-green-700">Evidence</span>
+        <button type="button" onClick={onRemove} className="ml-auto text-xs text-red-400 hover:text-red-600">Remove</button>
+      </div>
+      <input
+        type="text" value={ev.title} placeholder="Evidence title *"
+        onChange={(e) => onChange({ ...ev, title: e.target.value })}
+        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-green-400"
+      />
+      <textarea
+        value={ev.description} placeholder="Description (optional)"
+        onChange={(e) => onChange({ ...ev, description: e.target.value })}
+        rows={2}
+        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs resize-none focus:outline-none focus:border-green-400"
+      />
+      <input
+        type="url" value={ev.url} placeholder="URL (optional)"
+        onChange={(e) => onChange({ ...ev, url: e.target.value })}
+        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-green-400"
+      />
+    </div>
+  )
+}
+
+// ─── Requirement row ───────────────────────────────────────────────────────────
+function RequirementRow({
+  req, onChange, onRemove,
+}: { req: RequirementDraft; onChange: (r: RequirementDraft) => void; onRemove: () => void }) {
+  const colors = REQ_COLORS[req.type]
+
+  function addEvidence() {
+    onChange({ ...req, evidence: [...req.evidence, { id: uid(), title: '', description: '', url: '' }] })
+  }
+  function updateEvidence(i: number, ev: EvidenceDraft) {
+    onChange({ ...req, evidence: req.evidence.map((e, idx) => idx === i ? ev : e) })
+  }
+  function removeEvidence(i: number) {
+    onChange({ ...req, evidence: req.evidence.filter((_, idx) => idx !== i) })
+  }
+
+  return (
+    <div className="border rounded-xl p-3 space-y-2" style={{ borderColor: colors.border, backgroundColor: colors.bg + '66' }}>
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1">
+          {REQ_TYPES.map((t) => (
+            <button
+              key={t} type="button"
+              onClick={() => onChange({ ...req, type: t })}
+              className="px-2 py-0.5 rounded-full text-xs font-semibold border transition-colors"
+              style={req.type === t
+                ? { backgroundColor: REQ_COLORS[t].text, color: 'white', borderColor: REQ_COLORS[t].text }
+                : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+              }
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onRemove} className="ml-auto text-xs text-red-400 hover:text-red-600">Remove</button>
+      </div>
+      <textarea
+        value={req.text} placeholder="Requirement statement *"
+        onChange={(e) => onChange({ ...req, text: e.target.value })}
+        rows={2}
+        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs resize-none focus:outline-none focus:border-indigo-400 bg-white"
+      />
+      {req.evidence.map((ev, i) => (
+        <EvidenceRow key={ev.id} ev={ev} onChange={(e) => updateEvidence(i, e)} onRemove={() => removeEvidence(i)} />
+      ))}
+      <button
+        type="button" onClick={addEvidence}
+        className="text-xs text-green-700 hover:text-green-900 font-medium flex items-center gap-1"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        Add evidence
+      </button>
+    </div>
+  )
+}
+
 // ─── Taxonomy section accordion ───────────────────────────────────────────────
 function TaxonomySection({
   typeKey,
@@ -321,7 +491,9 @@ export default function PackageFormClient({
   const [contributors, setContributors] = useState<UserResult[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeSection, setActiveSection] = useState<'metadata' | 'taxonomy' | 'models' | 'requirements'>('metadata')
+  const [activeSection, setActiveSection] = useState<'metadata' | 'taxonomy' | 'models' | 'requirements' | 'claims'>('metadata')
+  const [claims, setClaims] = useState<ClaimDraft[]>([])
+  const [activeClaim, setActiveClaim] = useState<string | null>(null)
 
   function updateField<K extends keyof PackageFormData>(key: K, value: PackageFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -382,11 +554,67 @@ export default function PackageFormClient({
     updateField('complianceTargets', targets.includes(val) ? targets.filter((v) => v !== val) : [...targets, val])
   }
 
+  // ── Claims (GSN) helpers ─────────────────────────────────────────────────────
+  function addClaim() {
+    const id = uid()
+    setClaims((prev) => [...prev, { id, text: '', systemLevels: [], obligations: [], requirements: [] }])
+    setActiveClaim(id)
+  }
+  function removeClaim(id: string) {
+    setClaims((prev) => prev.filter((c) => c.id !== id))
+    if (activeClaim === id) setActiveClaim(null)
+  }
+  function updateClaim(id: string, patch: Partial<ClaimDraft>) {
+    setClaims((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c))
+  }
+  function toggleClaimLevel(claimId: string, level: SystemLevel) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, systemLevels: c.systemLevels.includes(level) ? c.systemLevels.filter((l) => l !== level) : [...c.systemLevels, level] }
+      : c
+    ))
+  }
+  function addObligation(claimId: string) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, obligations: [...c.obligations, { id: uid(), source: '', text: '' }] }
+      : c
+    ))
+  }
+  function updateObligation(claimId: string, oblId: string, patch: Partial<LegalRefDraft>) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, obligations: c.obligations.map((o) => o.id === oblId ? { ...o, ...patch } : o) }
+      : c
+    ))
+  }
+  function removeObligation(claimId: string, oblId: string) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, obligations: c.obligations.filter((o) => o.id !== oblId) }
+      : c
+    ))
+  }
+  function addRequirement(claimId: string) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, requirements: [...c.requirements, { id: uid(), type: 'Functional', text: '', evidence: [] }] }
+      : c
+    ))
+  }
+  function updateRequirement(claimId: string, reqId: string, req: RequirementDraft) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, requirements: c.requirements.map((r) => r.id === reqId ? req : r) }
+      : c
+    ))
+  }
+  function removeRequirement(claimId: string, reqId: string) {
+    setClaims((prev) => prev.map((c) => c.id === claimId
+      ? { ...c, requirements: c.requirements.filter((r) => r.id !== reqId) }
+      : c
+    ))
+  }
+
   async function handleSubmit(isPublished: boolean) {
     setSaving(true)
     setError(null)
     try {
-      const payload = { ...form, isPublished, contributorIds: contributors.map((c) => c.id) }
+      const payload = { ...form, isPublished, contributorIds: contributors.map((c) => c.id), claims }
       let res: Response
       if (mode === 'edit' && packageId) {
         res = await fetch(`/api/packages/${packageId}`, {
@@ -420,6 +648,7 @@ export default function PackageFormClient({
     { id: 'taxonomy', label: 'Classification' },
     { id: 'models', label: 'Models & Data' },
     { id: 'requirements', label: `Requirements (${form.requirements.length})` },
+    { id: 'claims', label: `Claims & Evidence (${claims.length})` },
   ] as const
 
   // All model types from taxonomy for AI model type chips
@@ -445,11 +674,11 @@ export default function PackageFormClient({
       )}
 
       {/* Section tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
+      <div className="flex items-center gap-1 border-b border-gray-200 mb-6 flex-wrap">
         {SECTIONS.map((s) => (
           <button
             key={s.id}
-            onClick={() => setActiveSection(s.id as any)}
+            onClick={() => setActiveSection(s.id as typeof activeSection)}
             className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
             style={
               activeSection === s.id
@@ -829,6 +1058,209 @@ export default function PackageFormClient({
             <h2 className="text-base font-semibold text-gray-900 mb-3">Dependency graph</h2>
             <DepGraph requirements={form.requirements} />
           </div>
+        </div>
+      )}
+
+      {/* ── Claims & Evidence (GSN) ── */}
+      {activeSection === 'claims' && (
+        <div className="flex gap-6">
+          {/* Claims builder */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Claims & Evidence</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Structure your assurance case using Goal Structuring Notation (GSN).
+                  Each claim maps to system abstraction levels, can reference legal obligations,
+                  and is supported by typed requirements with evidence.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addClaim}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold flex-shrink-0"
+                style={{ backgroundColor: '#1E1B4B', color: 'white' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                Add claim
+              </button>
+            </div>
+
+            {claims.length === 0 ? (
+              <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl text-gray-400">
+                <div className="text-3xl mb-2">📋</div>
+                <p className="text-sm font-semibold text-gray-600 mb-1">No claims yet</p>
+                <p className="text-xs text-gray-400 mb-4 max-w-sm mx-auto">
+                  Claims are top-level assurance statements. Add one to start structuring your requirements in GSN format.
+                </p>
+                <button
+                  type="button"
+                  onClick={addClaim}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold"
+                  style={{ backgroundColor: '#1E1B4B', color: 'white' }}
+                >
+                  Add first claim
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {claims.map((claim, ci) => (
+                  <div
+                    key={claim.id}
+                    className="border rounded-xl overflow-hidden transition-all"
+                    style={{ borderColor: activeClaim === claim.id ? '#818CF8' : '#E5E7EB' }}
+                  >
+                    {/* Claim header */}
+                    <div
+                      className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-gray-50"
+                      onClick={() => setActiveClaim(activeClaim === claim.id ? null : claim.id)}
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5"
+                        style={{ backgroundColor: '#1E1B4B', color: 'white' }}
+                      >
+                        {ci + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {claim.text || <span className="font-normal text-gray-400">Untitled claim…</span>}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {claim.systemLevels.map((l) => (
+                            <span key={l} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>
+                              {LEVEL_ICONS[l]} {l}
+                            </span>
+                          ))}
+                          {claim.obligations.length > 0 && (
+                            <span className="text-xs text-amber-600">⚖️ {claim.obligations.length} legal ref{claim.obligations.length !== 1 ? 's' : ''}</span>
+                          )}
+                          {claim.requirements.length > 0 && (
+                            <span className="text-xs text-gray-500">{claim.requirements.length} req{claim.requirements.length !== 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeClaim(claim.id) }}
+                        className="text-xs text-red-400 hover:text-red-600 flex-shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    {/* Claim body (expanded) */}
+                    {activeClaim === claim.id && (
+                      <div className="px-4 pb-4 space-y-4 border-t border-gray-100">
+                        {/* Claim text */}
+                        <div className="mt-3">
+                          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Claim statement *</label>
+                          <textarea
+                            value={claim.text}
+                            onChange={(e) => updateClaim(claim.id, { text: e.target.value })}
+                            placeholder="The system shall… / We claim that…"
+                            rows={2}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-indigo-400"
+                          />
+                        </div>
+
+                        {/* System levels */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">System abstraction level(s)</label>
+                          <div className="flex flex-wrap gap-2">
+                            {SYSTEM_LEVELS.map((level) => {
+                              const active = claim.systemLevels.includes(level)
+                              return (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  onClick={() => toggleClaimLevel(claim.id, level)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
+                                  style={active
+                                    ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+                                    : { backgroundColor: 'white', color: '#374151', borderColor: '#D1D5DB' }
+                                  }
+                                >
+                                  {LEVEL_ICONS[level]} {level}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Legal obligations */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Legal obligations</label>
+                            <button
+                              type="button"
+                              onClick={() => addObligation(claim.id)}
+                              className="text-xs text-amber-700 hover:text-amber-900 font-medium"
+                            >
+                              + Add obligation
+                            </button>
+                          </div>
+                          {claim.obligations.map((obl) => (
+                            <div key={obl.id} className="border border-amber-200 rounded-lg p-3 space-y-2 mb-2" style={{ backgroundColor: '#FFFBEB' }}>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text" value={obl.source}
+                                  onChange={(e) => updateObligation(claim.id, obl.id, { source: e.target.value })}
+                                  placeholder="Source (e.g. EU AI Act Article 9)"
+                                  className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeObligation(claim.id, obl.id)}
+                                  className="text-xs text-red-400 hover:text-red-600"
+                                >Remove</button>
+                              </div>
+                              <textarea
+                                value={obl.text}
+                                onChange={(e) => updateObligation(claim.id, obl.id, { text: e.target.value })}
+                                placeholder="Obligation text or summary"
+                                rows={2}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs resize-none focus:outline-none focus:border-amber-400 bg-white"
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Requirements */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Requirements</label>
+                            <button
+                              type="button"
+                              onClick={() => addRequirement(claim.id)}
+                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                              + Add requirement
+                            </button>
+                          </div>
+                          {claim.requirements.length === 0 && (
+                            <p className="text-xs text-gray-400 italic">No requirements yet. Add an Architecture, Functional, or Process requirement.</p>
+                          )}
+                          <div className="space-y-2">
+                            {claim.requirements.map((req) => (
+                              <RequirementRow
+                                key={req.id}
+                                req={req}
+                                onChange={(r) => updateRequirement(claim.id, req.id, r)}
+                                onRemove={() => removeRequirement(claim.id, req.id)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* System abstraction sidebar */}
+          <AbstractionSidebar claims={claims} activeClaim={activeClaim} />
         </div>
       )}
 
