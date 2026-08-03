@@ -1,14 +1,149 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 
+// ─── Newsletter Section ────────────────────────────────────────────────────────
+function NewsletterSection() {
+  const { data: session } = useSession()
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [org, setOrg] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'already' | 'error'>('idle')
+
+  // Auto-populate from session
+  useEffect(() => {
+    if (session?.user) {
+      if (session.user.email) setEmail(session.user.email)
+      if (session.user.name) setName(session.user.name)
+    }
+  }, [session])
+
+  // Check if already subscribed
+  useEffect(() => {
+    if (!email || !email.includes('@')) return
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/newsletter?email=${encodeURIComponent(email)}`)
+        const data = await res.json()
+        if (data.subscribed) setStatus('already')
+        else if (status === 'already') setStatus('idle')
+      } catch { /* ignore */ }
+    }
+    const timeout = setTimeout(check, 600)
+    return () => clearTimeout(timeout)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, org }),
+      })
+      if (res.ok) {
+        setStatus('success')
+      } else {
+        setStatus('error')
+      }
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  return (
+    <div className="mt-12 pt-10 border-t border-gray-100">
+      <div className="max-w-xl">
+        <div className="flex items-center gap-2 mb-1">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#4338CA"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          <h2 className="text-lg font-bold" style={{ color: '#1E1B4B' }}>Stay up to date</h2>
+        </div>
+        <p className="text-sm text-gray-500 mb-5">
+          Get notified about new requirements packages, risk repository updates, and Specify releases.
+        </p>
+
+        {status === 'success' ? (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ backgroundColor: '#F0FDF4' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#16A34A"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            <p className="text-sm font-semibold text-green-700">You&apos;re subscribed! We&apos;ll keep you posted.</p>
+          </div>
+        ) : status === 'already' ? (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ backgroundColor: '#EEF2FF' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#4338CA"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <p className="text-sm font-semibold text-indigo-700">You&apos;re already subscribed with this email.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Name</label>
+                <input
+                  type="text" value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your name"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Email *</label>
+                <input
+                  type="email" required value={email}
+                  onChange={(e) => { setEmail(e.target.value); if (status !== 'idle') setStatus('idle') }}
+                  placeholder="you@example.com"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Organisation</label>
+              <input
+                type="text" value={org}
+                onChange={(e) => setOrg(e.target.value)}
+                placeholder="Company or institution (optional)"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+              />
+            </div>
+            {status === 'error' && (
+              <p className="text-xs text-red-600">Something went wrong. Please try again.</p>
+            )}
+            <button
+              type="submit"
+              disabled={status === 'loading'}
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-60"
+              style={{ backgroundColor: '#4338CA', color: 'white' }}
+            >
+              {status === 'loading' ? 'Subscribing…' : 'Subscribe to newsletter'}
+            </button>
+            <p className="text-xs text-gray-400">No spam. Unsubscribe any time.</p>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Contact Page ──────────────────────────────────────────────────────────────
 export default function ContactPage() {
+  const { data: session } = useSession()
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' })
   const [sent, setSent] = useState(false)
 
+  // Auto-populate name/email from session
+  useEffect(() => {
+    if (session?.user) {
+      setForm((f) => ({
+        ...f,
+        name: f.name || session.user?.name || '',
+        email: f.email || session.user?.email || '',
+      }))
+    }
+  }, [session])
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    // Opens the user's email client with pre-filled fields
     const mailto = `mailto:contact@specify.ai?subject=${encodeURIComponent(form.subject || 'Specify enquiry')}&body=${encodeURIComponent(
       `Name: ${form.name}\nEmail: ${form.email}\n\n${form.message}`
     )}`
@@ -163,6 +298,9 @@ export default function ContactPage() {
           )}
         </div>
       </div>
+
+      {/* Newsletter signup */}
+      <NewsletterSection />
     </div>
   )
 }

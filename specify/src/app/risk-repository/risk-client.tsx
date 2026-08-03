@@ -107,6 +107,97 @@ const CATEGORY_BENCHMARKS: Record<string, { name: string; url: string }[]> = {
   ],
 }
 
+// ─── Model task → relevant risk categories ────────────────────────────────────
+const MODEL_TASKS: { label: string; emoji: string; categories: string[] }[] = [
+  {
+    label: 'Text generation',
+    emoji: '✍️',
+    categories: [
+      'Harmful Knowledge & Capability Uplift',
+      'Manipulation, Deception & Societal Harm',
+      'Content Harms',
+      'Privacy, Discrimination & Rights Violations',
+    ],
+  },
+  {
+    label: 'Image/video generation',
+    emoji: '🖼️',
+    categories: [
+      'Content Harms',
+      'Privacy, Discrimination & Rights Violations',
+      'Manipulation, Deception & Societal Harm',
+    ],
+  },
+  {
+    label: 'Image/video editing',
+    emoji: '✂️',
+    categories: [
+      'Content Harms',
+      'Privacy, Discrimination & Rights Violations',
+      'Manipulation, Deception & Societal Harm',
+    ],
+  },
+  {
+    label: 'Robot actuation',
+    emoji: '🤖',
+    categories: [
+      'Autonomous & Agentic Harm',
+      'Loss of Control & Alignment Failure',
+      'Harmful Knowledge & Capability Uplift',
+    ],
+  },
+  {
+    label: 'Embedding',
+    emoji: '🔢',
+    categories: [
+      'Privacy, Discrimination & Rights Violations',
+      'Cyber Offence & Security',
+    ],
+  },
+  {
+    label: 'Classification',
+    emoji: '🏷️',
+    categories: [
+      'Privacy, Discrimination & Rights Violations',
+      'Content Harms',
+    ],
+  },
+  {
+    label: 'Visual reasoning',
+    emoji: '👁️',
+    categories: [
+      'Autonomous & Agentic Harm',
+      'Content Harms',
+      'Privacy, Discrimination & Rights Violations',
+    ],
+  },
+  {
+    label: 'Computer vision',
+    emoji: '📷',
+    categories: [
+      'Autonomous & Agentic Harm',
+      'Privacy, Discrimination & Rights Violations',
+      'Cyber Offence & Security',
+    ],
+  },
+  {
+    label: 'Biological design',
+    emoji: '🧬',
+    categories: [
+      'Harmful Knowledge & Capability Uplift',
+      'Systemic & Civilisational Risks',
+    ],
+  },
+  {
+    label: 'Clustering',
+    emoji: '🗂️',
+    categories: [
+      'Privacy, Discrimination & Rights Violations',
+      'Content Harms',
+    ],
+  },
+]
+
 // ─── Hazard type sources per category (links to /hazards) ─────────────────────
 const CATEGORY_HAZARD_TYPES: Record<string, string[]> = {
   'Harmful Knowledge & Capability Uplift': ['Exploitation attacks', 'Adversarial attacks', 'Evasion attacks'],
@@ -687,6 +778,7 @@ export default function RiskClient() {
   const [risks, setRisks] = useState<Risk[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedTask, setSelectedTask] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'risks' | 'submit'>('risks')
 
@@ -717,9 +809,18 @@ export default function RiskClient() {
     return b.voteAvg - a.voteAvg
   })
 
+  // Effective category set: union of manual picks + task-implied categories
+  const taskCategories = selectedTask
+    ? (MODEL_TASKS.find((t) => t.label === selectedTask)?.categories ?? [])
+    : []
+
+  const effectiveCategories = selectedCategories.length > 0
+    ? selectedCategories
+    : taskCategories
+
   // Apply filters
   const filtered = sortedRisks.filter((r) => {
-    const matchCat = selectedCategories.length === 0 || selectedCategories.includes(r.category)
+    const matchCat = effectiveCategories.length === 0 || effectiveCategories.includes(r.category)
     const q = search.toLowerCase()
     const matchSearch = !q || r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)
     return matchCat && matchSearch
@@ -729,6 +830,15 @@ export default function RiskClient() {
     setSelectedCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     )
+  }
+
+  function selectTask(label: string) {
+    if (selectedTask === label) {
+      setSelectedTask(null)
+    } else {
+      setSelectedTask(label)
+      setSelectedCategories([]) // clear manual picks; task drives the filter
+    }
   }
 
   const currentVersion = versions.find((v) => v.id === currentVersionId)
@@ -842,6 +952,41 @@ export default function RiskClient() {
                 />
               </div>
 
+              {/* Model task filter */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Model task</h3>
+                  {selectedTask && (
+                    <button onClick={() => setSelectedTask(null)} className="text-xs text-indigo-600 hover:underline">Clear</button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {MODEL_TASKS.map((t) => {
+                    const active = selectedTask === t.label
+                    return (
+                      <button
+                        key={t.label}
+                        onClick={() => selectTask(t.label)}
+                        title={t.label}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border transition-colors"
+                        style={active
+                          ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+                          : { backgroundColor: 'white', color: '#374151', borderColor: '#D1D5DB' }
+                        }
+                      >
+                        <span>{t.emoji}</span>
+                        <span className="truncate max-w-[80px]">{t.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {selectedTask && (
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Showing risks relevant to <strong className="text-gray-600">{selectedTask}</strong>
+                  </p>
+                )}
+              </div>
+
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</h3>
                 {selectedCategories.length > 0 && (
@@ -853,14 +998,14 @@ export default function RiskClient() {
 
               <label className="flex items-center gap-2 cursor-pointer mb-1">
                 <div
-                  onClick={() => setSelectedCategories([])}
+                  onClick={() => { setSelectedCategories([]); setSelectedTask(null) }}
                   className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer"
                   style={{
-                    backgroundColor: selectedCategories.length === 0 ? '#1E1B4B' : 'white',
-                    borderColor: selectedCategories.length === 0 ? '#1E1B4B' : '#D1D5DB',
+                    backgroundColor: selectedCategories.length === 0 && !selectedTask ? '#1E1B4B' : 'white',
+                    borderColor: selectedCategories.length === 0 && !selectedTask ? '#1E1B4B' : '#D1D5DB',
                   }}
                 >
-                  {selectedCategories.length === 0 && (
+                  {selectedCategories.length === 0 && !selectedTask && (
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="white">
                       <path d="M1.5 6l3 3 6-6" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -872,17 +1017,18 @@ export default function RiskClient() {
 
               <div className="space-y-0.5 mt-1">
                 {CATEGORIES.map((cat) => {
-                  const col = CAT_COLORS[cat]
                   const count = catCounts[cat] ?? 0
-                  const checked = selectedCategories.includes(cat)
+                  const manualChecked = selectedCategories.includes(cat)
+                  const taskImplied = selectedTask && taskCategories.includes(cat) && selectedCategories.length === 0
+                  const checked = manualChecked || !!taskImplied
                   return (
                     <label key={cat} className="flex items-start gap-2 cursor-pointer group py-0.5">
                       <div
-                        onClick={() => toggleCategory(cat)}
+                        onClick={() => { toggleCategory(cat); setSelectedTask(null) }}
                         className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer"
                         style={{
-                          backgroundColor: checked ? '#1E1B4B' : 'white',
-                          borderColor: checked ? '#1E1B4B' : '#D1D5DB',
+                          backgroundColor: checked ? (taskImplied ? '#6366F1' : '#1E1B4B') : 'white',
+                          borderColor: checked ? (taskImplied ? '#6366F1' : '#1E1B4B') : '#D1D5DB',
                         }}
                       >
                         {checked && (

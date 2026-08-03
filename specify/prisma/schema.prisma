@@ -75,6 +75,7 @@ model User {
   riskSubmissions RiskSubmission[]     @relation("RiskSubmissions")
   promptQualities PromptQuality[]      @relation("PromptQualities")
   modelResults    ModelBenchmarkResult[] @relation("ModelResults")
+  newsletterSub   NewsletterSubscriber? @relation("NewsletterSub")
 }
 
 model Follow {
@@ -460,4 +461,17 @@ model ModelBenchmarkResult {
   @@index([modelName])
   @@index([categoryId])
   @@index([createdAt])
+}
+
+// ─── Newsletter subscriptions ──────────────────────────────────────────────────
+model NewsletterSubscriber {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  org         String?
+  userId      String?  @unique
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  user User? @relation("NewsletterSub", fields: [userId], references: [id], onDelete: SetNull)
 }

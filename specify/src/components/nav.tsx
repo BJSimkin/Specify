@@ -88,16 +88,16 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
       {/* Nav links */}
       <div className="flex items-center gap-1">
         <Link
+          href="/homepage"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+        >
+          Home
+        </Link>
+        <Link
           href="/"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
           Explore
-        </Link>
-        <Link
-          href="/leaderboard"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
-        >
-          Leaderboard
         </Link>
         <Link
           href="/marketplace"
@@ -124,16 +124,22 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           Self Audit
         </Link>
         <Link
-          href="/cards"
+          href="/definitions"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
-          Cards
+          Definitions
         </Link>
         <Link
-          href="/docs"
+          href="/education"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
-          Docs
+          Education
+        </Link>
+        <Link
+          href="/regulatory"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+        >
+          Regulatory
         </Link>
         <Link
           href="/contact"
