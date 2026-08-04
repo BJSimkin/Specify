@@ -9,7 +9,7 @@ import { AUDIT_CATEGORIES, type RiskCategory } from '@/lib/scenarios-data'
 type AlignmentLevel = 'Fully Allow' | 'Conditional' | 'Restricted' | 'Prohibited'
 type ResponseType = 'Direct response' | 'Direct response with warning' | 'Steer to safe space' | 'Refusal'
 type SortCriteria = 'confirmations' | 'complexity' | 'explicitness' | 'risk'
-type ActiveTab = 'alignment' | 'repository' | 'attack' | 'campaign' | 'agent' | 'risk'
+type ActiveTab = 'alignment' | 'repository' | 'attack' | 'campaign' | 'agent'
 type SampleMethod = 'random' | 'top-risk' | 'top-explicitness'
 
 interface AttackConfig {
@@ -3513,12 +3513,103 @@ function ModelRunnerPanel({
   )
 }
 
-// ─── Test Campaign ────────────────────────────────────────────────────────────
+// ─── Module-level campaign helpers ───────────────────────────────────────────
+function getCampaignSourceBreakdown(campaign: CampaignResult) {
+  let benchmark = 0; let synthetic = 0; let unknown = 0
+  for (const s of campaign.samples) {
+    if (!s.source) unknown++
+    else if (PUBLIC_BENCHMARKS.has(s.source)) benchmark++
+    else synthetic++
+  }
+  return { benchmark, synthetic, unknown }
+}
+
+function CampaignResults({ campaign, onBack }: { campaign: CampaignResult; onBack: () => void }) {
+  const res = useMemo(() => {
+    const answered = campaign.samples.filter(s => campaign.responses[sampleKey(s)] !== undefined)
+    const aligned = answered.filter(s => {
+      const domain = CAT_TO_DOMAIN[s.categoryId]
+      const level = domain ? (campaign.alignmentPrefs[domain] ?? 'Conditional') : 'Conditional'
+      return isAligned(level, campaign.responses[sampleKey(s)])
+    })
+    const n = answered.length; const k = aligned.length; const [lo, hi] = wilsonCI(k, n)
+    return { n, k, score: n > 0 ? k / n : 0, lo, hi }
+  }, [campaign])
+
+  const cov = useMemo(() => {
+    const totalByCat: Record<string, number> = {}
+    for (const cat of AUDIT_CATEGORIES) totalByCat[cat.id] = cat.vectors.reduce((s, v) => s + v.samples.length, 0)
+    const testedByCat: Record<string, number> = {}
+    for (const s of campaign.samples)
+      if (campaign.responses[sampleKey(s)] !== undefined)
+        testedByCat[s.categoryId] = (testedByCat[s.categoryId] ?? 0) + 1
+    return AUDIT_CATEGORIES
+      .filter(cat => campaign.samples.some(s => s.categoryId === cat.id))
+      .map(cat => ({ shortName: cat.shortName, total: totalByCat[cat.id] ?? 0, tested: testedByCat[cat.id] ?? 0 }))
+  }, [campaign])
+
+  const sb = getCampaignSourceBreakdown(campaign)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-base font-bold text-gray-900">{campaign.modelName}</h3>
+          <p className="text-xs text-gray-400">{campaign.date} · {campaign.testerName} · {campaign.samples.length} samples</p>
+          {campaign.description && <p className="text-xs text-gray-500 mt-1">{campaign.description}</p>}
+        </div>
+        <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-600">← Back</button>
+      </div>
+      <div className="flex gap-3 flex-wrap">
+        {sb.benchmark > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>📊 {sb.benchmark} public benchmark</span>}
+        {sb.synthetic > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>🔬 {sb.synthetic} third-party</span>}
+        {sb.unknown > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>❓ {sb.unknown} unknown source</span>}
+      </div>
+      <ResultsPanel
+        scoringData={res}
+        coverageData={cov.map(c => ({ id: c.shortName, shortName: c.shortName, total: c.total, tested: c.tested, inCampaign: c.tested }))}
+        responses={campaign.responses}
+        campaignSamples={campaign.samples}
+        alignmentPrefs={campaign.alignmentPrefs}
+      />
+      <div className="border border-gray-200 rounded-xl p-4">
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Sample responses</p>
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {campaign.samples.map(s => {
+            const key = sampleKey(s); const resp = campaign.responses[key]
+            const modelText = campaign.modelResponseTexts?.[key]
+            const domain = CAT_TO_DOMAIN[s.categoryId]
+            const level = domain ? (campaign.alignmentPrefs[domain] ?? 'Conditional') : 'Conditional'
+            const aligned = resp ? isAligned(level, resp) : null
+            const rc = resp ? RESPONSE_COLORS[resp] : null
+            return (
+              <div key={key} className="border border-gray-100 rounded-lg p-2.5">
+                <div className="flex items-start gap-2">
+                  {aligned !== null && <span className="text-sm flex-shrink-0 mt-0.5">{aligned ? '✓' : '✗'}</span>}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-700 line-clamp-2">{s.text}</p>
+                    {modelText && <p className="text-xs text-gray-500 italic mt-1 line-clamp-2">Response: {modelText}</p>}
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400">{s.categoryShortName}</span>
+                      {resp && rc && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: rc.bg, color: rc.text }}>{resp}</span>}
+                      {!resp && <span className="text-xs text-gray-300 italic">no response</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Single Turn Probe ────────────────────────────────────────────────────────
 function TestCampaign({
   campaignSamples, alignmentPrefs, onClearCampaign, onRemoveSample,
-  responses, modelResponseTexts, modelResponseMedia, modelName, testerName, description, campaignDate,
-  onResponseChange, onModelResponseTextChange, onModelResponseMediaChange, onMetaChange,
-  savedCampaigns, onSaveCampaign, onDeleteCampaign, onStartNewCampaign, saveCampaignMsg,
+  responses, modelResponseTexts, modelResponseMedia,
+  onResponseChange, onModelResponseTextChange, onModelResponseMediaChange,
   annotations, onAnnotationChange,
   runProgress, onRunProgressChange, onRunResultsReady,
 }: {
@@ -3529,25 +3620,15 @@ function TestCampaign({
   responses: Record<string, ResponseType>
   modelResponseTexts: Record<string, string>
   modelResponseMedia: Record<string, string[]>
-  modelName: string; testerName: string; description: string; campaignDate: string
   onResponseChange: (key: string, r: ResponseType) => void
   onModelResponseTextChange: (key: string, text: string) => void
   onModelResponseMediaChange: (key: string, urls: string[]) => void
-  onMetaChange: (field: 'modelName' | 'testerName' | 'description' | 'campaignDate', value: string) => void
-  savedCampaigns: CampaignResult[]
-  onSaveCampaign: () => void
-  onDeleteCampaign: (id: string) => void
-  onStartNewCampaign: () => void
-  saveCampaignMsg: boolean
   annotations: Record<string, AnnotationRecord>
   onAnnotationChange: (key: string, ann: AnnotationRecord) => void
   runProgress: { done: number; total: number; running: boolean } | null
   onRunProgressChange: (p: { done: number; total: number; running: boolean } | null) => void
   onRunResultsReady: (results: { responses: Record<string, ResponseType>; modelResponseTexts: Record<string, string>; annotations: Record<string, AnnotationRecord> }) => void
 }) {
-  const [viewingCampaign, setViewingCampaign] = useState<CampaignResult | null>(null)
-  const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
-
   const scoringData = useMemo(() => {
     const answered = campaignSamples.filter(s => responses[sampleKey(s)] !== undefined)
     const aligned = answered.filter(s => {
@@ -3577,277 +3658,35 @@ function TestCampaign({
       }))
   }, [campaignSamples, responses])
 
-  // Benchmark vs synthetic breakdown for active campaign
-  const sourceBreakdown = useMemo(() => {
-    let benchmark = 0; let synthetic = 0; let unknown = 0; let transformed = 0
-    for (const s of campaignSamples) {
-      if (!s.source) unknown++
-      else if (PUBLIC_BENCHMARKS.has(s.source)) benchmark++
-      else synthetic++
-      if (s.transformedText) transformed++
-    }
-    return { benchmark, synthetic, unknown, transformed }
-  }, [campaignSamples])
-
-  // Breakdown for a saved campaign
-  function getCampaignSourceBreakdown(campaign: CampaignResult) {
-    let benchmark = 0; let synthetic = 0; let unknown = 0
-    for (const s of campaign.samples) {
-      if (!s.source) unknown++
-      else if (PUBLIC_BENCHMARKS.has(s.source)) benchmark++
-      else synthetic++
-    }
-    return { benchmark, synthetic, unknown }
-  }
-
-  function CampaignResults({ campaign }: { campaign: CampaignResult }) {
-    const res = useMemo(() => {
-      const answered = campaign.samples.filter(s => campaign.responses[sampleKey(s)] !== undefined)
-      const aligned = answered.filter(s => {
-        const domain = CAT_TO_DOMAIN[s.categoryId]
-        const level = domain ? (campaign.alignmentPrefs[domain] ?? 'Conditional') : 'Conditional'
-        return isAligned(level, campaign.responses[sampleKey(s)])
-      })
-      const n = answered.length; const k = aligned.length; const [lo, hi] = wilsonCI(k, n)
-      return { n, k, score: n > 0 ? k / n : 0, lo, hi }
-    }, [campaign])
-
-    const cov = useMemo(() => {
-      const totalByCat: Record<string, number> = {}
-      for (const cat of AUDIT_CATEGORIES) totalByCat[cat.id] = cat.vectors.reduce((s, v) => s + v.samples.length, 0)
-      const testedByCat: Record<string, number> = {}
-      for (const s of campaign.samples)
-        if (campaign.responses[sampleKey(s)] !== undefined)
-          testedByCat[s.categoryId] = (testedByCat[s.categoryId] ?? 0) + 1
-      return AUDIT_CATEGORIES
-        .filter(cat => campaign.samples.some(s => s.categoryId === cat.id))
-        .map(cat => ({ shortName: cat.shortName, total: totalByCat[cat.id] ?? 0, tested: testedByCat[cat.id] ?? 0 }))
-    }, [campaign])
-
-    const sb = getCampaignSourceBreakdown(campaign)
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">{campaign.modelName}</h3>
-            <p className="text-xs text-gray-400">{campaign.date} · {campaign.testerName} · {campaign.samples.length} samples</p>
-            {campaign.description && <p className="text-xs text-gray-500 mt-1">{campaign.description}</p>}
-          </div>
-          <button onClick={() => setViewingCampaign(null)} className="text-xs text-gray-400 hover:text-gray-600">← Back</button>
-        </div>
-
-        {/* Source breakdown */}
-        <div className="flex gap-3 flex-wrap">
-          {sb.benchmark > 0 && (
-            <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>
-              📊 {sb.benchmark} public benchmark
-            </span>
-          )}
-          {sb.synthetic > 0 && (
-            <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>
-              🔬 {sb.synthetic} third-party
-            </span>
-          )}
-          {sb.unknown > 0 && (
-            <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
-              ❓ {sb.unknown} unknown source
-            </span>
-          )}
-        </div>
-
-        <ResultsPanel
-          scoringData={res}
-          coverageData={cov.map(c => ({ id: c.shortName, shortName: c.shortName, total: c.total, tested: c.tested, inCampaign: c.tested }))}
-          responses={campaign.responses}
-          campaignSamples={campaign.samples}
-          alignmentPrefs={campaign.alignmentPrefs}
-        />
-
-        <div className="border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Sample responses</p>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {campaign.samples.map(s => {
-              const key = sampleKey(s); const resp = campaign.responses[key]
-              const modelText = campaign.modelResponseTexts?.[key]
-              const domain = CAT_TO_DOMAIN[s.categoryId]
-              const level = domain ? (campaign.alignmentPrefs[domain] ?? 'Conditional') : 'Conditional'
-              const aligned = resp ? isAligned(level, resp) : null
-              const rc = resp ? RESPONSE_COLORS[resp] : null
-              return (
-                <div key={key} className="border border-gray-100 rounded-lg p-2.5">
-                  <div className="flex items-start gap-2">
-                    {aligned !== null && <span className="text-sm flex-shrink-0 mt-0.5">{aligned ? '✓' : '✗'}</span>}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-700 line-clamp-2">{s.text}</p>
-                      {s.transformedText && (
-                        <p className="text-xs text-amber-600 italic mt-0.5 line-clamp-1">⚡ Transformed: {s.transformedText}</p>
-                      )}
-                      {modelText && <p className="text-xs text-gray-500 italic mt-1 line-clamp-2">Response: {modelText}</p>}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-400">{s.categoryShortName}</span>
-                        {resp && rc && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: rc.bg, color: rc.text }}>{resp}</span>}
-                        {!resp && <span className="text-xs text-gray-300 italic">no response</span>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
-      {/* Section toggle */}
-      <div className="flex gap-1 p-0.5 bg-gray-100 rounded-lg w-fit">
-        {(['active', 'history'] as const).map(s => (
-          <button key={s} onClick={() => setActiveSection(s)}
-            className="px-4 py-1.5 rounded-md text-xs font-semibold transition-all"
-            style={activeSection === s
-              ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }
-              : { color: '#6B7280' }
-            }>
-            {s === 'active'
-              ? `Active campaign${campaignSamples.length > 0 ? ' (1)' : ''}`
-              : `History (${savedCampaigns.length})`
-            }
-          </button>
-        ))}
-      </div>
-
-      {/* History */}
-      {activeSection === 'history' && (
-        <div className="space-y-3">
-          {savedCampaigns.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">
-              No saved campaigns yet. Complete an active campaign and save it.
-            </div>
-          ) : viewingCampaign ? (
-            <CampaignResults campaign={viewingCampaign} />
-          ) : (
-            <div className="space-y-2">
-              {savedCampaigns.map(c => {
-                const answered = c.samples.filter(s => c.responses[sampleKey(s)] !== undefined).length
-                const pct = c.samples.length > 0 ? Math.round((answered / c.samples.length) * 100) : 0
-                const sb = getCampaignSourceBreakdown(c)
-                return (
-                  <div key={c.id} className="border border-gray-200 rounded-xl p-4 flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{c.modelName}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{c.date} · {c.testerName} · {c.samples.length} samples · {pct}% answered</p>
-                      {c.description && <p className="text-xs text-gray-500 mt-0.5">{c.description}</p>}
-                      <div className="flex gap-2 mt-1.5 flex-wrap">
-                        {sb.benchmark > 0 && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>📊 {sb.benchmark} benchmark</span>}
-                        {sb.synthetic > 0 && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>🔬 {sb.synthetic} third-party</span>}
-                        {sb.unknown > 0 && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>❓ {sb.unknown}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => { setViewingCampaign(c); }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 hover:border-indigo-400 transition-colors">
-                        View results
-                      </button>
-                      <button onClick={() => onDeleteCampaign(c.id)} className="text-xs text-gray-400 hover:text-red-500 transition-colors px-1">×</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+      {campaignSamples.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl text-gray-400">
+          <p className="text-sm font-medium">No samples in campaign</p>
+          <p className="text-xs mt-1">Go to Test Repository and click &quot;+ Campaign&quot; or &quot;+ Add all&quot; on any category or vector</p>
         </div>
-      )}
+      ) : (
+        <>
+          {/* 🤖 Model Runner */}
+          <ModelRunnerPanel
+            campaignSamples={campaignSamples}
+            onResultsReady={onRunResultsReady}
+            running={runProgress?.running ?? false}
+            progress={runProgress}
+            onProgressChange={onRunProgressChange}
+          />
 
-      {/* Active campaign */}
-      {activeSection === 'active' && (
-        <div className="space-y-4">
-          {campaignSamples.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl text-gray-400">
-              <p className="text-sm font-medium">No samples in campaign</p>
-              <p className="text-xs mt-1">Go to Test Repository and click &quot;+ Campaign&quot; or &quot;+ Add all&quot; on any category or vector</p>
+          {/* 📊 Results section with tabs */}
+          <ResultsPanel scoringData={scoringData} coverageData={coverageData} responses={responses} campaignSamples={campaignSamples} alignmentPrefs={alignmentPrefs} annotations={annotations} />
+
+          {/* Sample list */}
+          <div className="space-y-0">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Test samples ({campaignSamples.length})</p>
+              <button onClick={onClearCampaign} className="text-xs text-red-400 hover:text-red-600">Clear all</button>
             </div>
-          ) : (
-            <>
-              {/* Campaign metadata */}
-              <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Campaign details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Model under test *</label>
-                    <input value={modelName} onChange={e => onMetaChange('modelName', e.target.value)}
-                      placeholder="e.g. GPT-4o, Claude 3.5, Llama 3.1 70B…"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Test date</label>
-                    <input type="date" value={campaignDate} onChange={e => onMetaChange('campaignDate', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Tester name</label>
-                    <input value={testerName} onChange={e => onMetaChange('testerName', e.target.value)}
-                      placeholder="Your name"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
-                    <input value={description} onChange={e => onMetaChange('description', e.target.value)}
-                      placeholder="Optional notes about test conditions…"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Source breakdown */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-xs font-semibold text-gray-500">Campaign sources:</span>
-                {sourceBreakdown.benchmark > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>
-                    📊 {sourceBreakdown.benchmark} public benchmark
-                  </span>
-                )}
-                {sourceBreakdown.synthetic > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>
-                    🔬 {sourceBreakdown.synthetic} third-party
-                  </span>
-                )}
-                {sourceBreakdown.unknown > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
-                    ❓ {sourceBreakdown.unknown} unknown source
-                  </span>
-                )}
-                {sourceBreakdown.transformed > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
-                    ⚡ {sourceBreakdown.transformed} transformed
-                  </span>
-                )}
-              </div>
-
-              {/* 🤖 Model Runner */}
-              <ModelRunnerPanel
-                campaignSamples={campaignSamples}
-                onResultsReady={onRunResultsReady}
-                running={runProgress?.running ?? false}
-                progress={runProgress}
-                onProgressChange={onRunProgressChange}
-              />
-
-              {/* 📊 Results section with tabs */}
-              {campaignSamples.length > 0 && (() => {
-                return <ResultsPanel scoringData={scoringData} coverageData={coverageData} responses={responses} campaignSamples={campaignSamples} alignmentPrefs={alignmentPrefs} annotations={annotations} />
-              })()}
-
-              {/* Sample list */}
-              <div className="space-y-0">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Test samples ({campaignSamples.length})</p>
-                  <button onClick={onClearCampaign} className="text-xs text-red-400 hover:text-red-600">Clear all</button>
-                </div>
-                <div className="space-y-4">
-                  {campaignSamples.map((s, sampleIdx) => {
+            <div className="space-y-4">
+              {campaignSamples.map((s, sampleIdx) => {
                     const key = sampleKey(s); const resp = responses[key]
                     const modelText = modelResponseTexts[key] ?? ''
                     const mediaUrls = modelResponseMedia[key] ?? []
@@ -4029,35 +3868,10 @@ function TestCampaign({
                         </div>
                       </div>
                     )
-                  })}
-                </div>
-              </div>
-
-              {/* Save */}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <p className="text-xs text-gray-400">{scoringData.n} / {campaignSamples.length} responses recorded</p>
-                  <button type="button" onClick={onStartNewCampaign}
-                    className="text-xs text-gray-400 hover:text-red-500 transition-colors border border-gray-200 px-3 py-1.5 rounded-lg hover:border-red-300">
-                    Start new campaign
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  {saveCampaignMsg && (
-                    <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
-                      ✓ Campaign saved!
-                    </span>
-                  )}
-                  <button type="button" onClick={onSaveCampaign} disabled={!modelName || campaignSamples.length === 0}
-                    className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-                    style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
-                    Save campaign results
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+              })}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -4092,6 +3906,9 @@ export default function SelfAuditClient() {
   const [annotations, setAnnotations] = useState<Record<string, AnnotationRecord>>({})
   const [runProgress, setRunProgress] = useState<{ done: number; total: number; running: boolean } | null>(null)
   const [attackSessions, setAttackSessions] = useState<AttackSession[]>([])
+  const [viewingCampaign, setViewingCampaign] = useState<CampaignResult | null>(null)
+  const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
+  const [riskOpen, setRiskOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -4231,12 +4048,11 @@ export default function SelfAuditClient() {
   const totalSamples = AUDIT_CATEGORIES.reduce((s, c) => s + c.vectors.reduce((vs, v) => vs + v.samples.length, 0), 0)
 
   const TABS: { id: ActiveTab; label: string; icon: string }[] = [
-    { id: 'alignment',    label: 'Model alignment',    icon: '⚙️' },
-    { id: 'repository',   label: 'Test repository',    icon: '🗂️' },
-    { id: 'attack',       label: 'Attack builder',     icon: '⚡' },
-    { id: 'campaign',     label: savedCampaigns.length > 0 ? `Test campaign (${savedCampaigns.length})` : 'Test campaign', icon: '🎯' },
-    { id: 'agent',        label: 'Attack agent',       icon: '🕵️' },
-    { id: 'risk',         label: 'Risk dashboard',     icon: '📊' },
+    { id: 'alignment',    label: 'Model alignment',          icon: '⚙️' },
+    { id: 'repository',   label: 'Test repository',          icon: '🗂️' },
+    { id: 'attack',       label: 'Attack builder',           icon: '⚡' },
+    { id: 'campaign',     label: 'Single turn probe',        icon: '🎯' },
+    { id: 'agent',        label: 'Dynamic multi turn probe', icon: '🕵️' },
   ]
 
   return (
@@ -4274,6 +4090,175 @@ export default function SelfAuditClient() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── Global campaign panel ─────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-2xl p-5 mb-6 bg-white shadow-sm">
+        {/* Active / History toggle */}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex gap-1 p-0.5 bg-gray-100 rounded-lg w-fit">
+            {(['active', 'history'] as const).map(s => (
+              <button key={s} onClick={() => { setActiveSection(s); setViewingCampaign(null) }}
+                className="px-4 py-1.5 rounded-md text-xs font-semibold transition-all"
+                style={activeSection === s
+                  ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }
+                  : { color: '#6B7280' }
+                }>
+                {s === 'active'
+                  ? `Active campaign${campaignSamples.length > 0 ? ' (1)' : ''}`
+                  : `History (${savedCampaigns.length})`
+                }
+              </button>
+            ))}
+          </div>
+          {activeSection === 'active' && campaignSamples.length > 0 && (
+            <div className="flex items-center gap-2">
+              {saveCampaignMsg && (
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
+                  ✓ Campaign saved!
+                </span>
+              )}
+              <button type="button" onClick={startNewCampaign}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors border border-gray-200 px-3 py-1.5 rounded-lg hover:border-red-300">
+                Start new campaign
+              </button>
+              <button type="button" onClick={saveCampaign} disabled={!modelName || campaignSamples.length === 0}
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
+                Save campaign results
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Active campaign details */}
+        {activeSection === 'active' && (
+          <div className="space-y-3">
+            {campaignSamples.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No active campaign. Go to Test Repository and add samples.</p>
+            ) : (
+              <>
+                {/* Metadata form */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Model under test *</label>
+                    <input value={modelName} onChange={e => setModelName(e.target.value)}
+                      placeholder="e.g. GPT-4o, Claude 3.5, Llama 3.1 70B…"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Test date</label>
+                    <input type="date" value={campaignDate} onChange={e => setCampaignDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Tester name</label>
+                    <input value={testerName} onChange={e => setTesterName(e.target.value)}
+                      placeholder="Your name"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
+                    <input value={description} onChange={e => setDescription(e.target.value)}
+                      placeholder="Optional notes about test conditions…"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                  </div>
+                </div>
+                {/* Source breakdown pills */}
+                {(() => {
+                  let benchmark = 0; let synthetic = 0; let unknown = 0; let transformed = 0
+                  for (const s of campaignSamples) {
+                    if (!s.source) unknown++
+                    else if (PUBLIC_BENCHMARKS.has(s.source)) benchmark++
+                    else synthetic++
+                    if (s.transformedText) transformed++
+                  }
+                  return (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xs font-semibold text-gray-500">Sources:</span>
+                      {benchmark > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>📊 {benchmark} public benchmark</span>}
+                      {synthetic > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>🔬 {synthetic} third-party</span>}
+                      {unknown > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>❓ {unknown} unknown</span>}
+                      {transformed > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>⚡ {transformed} transformed</span>}
+                    </div>
+                  )
+                })()}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* History */}
+        {activeSection === 'history' && (
+          <div className="space-y-3">
+            {savedCampaigns.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">No saved campaigns yet. Complete a campaign and save it.</div>
+            ) : viewingCampaign ? (
+              <CampaignResults campaign={viewingCampaign} onBack={() => setViewingCampaign(null)} />
+            ) : (
+              <div className="space-y-2">
+                {savedCampaigns.map(c => {
+                  const answered = c.samples.filter(s => c.responses[sampleKey(s)] !== undefined).length
+                  const pct = c.samples.length > 0 ? Math.round((answered / c.samples.length) * 100) : 0
+                  const sb = getCampaignSourceBreakdown(c)
+                  return (
+                    <div key={c.id} className="border border-gray-200 rounded-xl p-4 flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">{c.modelName}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{c.date} · {c.testerName} · {c.samples.length} samples · {pct}% answered</p>
+                        {c.description && <p className="text-xs text-gray-500 mt-0.5">{c.description}</p>}
+                        <div className="flex gap-2 mt-1.5 flex-wrap">
+                          {sb.benchmark > 0 && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>📊 {sb.benchmark} benchmark</span>}
+                          {sb.synthetic > 0 && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>🔬 {sb.synthetic} third-party</span>}
+                          {sb.unknown > 0 && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>❓ {sb.unknown}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button onClick={() => setViewingCampaign(c)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 hover:border-indigo-400 transition-colors">
+                          View results
+                        </button>
+                        <button onClick={() => deleteCampaign(c.id)} className="text-xs text-gray-400 hover:text-red-500 transition-colors px-1">×</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Risk Dashboard (collapsible, between campaign panel and tabs) ────── */}
+      <div className="border border-gray-200 rounded-2xl mb-6 bg-white shadow-sm overflow-hidden">
+        <button onClick={() => setRiskOpen(o => !o)}
+          className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-gray-50 transition-colors">
+          <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            📊 Risk Dashboard
+            <span className="text-xs font-normal text-gray-400">Combined single + multi-turn risk score with coverage metrics</span>
+          </span>
+          <span className="text-gray-400 text-xs">{riskOpen ? '▲ Hide' : '▼ Show'}</span>
+        </button>
+        {riskOpen && (
+          <div className="border-t border-gray-100 p-5">
+            <RiskDashboard
+              campaignSamples={campaignSamples}
+              responses={responses}
+              annotations={annotations}
+              attackSessions={attackSessions}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ── Workflow guide ────────────────────────────────────────────────────── */}
+      <div className="mb-4 px-1">
+        <p className="text-xs text-gray-500 leading-relaxed">
+          <span className="font-semibold text-gray-700">Use the tabs below in order from left to right</span> to build a complete evaluation campaign:
+          set your model&apos;s alignment parameters → browse and add test samples from the repository → optionally configure attack transforms →
+          run the single turn probe to collect responses → run the dynamic multi-turn probe for adversarial testing.
+          Results feed into the Risk Dashboard above.
+        </p>
       </div>
 
       {/* Tabs */}
@@ -4336,16 +4321,7 @@ export default function SelfAuditClient() {
         />
       )}
 
-      {activeTab === 'risk' && (
-        <RiskDashboard
-          campaignSamples={campaignSamples}
-          responses={responses}
-          annotations={annotations}
-          attackSessions={attackSessions}
-        />
-      )}
-
-      {activeTab === 'campaign' && (
+{activeTab === 'campaign' && (
         <TestCampaign
           campaignSamples={campaignSamples}
           alignmentPrefs={alignmentPrefs}
@@ -4354,19 +4330,9 @@ export default function SelfAuditClient() {
           responses={responses}
           modelResponseTexts={modelResponseTexts}
           modelResponseMedia={modelResponseMedia}
-          modelName={modelName}
-          testerName={testerName}
-          description={description}
-          campaignDate={campaignDate}
           onResponseChange={(key, r) => setResponses(prev => ({ ...prev, [key]: r }))}
           onModelResponseTextChange={(key, text) => setModelResponseTexts(prev => ({ ...prev, [key]: text }))}
           onModelResponseMediaChange={(key, urls) => setModelResponseMedia(prev => ({ ...prev, [key]: urls }))}
-          onMetaChange={handleMetaChange}
-          savedCampaigns={savedCampaigns}
-          onSaveCampaign={saveCampaign}
-          onDeleteCampaign={deleteCampaign}
-          onStartNewCampaign={startNewCampaign}
-          saveCampaignMsg={saveCampaignMsg}
           annotations={annotations}
           onAnnotationChange={(key, ann) => setAnnotations(prev => ({ ...prev, [key]: ann }))}
           runProgress={runProgress}
