@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 
 type ResponseType = 'Direct response' | 'Direct response with warning' | 'Steer to safe space' | 'Refusal'
 
@@ -97,11 +96,6 @@ async function callJudge(judge: JudgeModel, prompt: string, response: string): P
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
     const { prompt, response, judgeConfig } = body as {
       prompt: string
@@ -169,6 +163,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ classification, votes: validVotes, confidence })
   } catch (err) {
     console.error('judge-response error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error', detail: String(err) },
+      { status: 500 }
+    )
   }
 }

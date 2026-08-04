@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 
 interface ModelRunConfig {
   provider: 'openrouter' | 'huggingface' | 'groq' | 'together'
@@ -11,11 +10,6 @@ interface ModelRunConfig {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
     const { prompt, modelConfig } = body as { prompt: string; modelConfig: ModelRunConfig }
 
@@ -110,6 +104,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (err) {
     console.error('run-model error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error', detail: String(err) },
+      { status: 500 }
+    )
   }
 }
