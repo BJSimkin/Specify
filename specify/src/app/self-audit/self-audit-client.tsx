@@ -12,7 +12,7 @@ import ModelComparisonPanel from '@/components/ModelComparisonPanel'
 type AlignmentLevel = 'Fully Allow' | 'Conditional' | 'Restricted' | 'Prohibited'
 type ResponseType = 'Direct response' | 'Direct response with warning' | 'Steer to safe space' | 'Refusal'
 type SortCriteria = 'confirmations' | 'complexity' | 'explicitness' | 'risk'
-type ActiveTab = 'alignment' | 'repository' | 'attack' | 'campaign' | 'agent'
+type ActiveTab = 'config' | 'alignment' | 'repository' | 'attack' | 'campaign' | 'agent'
 type SampleMethod = 'random' | 'top-risk' | 'top-explicitness'
 
 interface AttackConfig {
@@ -142,6 +142,35 @@ function describeConfig(cfg: AttackConfig): string {
   if (cfg.misalignment) parts.push(cfg.misalignment)
   if (cfg.perturbation) parts.push(cfg.perturbation)
   return parts.length > 0 ? parts.join(' · ') : 'No transformation'
+}
+
+// ─── Test Config Types ────────────────────────────────────────────────────────
+
+interface ModelEndpoint {
+  provider: string
+  modelId: string
+  apiKey: string
+  baseUrl?: string
+}
+
+interface TestConfigState {
+  modelUnderTest: ModelEndpoint
+  judgeModels: ModelEndpoint[]
+  attackAgent: ModelEndpoint
+  textAugmentation: ModelEndpoint
+  tts: { apiKey: string; model: 'tts-1' | 'tts-1-hd' }
+  imageGen: { provider: 'together' | 'replicate'; model: string; apiKey: string }
+  videoGen: { provider: string; model: string; apiKey: string }
+}
+
+const DEFAULT_TEST_CONFIG: TestConfigState = {
+  modelUnderTest:   { provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' },
+  judgeModels:      [{ provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' }],
+  attackAgent:      { provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' },
+  textAugmentation: { provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' },
+  tts:              { apiKey: '',            model: 'tts-1' },
+  imageGen:         { provider: 'together', model: 'black-forest-labs/FLUX.1-schnell-Free', apiKey: '' },
+  videoGen:         { provider: 'runway',   model: 'gen3a_turbo', apiKey: '' },
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -537,6 +566,400 @@ function BulkAddModal({ target, onConfirm, onClose }: {
   )
 }
 
+// ─── Shared sub-components ────────────────────────────────────────────────────
+
+const PROVIDER_MODELS: Record<string, string[]> = {
+  groq:       ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
+  openai:     ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  openrouter: ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001', 'mistralai/mistral-large'],
+  together:   ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'mistralai/Mixtral-8x22B-Instruct-v0.1'],
+  anthropic:  ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5-20251001'],
+  custom:     [],
+}
+
+const PROVIDERS = [
+  { id: 'groq',       label: 'Groq',         color: '#F97316' },
+  { id: 'openai',     label: 'OpenAI',        color: '#10A37F' },
+  { id: 'openrouter', label: 'OpenRouter',    color: '#6366F1' },
+  { id: 'together',   label: 'Together AI',   color: '#8B5CF6' },
+  { id: 'anthropic',  label: 'Anthropic',     color: '#D97706' },
+  { id: 'custom',     label: 'Custom',        color: '#6B7280' },
+]
+
+function EndpointConfig({
+  label, description, icon, value, onChange, showCustomUrl = false,
+}: {
+  label: string
+  description: string
+  icon: string
+  value: { provider: string; modelId: string; apiKey: string; baseUrl?: string }
+  onChange: (v: { provider: string; modelId: string; apiKey: string; baseUrl?: string }) => void
+  showCustomUrl?: boolean
+}) {
+  const models = PROVIDER_MODELS[value.provider] ?? []
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+        <span className="text-base">{icon}</span>
+        <div>
+          <p className="text-sm font-bold text-gray-800">{label}</p>
+          <p className="text-xs text-gray-400">{description}</p>
+        </div>
+      </div>
+      <div className="p-4 space-y-3">
+        {/* Provider pills */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
+          <div className="flex flex-wrap gap-1.5">
+            {PROVIDERS.map(p => (
+              <button key={p.id}
+                onClick={() => onChange({ ...value, provider: p.id, modelId: PROVIDER_MODELS[p.id]?.[0] ?? '' })}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
+                style={value.provider === p.id
+                  ? { backgroundColor: p.color + '18', color: p.color, borderColor: p.color + '60' }
+                  : { backgroundColor: 'white', color: '#6B7280', borderColor: '#E5E7EB' }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {/* Model */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
+            {models.length > 0 ? (
+              <select value={value.modelId}
+                onChange={e => onChange({ ...value, modelId: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
+                {models.map(m => <option key={m} value={m}>{m}</option>)}
+                <option value="__custom">Custom…</option>
+              </select>
+            ) : (
+              <input value={value.modelId}
+                onChange={e => onChange({ ...value, modelId: e.target.value })}
+                placeholder="model-id"
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-400 font-mono" />
+            )}
+            {value.modelId === '__custom' && (
+              <input autoFocus
+                onChange={e => onChange({ ...value, modelId: e.target.value })}
+                placeholder="Enter model ID…"
+                className="mt-1 w-full border border-indigo-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 font-mono" />
+            )}
+          </div>
+
+          {/* API Key */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">API key</p>
+            <input type="password" value={value.apiKey}
+              onChange={e => onChange({ ...value, apiKey: e.target.value })}
+              placeholder="sk-…"
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+          </div>
+        </div>
+
+        {/* Custom base URL */}
+        {(showCustomUrl || value.provider === 'custom') && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Base URL</p>
+            <input value={(value as Record<string, unknown>).baseUrl as string ?? ''}
+              onChange={e => onChange({ ...value, baseUrl: e.target.value })}
+              placeholder="https://your-endpoint.com/v1"
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+          </div>
+        )}
+
+        {/* Status indicator */}
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: value.apiKey && value.modelId ? '#22C55E' : '#E5E7EB' }} />
+          <p className="text-xs text-gray-400">
+            {value.apiKey && value.modelId ? `Configured: ${value.modelId}` : 'Not configured'}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TestConfigPanel({
+  config, onChange,
+}: {
+  config: TestConfigState
+  onChange: (c: TestConfigState) => void
+}) {
+  const [saved, setSaved] = useState(false)
+
+  function save() {
+    // Also write to legacy specifyRunnerConfig so ModelRunnerPanel picks it up
+    try {
+      localStorage.setItem('specifyRunnerConfig', JSON.stringify({
+        modelConfig: config.modelUnderTest,
+        judgeConfig: { judges: config.judgeModels },
+      }))
+    } catch { /**/ }
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-gray-900">Test configuration</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Configure all model endpoints used across your audit campaign. Settings are saved locally.</p>
+        </div>
+        <button onClick={save}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+          style={{ backgroundColor: saved ? '#16A34A' : '#1E1B4B' }}>
+          {saved ? '✓ Saved' : 'Save configuration'}
+        </button>
+      </div>
+
+      {/* Model under test */}
+      <EndpointConfig
+        icon="🤖"
+        label="Model under test"
+        description="The primary model being evaluated in this campaign"
+        value={config.modelUnderTest}
+        onChange={v => onChange({ ...config, modelUnderTest: v })}
+        showCustomUrl
+      />
+
+      {/* Judge models */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚖️</span>
+            <div>
+              <p className="text-sm font-bold text-gray-800">Judge model(s)</p>
+              <p className="text-xs text-gray-400">Evaluate model responses for safety and alignment</p>
+            </div>
+          </div>
+          <button onClick={() => onChange({ ...config, judgeModels: [...config.judgeModels, { provider: 'groq', modelId: 'llama-3.3-70b-versatile', apiKey: '' }] })}
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold border border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 transition-colors">
+            + Add judge
+          </button>
+        </div>
+        <div className="p-4 space-y-3">
+          {config.judgeModels.map((judge, i) => (
+            <div key={i} className="space-y-2">
+              {config.judgeModels.length > 1 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-500">Judge {i + 1}</p>
+                  <button onClick={() => onChange({ ...config, judgeModels: config.judgeModels.filter((_, j) => j !== i) })}
+                    className="text-xs text-red-400 hover:text-red-600">Remove</button>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
+                  <div className="flex flex-wrap gap-1">
+                    {PROVIDERS.slice(0,4).map(p => (
+                      <button key={p.id}
+                        onClick={() => onChange({ ...config, judgeModels: config.judgeModels.map((j, k) => k === i ? { ...j, provider: p.id, modelId: PROVIDER_MODELS[p.id]?.[0] ?? '' } : j) })}
+                        className="px-2 py-0.5 rounded text-xs border transition-all"
+                        style={judge.provider === p.id ? { backgroundColor: p.color + '18', color: p.color, borderColor: p.color + '60' } : { color: '#6B7280', borderColor: '#E5E7EB' }}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
+                  <select value={judge.modelId}
+                    onChange={e => onChange({ ...config, judgeModels: config.judgeModels.map((j, k) => k === i ? { ...j, modelId: e.target.value } : j) })}
+                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
+                    {(PROVIDER_MODELS[judge.provider] ?? []).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">API key</p>
+                <input type="password" value={judge.apiKey}
+                  onChange={e => onChange({ ...config, judgeModels: config.judgeModels.map((j, k) => k === i ? { ...j, apiKey: e.target.value } : j) })}
+                  placeholder="sk-…"
+                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Attack agent */}
+      <EndpointConfig
+        icon="🕵️"
+        label="Attack agent"
+        description="LLM that generates adversarial follow-up turns in multi-turn probes"
+        value={config.attackAgent}
+        onChange={v => onChange({ ...config, attackAgent: v })}
+      />
+
+      {/* Text augmentation */}
+      <EndpointConfig
+        icon="✏️"
+        label="Text augmentation"
+        description="LLM used to transform and augment attack prompts in Attack Strategy"
+        value={config.textAugmentation}
+        onChange={v => onChange({ ...config, textAugmentation: v })}
+      />
+
+      {/* TTS */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-base">🎙️</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Text-to-speech (TTS)</p>
+            <p className="text-xs text-gray-400">Convert prompts to audio for speech-based model testing. Requires an OpenAI API key.</p>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
+              <select value={config.tts.model}
+                onChange={e => onChange({ ...config, tts: { ...config.tts, model: e.target.value as 'tts-1' | 'tts-1-hd' } })}
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
+                <option value="tts-1">tts-1 (faster)</option>
+                <option value="tts-1-hd">tts-1-hd (higher quality)</option>
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">OpenAI API key</p>
+              <input type="password" value={config.tts.apiKey}
+                onChange={e => onChange({ ...config, tts: { ...config.tts, apiKey: e.target.value } })}
+                placeholder="sk-…"
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.tts.apiKey ? '#22C55E' : '#E5E7EB' }} />
+            <p className="text-xs text-gray-400">{config.tts.apiKey ? 'API key configured' : 'Not configured'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Image generation */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-base">🖼️</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Image generation</p>
+            <p className="text-xs text-gray-400">Generate images for multimodal attack scenarios</p>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
+            <div className="flex gap-1.5">
+              {(['together', 'replicate'] as const).map(p => (
+                <button key={p} onClick={() => onChange({ ...config, imageGen: { ...config.imageGen, provider: p, model: p === 'together' ? 'black-forest-labs/FLUX.1-schnell-Free' : 'black-forest-labs/flux-schnell' } })}
+                  className="px-3 py-1 rounded-lg text-xs font-medium border transition-all capitalize"
+                  style={config.imageGen.provider === p
+                    ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
+                    : { color: '#6B7280', borderColor: '#E5E7EB' }}>
+                  {p === 'together' ? 'Together AI' : 'Replicate'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
+              <select value={config.imageGen.model}
+                onChange={e => onChange({ ...config, imageGen: { ...config.imageGen, model: e.target.value } })}
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
+                {config.imageGen.provider === 'together' ? (
+                  <>
+                    <option value="black-forest-labs/FLUX.1-schnell-Free">FLUX.1-schnell (free)</option>
+                    <option value="black-forest-labs/FLUX.1-schnell">FLUX.1-schnell</option>
+                    <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev</option>
+                    <option value="stabilityai/stable-diffusion-xl-base-1.0">SDXL 1.0</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="black-forest-labs/flux-schnell">FLUX schnell</option>
+                    <option value="black-forest-labs/flux-dev">FLUX dev</option>
+                    <option value="stability-ai/sdxl">SDXL</option>
+                  </>
+                )}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">API key</p>
+              <input type="password" value={config.imageGen.apiKey}
+                onChange={e => onChange({ ...config, imageGen: { ...config.imageGen, apiKey: e.target.value } })}
+                placeholder={config.imageGen.provider === 'together' ? 'Together AI key…' : 'Replicate token…'}
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.imageGen.apiKey ? '#22C55E' : '#E5E7EB' }} />
+            <p className="text-xs text-gray-400">{config.imageGen.apiKey ? `${config.imageGen.provider} configured — ${config.imageGen.model}` : 'Not configured'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Video generation */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-base">🎬</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Video generation</p>
+            <p className="text-xs text-gray-400">Generate short video clips for multimodal scenarios</p>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: 'runway',   label: 'RunwayML',     models: ['gen3a_turbo', 'gen3a'] },
+                { id: 'kling',    label: 'Kling AI',     models: ['kling-v1', 'kling-v1-5'] },
+                { id: 'pika',     label: 'Pika',         models: ['pika-2.0', 'pika-1.5'] },
+                { id: 'hailuo',   label: 'Hailuo',       models: ['hailuo-video-01'] },
+                { id: 'luma',     label: 'Luma Dream Machine', models: ['dream-machine'] },
+              ].map(p => (
+                <button key={p.id}
+                  onClick={() => onChange({ ...config, videoGen: { provider: p.id, model: p.models[0], apiKey: config.videoGen.apiKey } })}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
+                  style={config.videoGen.provider === p.id
+                    ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
+                    : { color: '#6B7280', borderColor: '#E5E7EB' }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
+              <input value={config.videoGen.model}
+                onChange={e => onChange({ ...config, videoGen: { ...config.videoGen, model: e.target.value } })}
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">API key</p>
+              <input type="password" value={config.videoGen.apiKey}
+                onChange={e => onChange({ ...config, videoGen: { ...config.videoGen, apiKey: e.target.value } })}
+                placeholder="API key…"
+                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">
+            Video generation is used in Attack Strategy multimodal mode. Each provider has its own API — configure the key for your chosen provider.
+          </p>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.videoGen.apiKey ? '#22C55E' : '#E5E7EB' }} />
+            <p className="text-xs text-gray-400">{config.videoGen.apiKey ? `${config.videoGen.provider} configured` : 'Not configured'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Alignment Panel ──────────────────────────────────────────────────────────
 function AlignmentPanel({ prefs, onChange, onBulkChange, onSave }: {
   prefs: Record<string, AlignmentLevel>
@@ -682,11 +1105,13 @@ const INTERNAL_IMAGE_DB: Record<'aligned' | 'benign' | 'jailbreak', Array<{ url:
   ],
 }
 
-function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
+function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange, ttsConfig, imageGenConfig }: {
   basePrompt: string | null
   config: AttackConfig
   onChange: (key: keyof AttackConfig, value: string | null) => void
   onBasePromptChange: (text: string) => void
+  ttsConfig?: { apiKey: string; model: 'tts-1' | 'tts-1-hd' }
+  imageGenConfig?: { provider: 'together' | 'replicate'; model: string; apiKey: string }
 }) {
   const [expanded, setExpanded] = useState<Record<keyof AttackConfig, boolean>>({
     turn: true, language: true, injection: false, misalignment: false, perturbation: false,
@@ -702,17 +1127,17 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
   const [ttsGender, setTtsGender] = useState<'male' | 'female' | 'neutral'>('neutral')
   const [ttsEthnicity, setTtsEthnicity] = useState('diverse')
   const [ttsBgNoise, setTtsBgNoise] = useState<'none' | 'office' | 'street' | 'crowd' | 'cafe' | 'nature'>('none')
-  const [ttsApiKey, setTtsApiKey] = useState('')
-  const [ttsModel, setTtsModel] = useState<'tts-1' | 'tts-1-hd'>('tts-1')
+  const [ttsApiKey, setTtsApiKey] = useState(ttsConfig?.apiKey ?? '')
+  const [ttsModel, setTtsModel] = useState<'tts-1' | 'tts-1-hd'>(ttsConfig?.model ?? 'tts-1')
   const [generatingAudio, setGeneratingAudio] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioError, setAudioError] = useState<string | null>(null)
   // Image state
   const [imageSource, setImageSource] = useState<'database' | 'ai'>('database')
   const [imageCategory, setImageCategory] = useState<'aligned' | 'benign' | 'jailbreak'>('benign')
-  const [imgApiKey, setImgApiKey] = useState('')
-  const [imgProvider, setImgProvider] = useState<'together' | 'replicate'>('together')
-  const [imgModel, setImgModel] = useState('black-forest-labs/FLUX.1-schnell-Free')
+  const [imgApiKey, setImgApiKey] = useState(imageGenConfig?.apiKey ?? '')
+  const [imgProvider, setImgProvider] = useState<'together' | 'replicate'>(imageGenConfig?.provider ?? 'together')
+  const [imgModel, setImgModel] = useState(imageGenConfig?.model ?? 'black-forest-labs/FLUX.1-schnell-Free')
   const [generatingImage, setGeneratingImage] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState<string | null>(null)
@@ -4465,6 +4890,30 @@ export default function SelfAuditClient() {
   const [viewingCampaign, setViewingCampaign] = useState<CampaignResult | null>(null)
   const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
   const [riskOpen, setRiskOpen] = useState(false)
+  // Centralised test configuration (persisted to localStorage)
+  const [testConfig, setTestConfig] = useState<TestConfigState>(() => {
+    try {
+      const saved = localStorage.getItem('specifyTestConfig')
+      if (saved) return JSON.parse(saved) as TestConfigState
+    } catch { /**/ }
+    // Migrate from existing specifyRunnerConfig if present
+    try {
+      const rc = localStorage.getItem('specifyRunnerConfig')
+      if (rc) {
+        const parsed = JSON.parse(rc)
+        return {
+          modelUnderTest: { provider: parsed.modelConfig?.provider ?? 'groq', modelId: parsed.modelConfig?.modelId ?? '', apiKey: parsed.modelConfig?.apiKey ?? '' },
+          judgeModels: parsed.judgeConfig?.judges ?? [],
+          attackAgent: { provider: 'groq', modelId: 'llama-3.3-70b-versatile', apiKey: '' },
+          textAugmentation: { provider: 'groq', modelId: 'llama-3.3-70b-versatile', apiKey: '' },
+          tts: { apiKey: '', model: 'tts-1' as const },
+          imageGen: { provider: 'together' as const, model: 'black-forest-labs/FLUX.1-schnell-Free', apiKey: '' },
+          videoGen: { provider: 'runway', model: 'gen3a_turbo', apiKey: '' },
+        }
+      }
+    } catch { /**/ }
+    return DEFAULT_TEST_CONFIG
+  })
   const [alignmentSaved, setAlignmentSaved] = useState(false)
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null)
   const [activeTeamName, setActiveTeamName] = useState<string | null>(null)
@@ -4502,6 +4951,11 @@ export default function SelfAuditClient() {
   useEffect(() => {
     if (session?.user?.name && !testerName) setTesterName(session.user.name)
   }, [session, testerName])
+
+  // Persist test config
+  useEffect(() => {
+    try { localStorage.setItem('specifyTestConfig', JSON.stringify(testConfig)) } catch { /**/ }
+  }, [testConfig])
 
   // Persist disliked samples
   useEffect(() => {
@@ -4682,6 +5136,7 @@ export default function SelfAuditClient() {
   const totalSamples = AUDIT_CATEGORIES.reduce((s, c) => s + c.vectors.reduce((vs, v) => vs + v.samples.length, 0), 0)
 
   const TABS: { id: ActiveTab; label: string; icon: string; done: boolean }[] = [
+    { id: 'config',     label: 'Test configuration',       icon: '🔌',  done: !!(testConfig.modelUnderTest.apiKey && testConfig.modelUnderTest.modelId) },
     { id: 'alignment',  label: 'Model alignment',          icon: '⚙️',  done: alignmentSaved },
     { id: 'attack',     label: 'Attack strategy',          icon: '⚡',  done: !isDefaultConfig(attackConfig) },
     { id: 'repository', label: 'Test repository',          icon: '🗂️', done: campaignSamples.length > 0 },
@@ -4922,6 +5377,13 @@ export default function SelfAuditClient() {
         ))}
       </div>
 
+      {activeTab === 'config' && (
+        <TestConfigPanel
+          config={testConfig}
+          onChange={setTestConfig}
+        />
+      )}
+
       {activeTab === 'alignment' && (
         <div className="max-w-3xl">
           <div className="mb-4">
@@ -4963,6 +5425,8 @@ export default function SelfAuditClient() {
             config={attackConfig}
             onChange={(key, value) => setAttackConfig(prev => ({ ...prev, [key]: value ?? DEFAULT_ATTACK_CONFIG[key] ?? null }))}
             onBasePromptChange={text => setAttackBase(text)}
+            ttsConfig={testConfig.tts}
+            imageGenConfig={testConfig.imageGen}
           />
         </div>
       )}
