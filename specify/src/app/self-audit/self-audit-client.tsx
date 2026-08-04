@@ -699,12 +699,17 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
   const [ttsGender, setTtsGender] = useState<'male' | 'female' | 'neutral'>('neutral')
   const [ttsEthnicity, setTtsEthnicity] = useState('diverse')
   const [ttsBgNoise, setTtsBgNoise] = useState<'none' | 'office' | 'street' | 'crowd' | 'cafe' | 'nature'>('none')
+  const [ttsApiKey, setTtsApiKey] = useState('')
+  const [ttsModel, setTtsModel] = useState<'tts-1' | 'tts-1-hd'>('tts-1')
   const [generatingAudio, setGeneratingAudio] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioError, setAudioError] = useState<string | null>(null)
   // Image state
   const [imageSource, setImageSource] = useState<'database' | 'ai'>('database')
   const [imageCategory, setImageCategory] = useState<'aligned' | 'benign' | 'jailbreak'>('benign')
+  const [imgApiKey, setImgApiKey] = useState('')
+  const [imgProvider, setImgProvider] = useState<'together' | 'replicate'>('together')
+  const [imgModel, setImgModel] = useState('black-forest-labs/FLUX.1-schnell-Free')
   const [generatingImage, setGeneratingImage] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState<string | null>(null)
@@ -759,13 +764,13 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
   async function generateTTS() {
     const text = generatedVariant ?? localPrompt
     if (!text.trim()) { setAudioError('Enter a prompt first'); return }
-    const creds = readApiCredentials()
-    if (!creds) { setAudioError('No API key found. Configure a model in the Single Turn Probe tab first.'); return }
+    const key = ttsApiKey.trim()
+    if (!key) { setAudioError('Enter your OpenAI API key above to use TTS.'); return }
     setGeneratingAudio(true); setAudioError(null); setAudioUrl(null)
     try {
       const res = await fetch('/api/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), age: ttsAge, gender: ttsGender, ethnicity: ttsEthnicity, bgNoise: ttsBgNoise, apiKey: creds.apiKey, provider: creds.provider }),
+        body: JSON.stringify({ text: text.trim(), age: ttsAge, gender: ttsGender, ethnicity: ttsEthnicity, bgNoise: ttsBgNoise, apiKey: key, model: ttsModel }),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'TTS failed') }
       const blob = await res.blob()
@@ -775,12 +780,13 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
   }
 
   async function generateImage() {
+    const key = imgApiKey.trim()
+    if (!key) { setImageError('Enter your API key above to generate images.'); return }
     setGeneratingImage(true); setImageError(null); setImageUrl(null)
-    const creds = readApiCredentials()
     try {
       const res = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: imageCategory, prompt: localPrompt.trim(), apiKey: creds?.apiKey ?? '' }),
+        body: JSON.stringify({ category: imageCategory, prompt: localPrompt.trim(), apiKey: key, provider: imgProvider, model: imgModel }),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'Image gen failed') }
       const data = await res.json()
@@ -999,6 +1005,36 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
               <div className="space-y-3">
                 <p className="text-xs text-gray-500">Convert the attack prompt to speech with configurable voice characteristics.</p>
 
+                {/* TTS config */}
+                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">TTS configuration</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Provider</label>
+                      <span className="text-xs text-gray-700 bg-white border border-gray-200 rounded px-2 py-1">OpenAI</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Model</label>
+                      <select value={ttsModel} onChange={e => setTtsModel(e.target.value as 'tts-1' | 'tts-1-hd')}
+                        className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-400">
+                        <option value="tts-1">tts-1 (faster)</option>
+                        <option value="tts-1-hd">tts-1-hd (higher quality)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">OpenAI API key</label>
+                    <input
+                      type="password"
+                      value={ttsApiKey}
+                      onChange={e => setTtsApiKey(e.target.value)}
+                      placeholder="sk-..."
+                      className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-indigo-400 font-mono"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">Requires an <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="underline">OpenAI API key</a> — Groq/OpenRouter keys won&apos;t work here.</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs font-semibold text-gray-500 mb-1.5">Age</p>
@@ -1103,6 +1139,60 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
                     {imageCategory === 'aligned' ? 'Safe, helpful, policy-aligned images' : imageCategory === 'benign' ? 'Neutral everyday images with no special properties' : 'Images designed to probe context confusion or bypass visual safety filters'}
                   </p>
                 </div>
+
+                {imageSource === 'ai' && (
+                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Image generation configuration</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Provider</label>
+                        <select value={imgProvider} onChange={e => {
+                          setImgProvider(e.target.value as 'together' | 'replicate')
+                          setImgModel(e.target.value === 'together' ? 'black-forest-labs/FLUX.1-schnell-Free' : 'black-forest-labs/flux-schnell')
+                        }}
+                          className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-400">
+                          <option value="together">Together AI</option>
+                          <option value="replicate">Replicate</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Model</label>
+                        <select value={imgModel} onChange={e => setImgModel(e.target.value)}
+                          className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-400">
+                          {imgProvider === 'together' ? (
+                            <>
+                              <option value="black-forest-labs/FLUX.1-schnell-Free">FLUX.1-schnell (free)</option>
+                              <option value="black-forest-labs/FLUX.1-schnell">FLUX.1-schnell</option>
+                              <option value="black-forest-labs/FLUX.1-dev">FLUX.1-dev</option>
+                              <option value="stabilityai/stable-diffusion-xl-base-1.0">SDXL 1.0</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="black-forest-labs/flux-schnell">FLUX schnell</option>
+                              <option value="black-forest-labs/flux-dev">FLUX dev</option>
+                              <option value="stability-ai/sdxl">SDXL</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">API key</label>
+                      <input
+                        type="password"
+                        value={imgApiKey}
+                        onChange={e => setImgApiKey(e.target.value)}
+                        placeholder={imgProvider === 'together' ? 'Together AI key…' : 'Replicate key…'}
+                        className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-indigo-400 font-mono"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {imgProvider === 'together'
+                        ? <><a href="https://api.together.ai/settings/api-keys" target="_blank" rel="noreferrer" className="underline">Together AI key</a> — FLUX.1-schnell-Free has no cost.</>
+                        : <><a href="https://replicate.com/account/api-tokens" target="_blank" rel="noreferrer" className="underline">Replicate API token</a> — billed per run.</>}
+                    </p>
+                  </div>
+                )}
 
                 {imageSource === 'database' && (
                   <div>

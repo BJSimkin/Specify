@@ -58,19 +58,16 @@ export async function POST(request: NextRequest) {
       ? ` [Note: background noise context: ${bgNoise}]`
       : ''
 
-    const provider = (body.provider as string) ?? 'openai'
-    const endpoint = provider === 'openai'
-      ? 'https://api.openai.com/v1/audio/speech'
-      : 'https://api.openai.com/v1/audio/speech'  // fallback to OpenAI format
+    const model = (body.model as string) ?? 'tts-1'
 
-    const res = await fetch(endpoint, {
+    const res = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'tts-1',
+        model,
         input: text.slice(0, 4096) + noiseNote,
         voice,
         speed,
