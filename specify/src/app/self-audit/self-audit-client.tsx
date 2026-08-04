@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { AUDIT_CATEGORIES, type RiskCategory } from '@/lib/scenarios-data'
@@ -25,6 +25,32 @@ interface CampaignSample {
   attackConfigApplied?: Partial<AttackConfig>
 }
 
+interface ModelRunConfig {
+  provider: 'openrouter' | 'huggingface' | 'groq' | 'together'
+  modelId: string
+  apiKey: string
+  hfUrl?: string
+}
+
+interface JudgeModel {
+  provider: 'openrouter' | 'groq' | 'together'
+  modelId: string
+  apiKey: string
+}
+
+interface JudgeConfig {
+  judges: JudgeModel[]
+  mode: 'single' | 'jury'
+}
+
+interface AnnotationRecord {
+  responseType: ResponseType
+  source: 'ai' | 'human_confirmed' | 'human_overridden'
+  judgeModels?: string[]
+  votes?: Array<{ model: string; vote: ResponseType }>
+  confidence?: number
+}
+
 interface CampaignResult {
   id: string; modelName: string; description: string; date: string; testerName: string
   samples: CampaignSample[]
@@ -33,6 +59,7 @@ interface CampaignResult {
   modelResponseMedia?: Record<string, string[]>
   alignmentPrefs: Record<string, AlignmentLevel>
   completedAt?: string
+  annotations?: Record<string, AnnotationRecord>
 }
 
 // Default "no transformation" attack config
@@ -1285,15 +1312,17 @@ function TestRepository({
 
 // ─── Results Panel (tabbed graphical views) ────────────────────────────────────
 function ResultsPanel({
-  scoringData, coverageData, responses, campaignSamples, alignmentPrefs,
+  scoringData, coverageData, responses, campaignSamples, alignmentPrefs, annotations,
 }: {
   scoringData: { n: number; k: number; score: number; lo: number; hi: number }
   coverageData: { id: string; shortName: string; total: number; tested: number; inCampaign: number }[]
   responses: Record<string, ResponseType>
   campaignSamples: CampaignSample[]
   alignmentPrefs: Record<string, AlignmentLevel>
+  annotations?: Record<string, AnnotationRecord>
 }) {
-  const [resultsTab, setResultsTab] = useState<'overview' | 'by-category' | 'coverage'>('overview')
+  const hasAnnotations = annotations && Object.keys(annotations).length > 0
+  const [resultsTab, setResultsTab] = useState<'overview' | 'by-category' | 'coverage' | 'annotations'>('overview')
 
   // Per-category alignment
   const categoryAlignment = useMemo(() => {
@@ -1339,13 +1368,13 @@ function ResultsPanel({
       <div className="px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">📊 Results</p>
         <div className="flex gap-0.5 p-0.5 bg-indigo-100 rounded-lg">
-          {(['overview', 'by-category', 'coverage'] as const).map(t => (
+          {((['overview', 'by-category', 'coverage'] as const).concat(hasAnnotations ? ['annotations' as const] : [])).map(t => (
             <button key={t} type="button" onClick={() => setResultsTab(t)}
               className="px-3 py-1 rounded-md text-xs font-semibold transition-all"
               style={resultsTab === t
                 ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }
                 : { color: '#6366F1' }}>
-              {t === 'overview' ? 'Overview' : t === 'by-category' ? 'By Category' : 'Coverage'}
+              {t === 'overview' ? 'Overview' : t === 'by-category' ? 'By Category' : t === 'coverage' ? 'Coverage' : 'Annotations'}
             </button>
           ))}
         </div>
@@ -1492,7 +1521,498 @@ function ResultsPanel({
             </p>
           </div>
         )}
+
+        {/* Annotations tab */}
+        {resultsTab === 'annotations' && hasAnnotations && (() => {
+          const annList = Object.values(annotations!)
+          const aiCount = annList.filter(a => a.source === 'ai').length
+          const confirmedCount = annList.filter(a => a.source === 'human_confirmed').length
+          const overriddenCount = annList.filter(a => a.source === 'human_overridden').length
+          const juryAnns = annList.filter(a => a.votes && a.votes.length > 0)
+          const avgConfidence = juryAnns.length > 0
+            ? juryAnns.reduce((s, a) => s + (a.confidence ?? 1), 0) / juryAnns.length
+            : null
+          const total = annList.length
+          return (
+            <div className="space-y-4">
+              {/* Stat boxes */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+                  <p className="text-xl font-bold text-gray-900">{aiCount}</p>
+                  <p className="text-xs text-gray-400">🤖 AI judged</p>
+                </div>
+                <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+                  <p className="text-xl font-bold text-gray-900">{confirmedCount}</p>
+                  <p className="text-xs text-gray-400">✓ Human confirmed</p>
+                </div>
+                <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+                  <p className="text-xl font-bold text-gray-900">{overriddenCount}</p>
+                  <p className="text-xs text-gray-400">✏️ Human overridden</p>
+                </div>
+              </div>
+
+              {/* Jury agreement */}
+              {avgConfidence !== null && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-semibold text-gray-500">Jury agreement</p>
+                    <span className="text-xs font-bold" style={{ color: avgConfidence >= 0.8 ? '#16A34A' : avgConfidence >= 0.6 ? '#D97706' : '#DC2626' }}>
+                      {(avgConfidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${avgConfidence * 100}%`,
+                        backgroundColor: avgConfidence >= 0.8 ? '#16A34A' : avgConfidence >= 0.6 ? '#D97706' : '#DC2626',
+                      }} />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">Average across {juryAnns.length} jury-judged samples</p>
+                </div>
+              )}
+
+              {/* Proportion bar */}
+              {total > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Annotation source breakdown</p>
+                  <div className="h-5 rounded-lg overflow-hidden flex">
+                    {aiCount > 0 && (
+                      <div className="flex items-center justify-center text-xs font-bold"
+                        style={{ width: `${(aiCount / total) * 100}%`, backgroundColor: '#EEF2FF', color: '#3730A3' }}
+                        title={`AI judged: ${aiCount}`}>
+                        {aiCount / total >= 0.12 ? `${aiCount}` : ''}
+                      </div>
+                    )}
+                    {confirmedCount > 0 && (
+                      <div className="flex items-center justify-center text-xs font-bold"
+                        style={{ width: `${(confirmedCount / total) * 100}%`, backgroundColor: '#D1FAE5', color: '#065F46' }}
+                        title={`Confirmed: ${confirmedCount}`}>
+                        {confirmedCount / total >= 0.12 ? `${confirmedCount}` : ''}
+                      </div>
+                    )}
+                    {overriddenCount > 0 && (
+                      <div className="flex items-center justify-center text-xs font-bold"
+                        style={{ width: `${(overriddenCount / total) * 100}%`, backgroundColor: '#FEF3C7', color: '#92400E' }}
+                        title={`Overridden: ${overriddenCount}`}>
+                        {overriddenCount / total >= 0.12 ? `${overriddenCount}` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-3 mt-1.5 flex-wrap">
+                    {aiCount > 0 && <span className="flex items-center gap-1 text-xs text-indigo-700"><span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#EEF2FF', border: '1px solid #A5B4FC' }} />🤖 AI ({aiCount})</span>}
+                    {confirmedCount > 0 && <span className="flex items-center gap-1 text-xs text-green-700"><span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#D1FAE5', border: '1px solid #6EE7B7' }} />✓ Confirmed ({confirmedCount})</span>}
+                    {overriddenCount > 0 && <span className="flex items-center gap-1 text-xs text-amber-700"><span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }} />✏️ Overridden ({overriddenCount})</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
+    </div>
+  )
+}
+
+// ─── Model Runner Panel ───────────────────────────────────────────────────────
+const OPENROUTER_MODELS = [
+  { id: 'meta-llama/llama-3.3-70b-instruct',              label: 'Llama 3.3 70B' },
+  { id: 'meta-llama/llama-3.1-8b-instruct:free',          label: 'Llama 3.1 8B (free)' },
+  { id: 'anthropic/claude-3.5-haiku',                      label: 'Claude 3.5 Haiku' },
+  { id: 'google/gemini-flash-1.5',                         label: 'Gemini Flash 1.5' },
+  { id: 'google/gemini-2.0-flash-001',                     label: 'Gemini 2.0 Flash' },
+  { id: 'mistralai/mistral-7b-instruct:free',              label: 'Mistral 7B (free)' },
+  { id: 'microsoft/phi-3-medium-128k-instruct:free',       label: 'Phi-3 Medium (free)' },
+  { id: 'qwen/qwen-2.5-72b-instruct',                      label: 'Qwen 2.5 72B' },
+  { id: 'deepseek/deepseek-r1:free',                       label: 'DeepSeek R1 (free)' },
+]
+
+const GROQ_MODELS = [
+  { id: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B' },
+  { id: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B' },
+  { id: 'mixtral-8x7b-32768',      label: 'Mixtral 8x7B' },
+  { id: 'gemma2-9b-it',            label: 'Gemma 2 9B' },
+]
+
+const DEFAULT_RUNNER_CONFIG: { modelConfig: ModelRunConfig; judgeConfig: JudgeConfig } = {
+  modelConfig: {
+    provider: 'openrouter',
+    modelId: 'meta-llama/llama-3.3-70b-instruct',
+    apiKey: '',
+  },
+  judgeConfig: {
+    judges: [{ provider: 'groq', modelId: 'llama-3.1-70b-versatile', apiKey: '' }],
+    mode: 'single',
+  },
+}
+
+function ModelRunnerPanel({
+  campaignSamples,
+  onResultsReady,
+  running,
+  progress,
+  onProgressChange,
+}: {
+  campaignSamples: CampaignSample[]
+  onResultsReady: (results: {
+    responses: Record<string, ResponseType>
+    modelResponseTexts: Record<string, string>
+    annotations: Record<string, AnnotationRecord>
+  }) => void
+  running: boolean
+  progress: { done: number; total: number; running: boolean } | null
+  onProgressChange: (p: { done: number; total: number; running: boolean } | null) => void
+}) {
+  const [collapsed, setCollapsed] = useState(true)
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false)
+  const [showModelKey, setShowModelKey] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
+
+  // Local config — persisted to localStorage 'specifyRunnerConfig'
+  const [modelConfig, setModelConfig] = useState<ModelRunConfig & { systemPrompt?: string }>(DEFAULT_RUNNER_CONFIG.modelConfig)
+  const [judgeConfig, setJudgeConfig] = useState<JudgeConfig>(DEFAULT_RUNNER_CONFIG.judgeConfig)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('specifyRunnerConfig')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.modelConfig) setModelConfig(parsed.modelConfig)
+        if (parsed.judgeConfig) setJudgeConfig(parsed.judgeConfig)
+      }
+    } catch { /**/ }
+  }, [])
+
+  // Persist whenever config changes
+  useEffect(() => {
+    try { localStorage.setItem('specifyRunnerConfig', JSON.stringify({ modelConfig, judgeConfig })) } catch { /**/ }
+  }, [modelConfig, judgeConfig])
+
+  const cancelRef = useRef(false)
+
+  async function runAll() {
+    if (!campaignSamples.length) return
+    cancelRef.current = false
+    setRunError(null)
+    onProgressChange({ done: 0, total: campaignSamples.length, running: true })
+
+    const results = {
+      responses: {} as Record<string, ResponseType>,
+      modelResponseTexts: {} as Record<string, string>,
+      annotations: {} as Record<string, AnnotationRecord>,
+    }
+
+    for (let i = 0; i < campaignSamples.length; i++) {
+      if (cancelRef.current) break
+      const sample = campaignSamples[i]
+      const key = sampleKey(sample)
+      const promptText = sample.transformedText ?? sample.text
+
+      try {
+        // 1. Run model
+        const modelRes = await fetch('/api/run-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: promptText,
+            modelConfig: {
+              provider: modelConfig.provider,
+              modelId: modelConfig.modelId,
+              apiKey: modelConfig.apiKey,
+              hfUrl: modelConfig.hfUrl,
+              systemPrompt: (modelConfig as { systemPrompt?: string }).systemPrompt || undefined,
+            },
+          }),
+        })
+        const modelData = await modelRes.json()
+        if (!modelRes.ok) {
+          throw new Error(modelData.error ?? `Model API error ${modelRes.status}`)
+        }
+        const responseText = modelData.response ?? ''
+        results.modelResponseTexts[key] = responseText
+
+        if (cancelRef.current) break
+
+        // 2. Judge response
+        const judgeRes = await fetch('/api/judge-response', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText, response: responseText, judgeConfig }),
+        })
+        const judgeData = await judgeRes.json()
+        if (!judgeRes.ok) {
+          throw new Error(judgeData.error ?? `Judge API error ${judgeRes.status}`)
+        }
+        results.responses[key] = judgeData.classification
+        results.annotations[key] = {
+          responseType: judgeData.classification,
+          source: 'ai',
+          judgeModels: judgeConfig.judges.map(j => j.modelId),
+          votes: judgeData.votes,
+          confidence: judgeData.confidence,
+        }
+      } catch (e) {
+        setRunError(e instanceof Error ? e.message : String(e))
+        onProgressChange(null)
+        return
+      }
+
+      onProgressChange({ done: i + 1, total: campaignSamples.length, running: true })
+    }
+
+    onProgressChange(null)
+    onResultsReady(results)
+  }
+
+  const canRun = !running && campaignSamples.length > 0 && !!modelConfig.apiKey
+
+  return (
+    <div className="border border-indigo-200 rounded-xl overflow-hidden" style={{ backgroundColor: '#FAFBFF' }}>
+      {/* Header */}
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-indigo-50 transition-colors"
+        onClick={() => setCollapsed(c => !c)}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-800">🤖 Run model</span>
+          {modelConfig.apiKey && (
+            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>
+              {modelConfig.provider} · {modelConfig.modelId.split('/').pop()}
+            </span>
+          )}
+        </div>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="#9CA3AF"
+          className={`transition-transform flex-shrink-0 ${collapsed ? '' : 'rotate-180'}`}>
+          <path d="M7 10l5 5 5-5z"/>
+        </svg>
+      </button>
+
+      {!collapsed && (
+        <div className="border-t border-indigo-100 p-4 space-y-5">
+          {/* ── Section 1: Model under test ──────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Model under test</p>
+
+            {/* Provider */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">Provider</label>
+              <select
+                value={modelConfig.provider}
+                onChange={e => setModelConfig(prev => ({
+                  ...prev,
+                  provider: e.target.value as ModelRunConfig['provider'],
+                  modelId: e.target.value === 'openrouter' ? OPENROUTER_MODELS[0].id : e.target.value === 'groq' ? GROQ_MODELS[0].id : '',
+                }))}
+                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
+                <option value="openrouter">OpenRouter</option>
+                <option value="huggingface">HuggingFace</option>
+                <option value="groq">Groq</option>
+                <option value="together">Together AI</option>
+              </select>
+            </div>
+
+            {/* Model ID */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">Model</label>
+              {modelConfig.provider === 'openrouter' ? (
+                <select
+                  value={modelConfig.modelId}
+                  onChange={e => setModelConfig(prev => ({ ...prev, modelId: e.target.value }))}
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
+                  {OPENROUTER_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+              ) : modelConfig.provider === 'groq' ? (
+                <select
+                  value={modelConfig.modelId}
+                  onChange={e => setModelConfig(prev => ({ ...prev, modelId: e.target.value }))}
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
+                  {GROQ_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+              ) : (
+                <input
+                  value={modelConfig.modelId}
+                  onChange={e => setModelConfig(prev => ({ ...prev, modelId: e.target.value }))}
+                  placeholder={modelConfig.provider === 'huggingface' ? 'meta-llama/Meta-Llama-3-8B' : 'meta-llama/Meta-Llama-3-70B-Instruct-Turbo'}
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400"
+                />
+              )}
+            </div>
+
+            {/* HF custom URL */}
+            {modelConfig.provider === 'huggingface' && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">Endpoint</label>
+                <input
+                  value={modelConfig.hfUrl ?? ''}
+                  onChange={e => setModelConfig(prev => ({ ...prev, hfUrl: e.target.value || undefined }))}
+                  placeholder="https://api-inference.huggingface.co/models/... (optional)"
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400"
+                />
+              </div>
+            )}
+
+            {/* API key */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">
+                {modelConfig.provider === 'huggingface' ? 'HF Token' : 'API Key'}
+              </label>
+              <div className="flex flex-1 gap-1">
+                <input
+                  type={showModelKey ? 'text' : 'password'}
+                  value={modelConfig.apiKey}
+                  onChange={e => setModelConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                  placeholder={modelConfig.provider === 'openrouter' ? 'sk-or-...' : modelConfig.provider === 'groq' ? 'gsk_...' : 'Key'}
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-indigo-400"
+                />
+                <button type="button" onClick={() => setShowModelKey(s => !s)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs border border-gray-200 hover:border-gray-300 transition-colors">
+                  {showModelKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            {/* System prompt toggle */}
+            <div>
+              <button type="button" onClick={() => setShowSystemPrompt(s => !s)}
+                className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors font-medium">
+                {showSystemPrompt ? '▾' : '▸'} ⚙ System prompt
+              </button>
+              {showSystemPrompt && (
+                <textarea
+                  value={(modelConfig as { systemPrompt?: string }).systemPrompt ?? ''}
+                  onChange={e => setModelConfig(prev => ({ ...prev, systemPrompt: e.target.value || undefined } as typeof prev))}
+                  placeholder="Optional system prompt sent before user prompts…"
+                  rows={3}
+                  className="w-full mt-2 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:border-indigo-400"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* ── Section 2: Judge configuration ───────────────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Judge configuration</p>
+              {/* Mode toggle */}
+              <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg">
+                {(['single', 'jury'] as const).map(m => (
+                  <button key={m} type="button"
+                    onClick={() => setJudgeConfig(prev => ({ ...prev, mode: m }))}
+                    className="px-3 py-1 rounded-md text-xs font-semibold transition-all"
+                    style={judgeConfig.mode === m
+                      ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }
+                      : { color: '#6B7280' }}>
+                    {m === 'single' ? 'Single judge' : 'Jury'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {judgeConfig.mode === 'jury' && (
+              <p className="text-xs text-gray-400">Majority vote of {judgeConfig.judges.length} judge{judgeConfig.judges.length !== 1 ? 's' : ''}</p>
+            )}
+
+            {/* Judge rows */}
+            <div className="space-y-2">
+              {judgeConfig.judges.map((judge, idx) => (
+                <div key={idx} className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={judge.provider}
+                    onChange={e => {
+                      const provider = e.target.value as JudgeModel['provider']
+                      const defaultModel = provider === 'groq' ? 'llama-3.1-70b-versatile' : ''
+                      setJudgeConfig(prev => ({
+                        ...prev,
+                        judges: prev.judges.map((j, i) => i === idx ? { ...j, provider, modelId: defaultModel } : j),
+                      }))
+                    }}
+                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400 flex-shrink-0">
+                    <option value="groq">Groq</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="together">Together AI</option>
+                  </select>
+                  <input
+                    value={judge.modelId}
+                    onChange={e => setJudgeConfig(prev => ({
+                      ...prev,
+                      judges: prev.judges.map((j, i) => i === idx ? { ...j, modelId: e.target.value } : j),
+                    }))}
+                    placeholder="Model ID"
+                    className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-400"
+                  />
+                  <input
+                    type="password"
+                    value={judge.apiKey}
+                    onChange={e => setJudgeConfig(prev => ({
+                      ...prev,
+                      judges: prev.judges.map((j, i) => i === idx ? { ...j, apiKey: e.target.value } : j),
+                    }))}
+                    placeholder="API key"
+                    className="w-32 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400"
+                  />
+                  {judgeConfig.judges.length > 1 && (
+                    <button type="button"
+                      onClick={() => setJudgeConfig(prev => ({ ...prev, judges: prev.judges.filter((_, i) => i !== idx) }))}
+                      className="text-gray-300 hover:text-red-400 text-lg leading-none flex-shrink-0">
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add judge (jury mode only, max 5) */}
+            {judgeConfig.mode === 'jury' && judgeConfig.judges.length < 5 && (
+              <button type="button"
+                onClick={() => setJudgeConfig(prev => ({
+                  ...prev,
+                  judges: [...prev.judges, { provider: 'groq', modelId: 'llama-3.1-70b-versatile', apiKey: '' }],
+                }))}
+                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors">
+                + Add judge
+              </button>
+            )}
+          </div>
+
+          {/* ── Section 3: Run ───────────────────────────────────────────────── */}
+          <div className="space-y-3">
+            {runError && (
+              <div className="text-xs text-red-600 border border-red-200 rounded-lg px-3 py-2 bg-red-50">
+                Error: {runError}
+              </div>
+            )}
+
+            {progress && (
+              <div className="space-y-1.5">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{
+                    width: `${(progress.done / progress.total) * 100}%`,
+                    backgroundColor: '#6366F1',
+                  }} />
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{progress.done} / {progress.total} — Running judge…</span>
+                  <button type="button" onClick={() => { cancelRef.current = true; onProgressChange(null) }}
+                    className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={runAll}
+              disabled={!canRun}
+              className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
+              {running ? '⏳ Running…' : `▶ Run all ${campaignSamples.length} samples`}
+            </button>
+            {!modelConfig.apiKey && (
+              <p className="text-xs text-amber-600">Enter an API key above to enable running.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1503,6 +2023,8 @@ function TestCampaign({
   responses, modelResponseTexts, modelResponseMedia, modelName, testerName, description, campaignDate,
   onResponseChange, onModelResponseTextChange, onModelResponseMediaChange, onMetaChange,
   savedCampaigns, onSaveCampaign, onDeleteCampaign, onStartNewCampaign, saveCampaignMsg,
+  annotations, onAnnotationChange,
+  runProgress, onRunProgressChange, onRunResultsReady,
 }: {
   campaignSamples: CampaignSample[]
   alignmentPrefs: Record<string, AlignmentLevel>
@@ -1521,6 +2043,11 @@ function TestCampaign({
   onDeleteCampaign: (id: string) => void
   onStartNewCampaign: () => void
   saveCampaignMsg: boolean
+  annotations: Record<string, AnnotationRecord>
+  onAnnotationChange: (key: string, ann: AnnotationRecord) => void
+  runProgress: { done: number; total: number; running: boolean } | null
+  onRunProgressChange: (p: { done: number; total: number; running: boolean } | null) => void
+  onRunResultsReady: (results: { responses: Record<string, ResponseType>; modelResponseTexts: Record<string, string>; annotations: Record<string, AnnotationRecord> }) => void
 }) {
   const [viewingCampaign, setViewingCampaign] = useState<CampaignResult | null>(null)
   const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
@@ -1803,10 +2330,18 @@ function TestCampaign({
                 )}
               </div>
 
+              {/* 🤖 Model Runner */}
+              <ModelRunnerPanel
+                campaignSamples={campaignSamples}
+                onResultsReady={onRunResultsReady}
+                running={runProgress?.running ?? false}
+                progress={runProgress}
+                onProgressChange={onRunProgressChange}
+              />
+
               {/* 📊 Results section with tabs */}
               {campaignSamples.length > 0 && (() => {
-                // Inline component to use useState for result tabs
-                return <ResultsPanel scoringData={scoringData} coverageData={coverageData} responses={responses} campaignSamples={campaignSamples} alignmentPrefs={alignmentPrefs} />
+                return <ResultsPanel scoringData={scoringData} coverageData={coverageData} responses={responses} campaignSamples={campaignSamples} alignmentPrefs={alignmentPrefs} annotations={annotations} />
               })()}
 
               {/* Sample list */}
@@ -1825,6 +2360,7 @@ function TestCampaign({
                     const aligned = resp ? isAligned(level, resp) : null
                     const levelCol = LEVEL_COLORS[level]
                     const idBadge = String(sampleIdx + 1).padStart(3, '0')
+                    const ann = annotations[key]
                     return (
                       <div key={key} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
                         style={{ borderLeft: aligned === true ? '3px solid #16A34A' : aligned === false ? '3px solid #DC2626' : '3px solid #E5E7EB' }}>
@@ -1842,6 +2378,16 @@ function TestCampaign({
                           {s.explicitness !== null && (
                             <span className="text-xs flex items-center gap-1 text-gray-400 flex-shrink-0">
                               E<ScorePips value={s.explicitness} color="#F59E0B" />
+                            </span>
+                          )}
+                          {ann && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0"
+                              style={ann.source === 'ai'
+                                ? { backgroundColor: '#EEF2FF', color: '#3730A3' }
+                                : ann.source === 'human_confirmed'
+                                ? { backgroundColor: '#D1FAE5', color: '#065F46' }
+                                : { backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                              {ann.source === 'ai' ? '🤖 AI' : ann.source === 'human_confirmed' ? '✓ Confirmed' : '✏️ Overridden'}
                             </span>
                           )}
                           {aligned !== null && (
@@ -1941,13 +2487,38 @@ function TestCampaign({
 
                           {/* Response type selector */}
                           <div>
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Response type</p>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Response type</p>
+                              {ann && (
+                                <div className="flex items-center gap-1.5">
+                                  {ann.votes && ann.votes.length > 0 && (
+                                    <span className="text-xs text-gray-400">
+                                      {ann.votes.filter(v => v.vote === ann.responseType).length}/{ann.votes.length} judges agreed
+                                      {ann.confidence !== undefined ? ` (${(ann.confidence * 100).toFixed(0)}%)` : ''}
+                                    </span>
+                                  )}
+                                  <button type="button"
+                                    onClick={() => onAnnotationChange(key, { ...ann, source: 'human_confirmed' })}
+                                    disabled={ann.source === 'human_confirmed'}
+                                    className="px-2 py-0.5 rounded text-xs font-semibold border transition-all disabled:opacity-40"
+                                    style={{ backgroundColor: '#D1FAE5', color: '#065F46', borderColor: '#6EE7B7' }}>
+                                    ✓ Confirm
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             <div className="flex flex-wrap gap-2">
                               {RESPONSE_TYPES.map(rt => {
                                 const col = RESPONSE_COLORS[rt]; const active = resp === rt
                                 const wouldAlign = isAligned(level, rt)
                                 return (
-                                  <button key={rt} type="button" onClick={() => onResponseChange(key, rt)}
+                                  <button key={rt} type="button" onClick={() => {
+                                    onResponseChange(key, rt)
+                                    // If there's an AI annotation and user changed it, mark as overridden
+                                    if (ann && rt !== ann.responseType) {
+                                      onAnnotationChange(key, { ...ann, responseType: rt, source: 'human_overridden' })
+                                    }
+                                  }}
                                     className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5"
                                     style={active
                                       ? { backgroundColor: col.bg, color: col.text, borderColor: col.border, boxShadow: `0 0 0 1.5px ${col.border}` }
@@ -2022,6 +2593,8 @@ export default function SelfAuditClient() {
   const [savedCampaigns, setSavedCampaigns] = useState<CampaignResult[]>([])
   const [modelResponseMedia, setModelResponseMedia] = useState<Record<string, string[]>>({})
   const [saveCampaignMsg, setSaveCampaignMsg] = useState(false)
+  const [annotations, setAnnotations] = useState<Record<string, AnnotationRecord>>({})
+  const [runProgress, setRunProgress] = useState<{ done: number; total: number; running: boolean } | null>(null)
 
   useEffect(() => {
     try {
@@ -2038,6 +2611,7 @@ export default function SelfAuditClient() {
           setResponses(parsed.responses ?? {})
           setModelResponseTexts(parsed.modelResponseTexts ?? {})
           setModelResponseMedia(parsed.modelResponseMedia ?? {})
+          if (parsed.annotations) setAnnotations(parsed.annotations)
           if (parsed.modelName) setModelName(parsed.modelName)
           if (parsed.description) setDescription(parsed.description)
           if (parsed.campaignDate) setCampaignDate(parsed.campaignDate)
@@ -2056,11 +2630,11 @@ export default function SelfAuditClient() {
       if (campaignSamples.length > 0) {
         localStorage.setItem('specifyActiveCampaign', JSON.stringify({
           campaignSamples, responses, modelResponseTexts, modelResponseMedia,
-          modelName, description, campaignDate,
+          annotations, modelName, description, campaignDate,
         }))
       }
     } catch { /**/ }
-  }, [campaignSamples, responses, modelResponseTexts, modelResponseMedia, modelName, description, campaignDate])
+  }, [campaignSamples, responses, modelResponseTexts, modelResponseMedia, annotations, modelName, description, campaignDate])
 
   function addSamples(incoming: CampaignSample[], skipTransform = false) {
     // Deduplicate
@@ -2117,6 +2691,7 @@ export default function SelfAuditClient() {
     setResponses(prev => { const next = { ...prev }; delete next[key]; return next })
     setModelResponseTexts(prev => { const next = { ...prev }; delete next[key]; return next })
     setModelResponseMedia(prev => { const next = { ...prev }; delete next[key]; return next })
+    setAnnotations(prev => { const next = { ...prev }; delete next[key]; return next })
   }
 
   function handleMetaChange(field: 'modelName' | 'testerName' | 'description' | 'campaignDate', value: string) {
@@ -2130,7 +2705,9 @@ export default function SelfAuditClient() {
     const result: CampaignResult = {
       id: uid(), modelName: modelName || 'Unknown model', description, date: campaignDate,
       testerName: testerName || 'Unknown', samples: campaignSamples,
-      responses, modelResponseTexts, modelResponseMedia, alignmentPrefs, completedAt: new Date().toISOString(),
+      responses, modelResponseTexts, modelResponseMedia, alignmentPrefs,
+      annotations: Object.keys(annotations).length > 0 ? annotations : undefined,
+      completedAt: new Date().toISOString(),
     }
     const updated = [result, ...savedCampaigns]
     setSavedCampaigns(updated)
@@ -2144,6 +2721,7 @@ export default function SelfAuditClient() {
     setResponses({})
     setModelResponseTexts({})
     setModelResponseMedia({})
+    setAnnotations({})
     try { localStorage.removeItem('specifyActiveCampaign') } catch { /**/ }
   }
 
@@ -2255,7 +2833,7 @@ export default function SelfAuditClient() {
         <TestCampaign
           campaignSamples={campaignSamples}
           alignmentPrefs={alignmentPrefs}
-          onClearCampaign={() => { setCampaignSamples([]); setResponses({}); setModelResponseTexts({}); setModelResponseMedia({}) }}
+          onClearCampaign={() => { setCampaignSamples([]); setResponses({}); setModelResponseTexts({}); setModelResponseMedia({}); setAnnotations({}) }}
           onRemoveSample={removeFromCampaign}
           responses={responses}
           modelResponseTexts={modelResponseTexts}
@@ -2273,6 +2851,15 @@ export default function SelfAuditClient() {
           onDeleteCampaign={deleteCampaign}
           onStartNewCampaign={startNewCampaign}
           saveCampaignMsg={saveCampaignMsg}
+          annotations={annotations}
+          onAnnotationChange={(key, ann) => setAnnotations(prev => ({ ...prev, [key]: ann }))}
+          runProgress={runProgress}
+          onRunProgressChange={setRunProgress}
+          onRunResultsReady={({ responses: newResps, modelResponseTexts: newTexts, annotations: newAnns }) => {
+            setResponses(prev => ({ ...prev, ...newResps }))
+            setModelResponseTexts(prev => ({ ...prev, ...newTexts }))
+            setAnnotations(prev => ({ ...prev, ...newAnns }))
+          }}
         />
       )}
     </div>
