@@ -973,6 +973,7 @@ function TransformProgressModal({ done, total }: { done: number; total: number }
 // ─── Test Repository ──────────────────────────────────────────────────────────
 function TestRepository({
   campaignSamples, onAddSamples, onRemoveFromCampaign, onSetAttackBase, onSwitchToAttack, attackConfig,
+  likedSamples, dislikedSamples, onLikeChange, onDislikeChange,
 }: {
   campaignSamples: CampaignSample[]
   onAddSamples: (samples: CampaignSample[], skipTransform?: boolean) => void
@@ -980,6 +981,10 @@ function TestRepository({
   onSetAttackBase: (text: string) => void
   onSwitchToAttack: () => void
   attackConfig: AttackConfig
+  likedSamples: Record<string, boolean>
+  dislikedSamples: Record<string, boolean>
+  onLikeChange: (key: string, val: boolean) => void
+  onDislikeChange: (key: string, val: boolean) => void
 }) {
   const { data: session } = useSession()
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
@@ -1392,6 +1397,23 @@ function TestRepository({
                         <button onClick={() => copyToClipboard(s.text, idx)}
                           className="px-2.5 py-1 rounded-lg text-xs border border-gray-200 hover:border-gray-300 transition-colors">
                           {copiedIdx === idx ? '✓ Copied' : 'Copy'}
+                        </button>
+                        {/* Like / Dislike */}
+                        <button
+                          type="button"
+                          onClick={() => onLikeChange(s.promptKey, !likedSamples[s.promptKey])}
+                          title={likedSamples[s.promptKey] ? 'Remove like' : 'Like this prompt'}
+                          className="text-sm transition-colors px-1"
+                          style={{ color: likedSamples[s.promptKey] ? '#16A34A' : '#D1D5DB' }}>
+                          👍
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDislikeChange(s.promptKey, !dislikedSamples[s.promptKey])}
+                          title={dislikedSamples[s.promptKey] ? 'Remove dislike' : 'Dislike this prompt'}
+                          className="text-sm transition-colors px-1"
+                          style={{ color: dislikedSamples[s.promptKey] ? '#DC2626' : '#D1D5DB' }}>
+                          👎
                         </button>
                         <button onClick={() => toggleVote(s.promptKey)} disabled={!session || votingKey === s.promptKey}
                           className="ml-auto flex items-center gap-1 text-xs transition-colors"
@@ -3700,7 +3722,6 @@ function TestCampaign({
   onResponseChange, onModelResponseTextChange, onModelResponseMediaChange,
   annotations, onAnnotationChange,
   runProgress, onRunProgressChange, onRunResultsReady,
-  dislikedSamples, onDislikeChange,
   reasoningMode, onReasoningModeChange,
   reasoningTraces, onReasoningTraceChange,
 }: {
@@ -3719,8 +3740,6 @@ function TestCampaign({
   runProgress: { done: number; total: number; running: boolean } | null
   onRunProgressChange: (p: { done: number; total: number; running: boolean } | null) => void
   onRunResultsReady: (results: { responses: Record<string, ResponseType>; modelResponseTexts: Record<string, string>; annotations: Record<string, AnnotationRecord> }) => void
-  dislikedSamples: Record<string, boolean>
-  onDislikeChange: (key: string, val: boolean) => void
   reasoningMode: boolean
   onReasoningModeChange: (val: boolean) => void
   reasoningTraces: Record<string, string>
@@ -3797,7 +3816,7 @@ function TestCampaign({
                     const ann = annotations[key]
                     return (
                       <div key={key} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-                        style={{ borderLeft: aligned === true ? '3px solid #16A34A' : aligned === false ? '3px solid #DC2626' : dislikedSamples[key] ? '3px solid #F59E0B' : '3px solid #E5E7EB' }}>
+                        style={{ borderLeft: aligned === true ? '3px solid #16A34A' : aligned === false ? '3px solid #DC2626' : '3px solid #E5E7EB' }}>
                         {/* Card header */}
                         <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex-wrap">
                           <span className="text-xs font-bold px-2 py-0.5 rounded font-mono flex-shrink-0"
@@ -3827,14 +3846,6 @@ function TestCampaign({
                           {aligned !== null && (
                             <span className={`flex-shrink-0 text-sm font-bold ${aligned ? 'text-green-500' : 'text-red-500'}`}>{aligned ? '✓' : '✗'}</span>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => onDislikeChange(key, !dislikedSamples[key])}
-                            title={dislikedSamples[key] ? 'Remove dislike' : 'Dislike this prompt'}
-                            className="flex-shrink-0 text-sm transition-colors"
-                            style={{ color: dislikedSamples[key] ? '#DC2626' : '#D1D5DB' }}>
-                            👎
-                          </button>
                           <button onClick={() => onRemoveSample(key)} className="text-gray-300 hover:text-red-400 flex-shrink-0 text-lg leading-none ml-auto">×</button>
                         </div>
 
@@ -4026,6 +4037,7 @@ export default function SelfAuditClient() {
   const [saveCampaignMsg, setSaveCampaignMsg] = useState(false)
   const [annotations, setAnnotations] = useState<Record<string, AnnotationRecord>>({})
   const [dislikedSamples, setDislikedSamples] = useState<Record<string, boolean>>({})
+  const [likedSamples, setLikedSamples] = useState<Record<string, boolean>>({})
   const [reasoningMode, setReasoningMode] = useState(false)
   const [reasoningTraces, setReasoningTraces] = useState<Record<string, string>>({})
   const [runProgress, setRunProgress] = useState<{ done: number; total: number; running: boolean } | null>(null)
@@ -4042,6 +4054,8 @@ export default function SelfAuditClient() {
       if (sc) setSavedCampaigns(JSON.parse(sc))
       const dl = localStorage.getItem('specifyDislikedSamples')
       if (dl) setDislikedSamples(JSON.parse(dl))
+      const ll = localStorage.getItem('specifyLikedSamples')
+      if (ll) setLikedSamples(JSON.parse(ll))
       // Restore active campaign
       const ac = localStorage.getItem('specifyActiveCampaign')
       if (ac) {
@@ -4068,6 +4082,11 @@ export default function SelfAuditClient() {
   useEffect(() => {
     try { localStorage.setItem('specifyDislikedSamples', JSON.stringify(dislikedSamples)) } catch {/**/}
   }, [dislikedSamples])
+
+  // Persist liked samples
+  useEffect(() => {
+    try { localStorage.setItem('specifyLikedSamples', JSON.stringify(likedSamples)) } catch {/**/}
+  }, [likedSamples])
 
   // Persist active campaign to localStorage whenever state changes
   useEffect(() => {
@@ -4208,7 +4227,7 @@ export default function SelfAuditClient() {
 
       <div className="flex items-start justify-between flex-wrap gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-1" style={{ color: '#1E1B4B' }}>Self Audit</h1>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: '#1E1B4B' }}>Model Audit</h1>
           <p className="text-sm text-gray-600 max-w-2xl leading-relaxed">
             Test your AI system against curated risk scenarios. Configure alignment, browse samples, build attacks, and run structured test campaigns.
           </p>
@@ -4434,6 +4453,10 @@ export default function SelfAuditClient() {
           onSetAttackBase={setAttackBase}
           onSwitchToAttack={() => setActiveTab('attack')}
           attackConfig={attackConfig}
+          likedSamples={likedSamples}
+          dislikedSamples={dislikedSamples}
+          onLikeChange={(key: string, val: boolean) => setLikedSamples(prev => ({ ...prev, [key]: val }))}
+          onDislikeChange={(key: string, val: boolean) => setDislikedSamples(prev => ({ ...prev, [key]: val }))}
         />
       )}
 
@@ -4477,8 +4500,6 @@ export default function SelfAuditClient() {
             setModelResponseTexts(prev => ({ ...prev, ...newTexts }))
             setAnnotations(prev => ({ ...prev, ...newAnns }))
           }}
-          dislikedSamples={dislikedSamples}
-          onDislikeChange={(key, val) => setDislikedSamples(prev => ({ ...prev, [key]: val }))}
           reasoningMode={reasoningMode}
           onReasoningModeChange={setReasoningMode}
           reasoningTraces={reasoningTraces}
