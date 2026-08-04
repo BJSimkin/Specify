@@ -742,14 +742,30 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
     }
   }
 
+  function readApiCredentials() {
+    try {
+      const rc = localStorage.getItem('specifyRunnerConfig')
+      if (rc) {
+        const parsed = JSON.parse(rc)
+        const judge = parsed.judgeConfig?.judges?.[0]
+        if (judge?.apiKey) return { apiKey: judge.apiKey as string, provider: (judge.provider as string) ?? 'openai' }
+        const runner = parsed.modelConfig
+        if (runner?.apiKey) return { apiKey: runner.apiKey as string, provider: (runner.provider as string) ?? 'openai' }
+      }
+    } catch { /**/ }
+    return null
+  }
+
   async function generateTTS() {
     const text = generatedVariant ?? localPrompt
     if (!text.trim()) { setAudioError('Enter a prompt first'); return }
+    const creds = readApiCredentials()
+    if (!creds) { setAudioError('No API key found. Configure a model in the Single Turn Probe tab first.'); return }
     setGeneratingAudio(true); setAudioError(null); setAudioUrl(null)
     try {
       const res = await fetch('/api/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), age: ttsAge, gender: ttsGender, ethnicity: ttsEthnicity, bgNoise: ttsBgNoise }),
+        body: JSON.stringify({ text: text.trim(), age: ttsAge, gender: ttsGender, ethnicity: ttsEthnicity, bgNoise: ttsBgNoise, apiKey: creds.apiKey, provider: creds.provider }),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'TTS failed') }
       const blob = await res.blob()
@@ -760,10 +776,11 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
 
   async function generateImage() {
     setGeneratingImage(true); setImageError(null); setImageUrl(null)
+    const creds = readApiCredentials()
     try {
       const res = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: imageCategory, prompt: localPrompt.trim() }),
+        body: JSON.stringify({ category: imageCategory, prompt: localPrompt.trim(), apiKey: creds?.apiKey ?? '' }),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? 'Image gen failed') }
       const data = await res.json()
