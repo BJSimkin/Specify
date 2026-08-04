@@ -4,6 +4,9 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { AUDIT_CATEGORIES, type RiskCategory } from '@/lib/scenarios-data'
+import MediaLibrary from '@/components/MediaLibrary'
+import TeamSettingsModal from '@/components/TeamSettingsModal'
+import ModelComparisonPanel from '@/components/ModelComparisonPanel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type AlignmentLevel = 'Fully Allow' | 'Conditional' | 'Restricted' | 'Prohibited'
@@ -1196,18 +1199,13 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
 
                 {imageSource === 'database' && (
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-2">Select from library</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {INTERNAL_IMAGE_DB[imageCategory].map((img, i) => (
-                        <button key={i} onClick={() => { setSelectedDbImage(img.url); setImageUrl(img.url) }}
-                          className="rounded-lg overflow-hidden border-2 transition-all"
-                          style={{ borderColor: selectedDbImage === img.url ? '#4F46E5' : '#E5E7EB' }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={img.url} alt={img.caption} className="w-full h-20 object-cover" />
-                          <p className="text-xs text-gray-500 px-1 py-0.5 truncate">{img.caption}</p>
-                        </button>
-                      ))}
-                    </div>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Saved media library</p>
+                    <MediaLibrary
+                      mediaType="image"
+                      imgCategory={imageCategory}
+                      onSelect={(item) => { setSelectedDbImage(item.id); setImageUrl(item.public_url) }}
+                      selectedId={selectedDbImage ?? undefined}
+                    />
                   </div>
                 )}
 
@@ -1331,7 +1329,7 @@ function TransformProgressModal({ done, total }: { done: number; total: number }
 // ─── Test Repository ──────────────────────────────────────────────────────────
 function TestRepository({
   campaignSamples, onAddSamples, onRemoveFromCampaign, onSetAttackBase, onSwitchToAttack, attackConfig,
-  likedSamples, dislikedSamples, onLikeChange, onDislikeChange,
+  likedSamples, dislikedSamples, onLikeChange, onDislikeChange, activeTeamId, currentModelId,
 }: {
   campaignSamples: CampaignSample[]
   onAddSamples: (samples: CampaignSample[], skipTransform?: boolean) => void
@@ -1343,6 +1341,8 @@ function TestRepository({
   dislikedSamples: Record<string, boolean>
   onLikeChange: (key: string, val: boolean) => void
   onDislikeChange: (key: string, val: boolean) => void
+  activeTeamId?: string | null
+  currentModelId?: string
 }) {
   const { data: session } = useSession()
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
@@ -1353,6 +1353,7 @@ function TestRepository({
   const [qualityCounts, setQualityCounts] = useState<Record<string, number>>({})
   const [userVotes, setUserVotes] = useState<Set<string>>(new Set())
   const [votingKey, setVotingKey] = useState<string | null>(null)
+  const [expandedComparison, setExpandedComparison] = useState<string | null>(null)
   const [minComplexity, setMinComplexity] = useState(0)
   const [minExplicitness, setMinExplicitness] = useState(0)
   const [minRisk, setMinRisk] = useState(0)
@@ -1383,16 +1384,17 @@ function TestRepository({
     if (selectedCategoryId && selectedVectorName) fetchQuality(selectedCategoryId, selectedVectorName)
   }, [selectedCategoryId, selectedVectorName, fetchQuality])
 
-  async function toggleVote(promptKey: string) {
+  async function toggleVote(promptKey: string, type: 'confirm' | 'reject' = 'confirm') {
     if (!session) return; setVotingKey(promptKey)
+    const compositeKey = promptKey + ':' + type
     try {
       const res = await fetch('/api/prompt-quality', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ promptKey }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ promptKey, voteType: type }),
       })
       if (!res.ok) return
       const data = await res.json()
-      setUserVotes(prev => { const next = new Set(prev); if (data.action === 'added') next.add(promptKey); else next.delete(promptKey); return next })
-      setQualityCounts(prev => ({ ...prev, [promptKey]: (prev[promptKey] ?? 0) + (data.action === 'added' ? 1 : -1) }))
+      setUserVotes(prev => { const next = new Set(prev); if (data.action === 'added') next.add(compositeKey); else next.delete(compositeKey); return next })
+      setQualityCounts(prev => ({ ...prev, [compositeKey]: (prev[compositeKey] ?? 0) + (data.action === 'added' ? 1 : -1) }))
     } finally { setVotingKey(null) }
   }
 
@@ -1725,7 +1727,7 @@ function TestRepository({
               {/* Sample cards */}
               <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
                 {filteredSamples.map((s, idx) => {
-                  const inCampaign = campaignKeys.has(s.promptKey); const voted = userVotes.has(s.promptKey)
+                  const inCampaign = campaignKeys.has(s.promptKey)
                   return (
                     <div key={s.promptKey} className="border rounded-xl p-3 transition-all"
                       style={inCampaign ? { borderColor: '#A5B4FC', boxShadow: '0 0 0 1px #A5B4FC' } : { borderColor: '#E5E7EB' }}>
@@ -1756,32 +1758,51 @@ function TestRepository({
                           className="px-2.5 py-1 rounded-lg text-xs border border-gray-200 hover:border-gray-300 transition-colors">
                           {copiedIdx === idx ? '✓ Copied' : 'Copy'}
                         </button>
-                        {/* Like / Dislike */}
-                        <button
-                          type="button"
-                          onClick={() => onLikeChange(s.promptKey, !likedSamples[s.promptKey])}
-                          title={likedSamples[s.promptKey] ? 'Remove like' : 'Like this prompt'}
-                          className="text-sm transition-colors px-1"
-                          style={{ color: likedSamples[s.promptKey] ? '#16A34A' : '#D1D5DB' }}>
-                          👍
+                        <button onClick={() => setExpandedComparison(expandedComparison === s.promptKey ? null : s.promptKey)}
+                          className="px-2.5 py-1 rounded-lg text-xs border transition-all"
+                          style={expandedComparison === s.promptKey
+                            ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
+                            : { borderColor: '#E5E7EB', color: '#9CA3AF' }}>
+                          ⊞ Compare models
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onDislikeChange(s.promptKey, !dislikedSamples[s.promptKey])}
-                          title={dislikedSamples[s.promptKey] ? 'Remove dislike' : 'Dislike this prompt'}
-                          className="text-sm transition-colors px-1"
-                          style={{ color: dislikedSamples[s.promptKey] ? '#DC2626' : '#D1D5DB' }}>
-                          👎
-                        </button>
-                        <button onClick={() => toggleVote(s.promptKey)} disabled={!session || votingKey === s.promptKey}
-                          className="ml-auto flex items-center gap-1 text-xs transition-colors"
-                          style={{ color: voted ? '#6366F1' : '#9CA3AF' }} title={!session ? 'Sign in to vote' : 'Confirm quality'}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M9 21h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05A2 2 0 0021 10h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 3 7.58 9.59A1.994 1.994 0 007 11v8c0 1.1.9 2 2 2zM3 11H7v10H3z" />
-                          </svg>
-                          {s.confirmations > 0 && <span>{s.confirmations}</span>}
-                        </button>
+                        <div className="ml-auto flex items-center gap-1">
+                          <button onClick={() => toggleVote(s.promptKey, 'confirm')} disabled={!session || votingKey === s.promptKey}
+                            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all"
+                            style={userVotes.has(s.promptKey + ':confirm')
+                              ? { backgroundColor: '#EEF2FF', color: '#4338CA', borderColor: '#818CF8' }
+                              : { color: '#9CA3AF', borderColor: '#E5E7EB' }}
+                            title={!session ? 'Sign in to vote' : 'Confirm quality — this is a well-formed test prompt'}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M9 21h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05A2 2 0 0021 10h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 3 7.58 9.59A1.994 1.994 0 007 11v8c0 1.1.9 2 2 2zM3 11H7v10H3z" />
+                            </svg>
+                            <span>Confirm</span>
+                            {(qualityCounts[s.promptKey + ':confirm'] ?? 0) > 0 && (
+                              <span className="font-bold">{qualityCounts[s.promptKey + ':confirm']}</span>
+                            )}
+                          </button>
+                          <button onClick={() => toggleVote(s.promptKey, 'reject')} disabled={!session || votingKey === s.promptKey}
+                            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all"
+                            style={userVotes.has(s.promptKey + ':reject')
+                              ? { backgroundColor: '#FEF2F2', color: '#B91C1C', borderColor: '#FCA5A5' }
+                              : { color: '#9CA3AF', borderColor: '#E5E7EB' }}
+                            title={!session ? 'Sign in to vote' : 'Reject quality — this prompt needs improvement'}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05A2 2 0 003 14h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 21l6.59-6.59A2 2 0 0017 13V5c0-1.1-.9-2-2-2zm4 0v10h3V3h-3z" />
+                            </svg>
+                            <span>Reject</span>
+                            {(qualityCounts[s.promptKey + ':reject'] ?? 0) > 0 && (
+                              <span className="font-bold">{qualityCounts[s.promptKey + ':reject']}</span>
+                            )}
+                          </button>
+                        </div>
                       </div>
+                      {expandedComparison === s.promptKey && (
+                        <ModelComparisonPanel
+                          sampleText={s.text}
+                          teamId={activeTeamId ?? undefined}
+                          currentModelId={currentModelId}
+                        />
+                      )}
                     </div>
                   )
                 })}
@@ -4445,6 +4466,10 @@ export default function SelfAuditClient() {
   const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
   const [riskOpen, setRiskOpen] = useState(false)
   const [alignmentSaved, setAlignmentSaved] = useState(false)
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null)
+  const [activeTeamName, setActiveTeamName] = useState<string | null>(null)
+  const [showTeamModal, setShowTeamModal] = useState(false)
+  const [campaignSavedToDb, setCampaignSavedToDb] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -4580,6 +4605,65 @@ export default function SelfAuditClient() {
     setTimeout(() => setSaveCampaignMsg(false), 3000)
   }
 
+  async function saveCampaignToDb() {
+    try {
+      // Get team member emails for notification (best effort)
+      const notifyEmails: string[] = []
+      if (activeTeamId) {
+        try {
+          await fetch('/api/teams?userId=all&teamId=' + activeTeamId)
+          // For now skip email list — would need a different endpoint
+        } catch { /**/ }
+      }
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelName,
+          testerName,
+          testDate: campaignDate,
+          description,
+          teamId: activeTeamId,
+          userId: (session?.user as Record<string, unknown>)?.id,
+          notifyEmails,
+        }),
+      })
+      if (!res.ok) return
+      const data = await res.json() as { campaign: { id: string } }
+      setCampaignSavedToDb(data.campaign.id)
+
+      // Also save all model responses if we have them
+      if (data.campaign.id && campaignSamples.length > 0) {
+        const responseRows = campaignSamples
+          .filter(s => responses[s.promptKey])
+          .map(s => {
+            const ann = annotations[s.promptKey]
+            return {
+              sampleText: s.text,
+              categoryId: s.categoryId,
+              vectorName: s.vectorName,
+              modelId: modelName,
+              response: responses[s.promptKey],
+              verdict: ann?.verdict ?? undefined,
+              score: ann?.score ?? undefined,
+            }
+          })
+        if (responseRows.length > 0) {
+          await fetch('/api/model-responses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              campaignId: data.campaign.id,
+              teamId: activeTeamId,
+              userId: (session?.user as Record<string, unknown>)?.id,
+              responses: responseRows,
+            }),
+          })
+        }
+      }
+    } catch { /**/ }
+  }
+
   function startNewCampaign() {
     setCampaignSamples([])
     setResponses({})
@@ -4672,7 +4756,7 @@ export default function SelfAuditClient() {
                 className="text-xs text-gray-400 hover:text-red-500 transition-colors border border-gray-200 px-3 py-1.5 rounded-lg hover:border-red-300">
                 Start new campaign
               </button>
-              <button type="button" onClick={saveCampaign} disabled={!modelName || campaignSamples.length === 0}
+              <button type="button" onClick={() => { saveCampaign(); saveCampaignToDb() }} disabled={!modelName || campaignSamples.length === 0}
                 className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
                 style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
                 Save campaign results
@@ -4712,6 +4796,14 @@ export default function SelfAuditClient() {
                     <input value={description} onChange={e => setDescription(e.target.value)}
                       placeholder="Optional test notes…"
                       className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-400 flex-1 min-w-0" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-gray-500 whitespace-nowrap flex-shrink-0">Team</label>
+                    <button onClick={() => setShowTeamModal(true)}
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white hover:border-indigo-400 transition-colors focus:outline-none text-left"
+                      style={{ minWidth: 100, color: activeTeamName ? '#1E1B4B' : '#9CA3AF' }}>
+                      {activeTeamName ?? 'Select team…'}
+                    </button>
                   </div>
                 </div>
                 {/* Source breakdown pills */}
@@ -4859,6 +4951,8 @@ export default function SelfAuditClient() {
           dislikedSamples={dislikedSamples}
           onLikeChange={(key: string, val: boolean) => setLikedSamples(prev => ({ ...prev, [key]: val }))}
           onDislikeChange={(key: string, val: boolean) => setDislikedSamples(prev => ({ ...prev, [key]: val }))}
+          activeTeamId={activeTeamId}
+          currentModelId={modelName}
         />
       )}
 
@@ -4906,6 +5000,13 @@ export default function SelfAuditClient() {
           onReasoningModeChange={setReasoningMode}
           reasoningTraces={reasoningTraces}
           onReasoningTraceChange={(key, text) => setReasoningTraces(prev => ({ ...prev, [key]: text }))}
+        />
+      )}
+      {showTeamModal && (
+        <TeamSettingsModal
+          onClose={() => setShowTeamModal(false)}
+          onTeamChange={(id, name) => { setActiveTeamId(id); setActiveTeamName(name) }}
+          currentTeamId={activeTeamId}
         />
       )}
     </div>

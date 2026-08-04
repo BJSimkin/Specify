@@ -62,6 +62,29 @@ export async function POST(request: NextRequest) {
       }
       const url = pollData.output?.[0]
       if (!url) return NextResponse.json({ error: 'No image returned from Replicate' }, { status: 502 })
+
+      // Auto-save to media library (best-effort, don't fail if this errors)
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (supabaseUrl && supabaseKey) {
+          const { createClient } = await import('@supabase/supabase-js')
+          const sb = createClient(supabaseUrl, supabaseKey)
+          await sb.from('generated_media').insert({
+            public_url: url,
+            storage_path: url,
+            media_type: 'image',
+            img_category: category,
+            prompt_category_id: (body as Record<string, unknown>).promptCategoryId as string ?? null,
+            prompt_vector_name: (body as Record<string, unknown>).promptVectorName as string ?? null,
+            prompt_text: prompt || null,
+            generation_params: { provider, model: replicateModel, category },
+            team_id: (body as Record<string, unknown>).teamId as string ?? null,
+            created_by: (body as Record<string, unknown>).userId as string ?? null,
+          })
+        }
+      } catch { /* non-critical */ }
+
       return NextResponse.json({ url })
     }
 
@@ -95,6 +118,28 @@ export async function POST(request: NextRequest) {
     if (!url) {
       return NextResponse.json({ error: 'No image returned from API' }, { status: 502 })
     }
+
+    // Auto-save to media library (best-effort, don't fail if this errors)
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (supabaseUrl && supabaseKey) {
+        const { createClient } = await import('@supabase/supabase-js')
+        const sb = createClient(supabaseUrl, supabaseKey)
+        await sb.from('generated_media').insert({
+          public_url: url,
+          storage_path: url,
+          media_type: 'image',
+          img_category: category,
+          prompt_category_id: (body as Record<string, unknown>).promptCategoryId as string ?? null,
+          prompt_vector_name: (body as Record<string, unknown>).promptVectorName as string ?? null,
+          prompt_text: prompt || null,
+          generation_params: { provider, model: togetherModel, category },
+          team_id: (body as Record<string, unknown>).teamId as string ?? null,
+          created_by: (body as Record<string, unknown>).userId as string ?? null,
+        })
+      }
+    } catch { /* non-critical */ }
 
     return NextResponse.json({ url })
   } catch (err) {
