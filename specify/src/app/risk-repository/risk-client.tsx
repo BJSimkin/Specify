@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import HazardsClient from '../hazards/hazards-client'
 import { KnowledgeGraph } from './knowledge-graph'
 import { HAZARDS, HAZARD_CONTROLS, CONTROL_MAP } from '@/lib/hazards-data'
 
@@ -51,6 +50,9 @@ interface DiffResult {
   modified: { before: Risk; after: Risk }[]
   unchanged: number
 }
+
+type SortMode = 'severity-desc' | 'severity-asc' | 'votes-desc' | 'alpha' | 'risknum'
+type MitigationStatus = 'unmitigated' | 'partial' | 'mitigated'
 
 // ─── Category colours ──────────────────────────────────────────────────────────
 const CAT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -211,7 +213,7 @@ const MODEL_TASKS: { label: string; emoji: string; categories: string[] }[] = [
   },
 ]
 
-// ─── Hazard type sources per category (links to /hazards) ─────────────────────
+// ─── Hazard type sources per category ─────────────────────────────────────────
 const CATEGORY_HAZARD_TYPES: Record<string, string[]> = {
   'Harmful Knowledge & Capability Uplift': ['Exploitation attacks', 'Adversarial attacks', 'Evasion attacks'],
   'Autonomous & Agentic Harm': ['Operational hazards', 'System complexity', 'System dependencies'],
@@ -235,13 +237,9 @@ const HAZARD_TYPE_DEFS: Record<string, string> = {
   'Exploitation attacks': 'Attacks that exploit known vulnerabilities in an AI system or its supporting infrastructure to cause harm.',
   'Functional insufficiencies': 'Limitations in the capability or coverage of an AI system that prevent it from fulfilling its intended function reliably.',
   'Generalisation issues': 'Failure of a model to perform well on data or tasks outside its training distribution, leading to poor real-world performance.',
-  'Hardware limitations': 'Physical constraints of compute hardware (memory, latency, throughput) that limit AI system performance or deployment options.',
   'Inference attacks': 'Attacks that extract sensitive information about training data or model parameters by querying the model.',
-  'Insufficient knowledge': 'Cases where the AI system lacks the domain knowledge needed to respond correctly or safely.',
   'Lack of transparency': 'Inability to explain or interpret how an AI system reached a particular output, reducing trust and auditability.',
-  'Model instability': 'Sensitivity of model outputs to small perturbations in input, leading to unpredictable or inconsistent behaviour.',
   'Operational hazards': 'Risks arising from how an AI system is deployed and operated in real-world environments, including misuse and edge cases.',
-  'Performance insufficiency': 'Failure to meet required accuracy, speed, or reliability standards for the intended use case.',
   'Poisoning attack': 'Injection of malicious data into training or fine-tuning pipelines to manipulate model behaviour at inference time.',
   'Privacy violation': 'Unauthorised disclosure or inference of personally identifiable or sensitive information from model outputs or training data.',
   'Resource limitations': 'Constraints on available data, compute, time, or expertise that limit the quality or safety of an AI system.',
@@ -287,32 +285,21 @@ const CONCEPT_DEFS: Record<string, string> = {
   'Workload scheduling': 'Management of computational tasks to optimise resource use and system performance.',
 }
 
-const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  'Adversarial attacks':           { bg: '#FEE2E2', text: '#991B1B', border: '#FCA5A5' },
-  'Cognitive bias':                { bg: '#FEF3C7', text: '#92400E', border: '#FCD34D' },
-  'Computational resource':        { bg: '#EDE9FE', text: '#5B21B6', border: '#C4B5FD' },
-  'Data quality issues':           { bg: '#FFF7ED', text: '#9A3412', border: '#FDBA74' },
-  'Distribution shift':            { bg: '#F0FDF4', text: '#166534', border: '#86EFAC' },
-  'Epistemic uncertainty':         { bg: '#EFF6FF', text: '#1D4ED8', border: '#93C5FD' },
-  'Evasion attacks':               { bg: '#FDF4FF', text: '#86198F', border: '#E879F9' },
-  'Exploitation attacks':          { bg: '#FFF1F2', text: '#9F1239', border: '#FDA4AF' },
-  'Functional insufficiencies':    { bg: '#F8FAFC', text: '#334155', border: '#CBD5E1' },
-  'Generalisation issues':         { bg: '#ECFDF5', text: '#065F46', border: '#6EE7B7' },
-  'Hardware limitations':          { bg: '#F1F5F9', text: '#1E293B', border: '#94A3B8' },
-  'Inference attacks':             { bg: '#FEF9C3', text: '#713F12', border: '#FDE047' },
-  'Insufficient knowledge':        { bg: '#FDF2F8', text: '#9D174D', border: '#F9A8D4' },
-  'Lack of transparency':          { bg: '#F5F3FF', text: '#4C1D95', border: '#DDD6FE' },
-  'Model instability':             { bg: '#FFF8F1', text: '#7C2D12', border: '#FED7AA' },
-  'Operational hazards':           { bg: '#F0F9FF', text: '#0C4A6E', border: '#7DD3FC' },
-  'Performance insufficiency':     { bg: '#FFFBEB', text: '#78350F', border: '#FDE68A' },
-  'Poisoning attack':              { bg: '#FEF2F2', text: '#7F1D1D', border: '#FCA5A5' },
-  'Privacy violation':             { bg: '#EFF6FF', text: '#1E3A5F', border: '#BFDBFE' },
-  'Resource limitations':          { bg: '#F3F4F6', text: '#111827', border: '#D1D5DB' },
-  'Social and behavioral hazards': { bg: '#ECFDF5', text: '#14532D', border: '#A7F3D0' },
-  'System complexity':             { bg: '#FAF5FF', text: '#581C87', border: '#D8B4FE' },
-  'System dependencies':           { bg: '#FFF7ED', text: '#7C2D12', border: '#FDBA74' },
-  'Unfair behaviour':              { bg: '#FEF3C7', text: '#78350F', border: '#FCD34D' },
-  'User experience':               { bg: '#F0FDFA', text: '#134E4A', border: '#99F6E4' },
+// ─── Control derivation ────────────────────────────────────────────────────────
+function getControlsForRisk(risk: Risk): string[] {
+  const hazardTypes = CATEGORY_HAZARD_TYPES[risk.category] ?? []
+  const hazardIds = HAZARDS.filter(h => hazardTypes.includes(h.type ?? '')).map(h => h.id)
+  const controlIds = new Set(hazardIds.flatMap(hId => HAZARD_CONTROLS[hId] ?? []))
+  const concepts = new Set([...controlIds].map(cId => CONTROL_MAP[cId]?.concept).filter(Boolean) as string[])
+  return [...concepts].sort()
+}
+
+function getMitigationStatus(riskControls: string[], selectedControls: Set<string>): MitigationStatus {
+  if (riskControls.length === 0) return 'mitigated'
+  const implemented = riskControls.filter(c => selectedControls.has(c))
+  if (implemented.length === 0) return 'unmitigated'
+  if (implemented.length === riskControls.length) return 'mitigated'
+  return 'partial'
 }
 
 // ─── Distribution Chart (SVG) ──────────────────────────────────────────────────
@@ -409,7 +396,6 @@ function VotingWidget({ riskId, onVoted }: { riskId: string; onVoted?: () => voi
 
   return (
     <div className="space-y-3">
-      {/* Chart — only shown after user has voted to prevent anchoring bias */}
       {!isLoading && hasVoted && (
         <div>
           <div className="flex items-center justify-between mb-1">
@@ -425,15 +411,11 @@ function VotingWidget({ riskId, onVoted }: { riskId: string; onVoted?: () => voi
           )}
         </div>
       )}
-
-      {/* Pre-vote nudge */}
       {!isLoading && !hasVoted && (
         <div className="text-xs text-gray-400 italic px-1">
           Cast your vote below to reveal how the community has rated this risk.
         </div>
       )}
-
-      {/* Vote buttons */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
           {hasVoted ? `Your vote: ${voteData!.userVote}/10` : 'Rate severity (0 = negligible, 10 = catastrophic)'}
@@ -457,7 +439,6 @@ function VotingWidget({ riskId, onVoted }: { riskId: string; onVoted?: () => voi
                     ? { backgroundColor: '#EEF2FF', color: '#1E1B4B', borderColor: '#818CF8' }
                     : { backgroundColor: 'white', color: '#6B7280', borderColor: '#E5E7EB', cursor: hasVoted ? 'default' : 'pointer' }
                 }
-                title={`Score ${i}`}
               >
                 {i}
               </button>
@@ -593,38 +574,16 @@ function BenchmarksSection({ category }: { category: string }) {
   )
 }
 
-// ─── Hazard sources section ────────────────────────────────────────────────────
-function HazardSourcesSection({ category }: { category: string }) {
-  const types = CATEGORY_HAZARD_TYPES[category] ?? []
-  if (types.length === 0) return null
-
-  return (
-    <div className="mt-4 pt-4 border-t border-gray-100">
-      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Hazard sources</h4>
-      <p className="text-xs text-gray-400 mb-2">
-        View the underlying hazard types and their control mappings.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {types.map((type) => (
-          <a
-            key={type}
-            href={`/hazards`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all hover:border-red-300 hover:bg-red-50"
-            style={{ borderColor: '#FCA5A5', color: '#991B1B', backgroundColor: '#FEF2F2' }}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-            </svg>
-            {type}
-          </a>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Risk Row ──────────────────────────────────────────────────────────────────
-function RiskRow({ risk, rank }: { risk: Risk; rank?: number }) {
+// ─── Risk Card ─────────────────────────────────────────────────────────────────
+function RiskCard({
+  risk,
+  inScope,
+  onToggleScope,
+}: {
+  risk: Risk
+  inScope: boolean
+  onToggleScope: () => void
+}) {
   const [expanded, setExpanded] = useState(false)
   const col = CAT_COLORS[risk.category] ?? { bg: '#F9FAFB', text: '#374151', border: '#E5E7EB' }
   const hasScore = risk.voteAvg !== null && risk.voteCount > 0
@@ -633,82 +592,343 @@ function RiskRow({ risk, rank }: { risk: Risk; rank?: number }) {
     : '#9CA3AF'
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden mb-2">
-      {/* Header row */}
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-      >
-        {/* Rank / risk number */}
-        <div className="flex flex-col items-center flex-shrink-0 mt-0.5 w-8">
-          {rank !== undefined ? (
-            <span className="text-xs font-bold" style={{ color: rank === 0 ? '#92400E' : rank === 1 ? '#374151' : rank === 2 ? '#78350F' : '#9CA3AF' }}>
-              #{rank + 1}
-            </span>
-          ) : (
-            <span className="text-xs font-mono text-gray-400">#{risk.riskNum}</span>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span
-              className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-              style={{ backgroundColor: col.bg, color: col.text, borderColor: col.border }}
-            >
-              {risk.category}
-            </span>
-          </div>
-          <p className="text-sm font-semibold text-gray-900">{risk.title}</p>
-        </div>
-
-        {/* Score + vote info */}
-        <div className="flex items-center gap-3 ml-2 flex-shrink-0">
-          {hasScore ? (
-            <div className="text-right">
-              <span className="text-base font-bold" style={{ color: scoreColor }}>{risk.voteAvg}</span>
-              <span className="text-xs text-gray-400">/10</span>
-              <div className="text-xs text-gray-400">{risk.voteCount}v</div>
+    <div
+      className="border rounded-xl overflow-hidden mb-2 transition-all"
+      style={inScope
+        ? { borderColor: '#A5B4FC', boxShadow: '0 0 0 1px #A5B4FC' }
+        : { borderColor: '#E5E7EB' }
+      }
+    >
+      {/* Card header */}
+      <div className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="flex-1 flex items-start gap-3 text-left min-w-0"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="text-xs font-mono text-gray-400">R-{String(risk.riskNum).padStart(3, '0')}</span>
+              <span
+                className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
+                style={{ backgroundColor: col.bg, color: col.text, borderColor: col.border }}
+              >
+                {risk.category}
+              </span>
             </div>
-          ) : (
-            <span className="text-xs text-gray-400 flex items-center gap-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
-              {risk._count?.votes ?? 0}
-            </span>
-          )}
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z" /></svg>
-            {risk._count?.comments ?? 0}
-          </span>
-          <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
-            className="text-gray-400 transition-transform flex-shrink-0"
-            style={{ transform: expanded ? 'rotate(90deg)' : 'none', color: '#9CA3AF' }}
-          >
-            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-          </svg>
-        </div>
-      </button>
+            <p className="text-sm font-semibold text-gray-900 leading-snug">{risk.title}</p>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0 ml-1">
+            {hasScore ? (
+              <div className="text-right">
+                <span className="text-base font-bold" style={{ color: scoreColor }}>{risk.voteAvg}</span>
+                <span className="text-xs text-gray-400">/10</span>
+                <div className="text-xs text-gray-400">{risk.voteCount}v</div>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-400">unrated</span>
+            )}
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+              className="flex-shrink-0 transition-transform"
+              style={{ transform: expanded ? 'rotate(90deg)' : 'none', color: '#9CA3AF' }}
+            >
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </div>
+        </button>
+        {/* Scope toggle */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleScope() }}
+          className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all"
+          style={inScope
+            ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#A5B4FC' }
+            : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+          }
+          title={inScope ? 'Remove from project scope' : 'Add to project scope'}
+        >
+          {inScope ? '✓ In scope' : '+ Scope'}
+        </button>
+      </div>
 
       {/* Expanded panel */}
       {expanded && (
         <div className="px-4 pb-5 border-t border-gray-100 bg-white">
-          {/* Risk description — only shown here, not in collapsed header */}
           <p className="text-sm text-gray-700 mt-4 leading-relaxed">{risk.description}</p>
 
-          {/* Hazard sources */}
-          <HazardSourcesSection category={risk.category} />
+          {/* Hazard types */}
+          {(CATEGORY_HAZARD_TYPES[risk.category] ?? []).length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Hazard types</h4>
+              <div className="space-y-2">
+                {(CATEGORY_HAZARD_TYPES[risk.category] ?? []).map(type => (
+                  <div key={type} className="rounded-lg border border-gray-200 px-3 py-2">
+                    <p className="text-xs font-semibold text-gray-700">{type}</p>
+                    {HAZARD_TYPE_DEFS[type] && (
+                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{HAZARD_TYPE_DEFS[type]}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Benchmarks */}
           <BenchmarksSection category={risk.category} />
 
-          {/* Voting + Comments */}
+          {RISK_TO_AUDIT_CAT[risk.category] && (
+            <div className="mt-4">
+              <a
+                href={`/self-audit?cat=${RISK_TO_AUDIT_CAT[risk.category]}`}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                </svg>
+                View test cases in Self Audit
+              </a>
+            </div>
+          )}
+
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <VotingWidget riskId={risk.id} />
             <CommentsSection riskId={risk.id} />
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Project Scope Panel ───────────────────────────────────────────────────────
+function ProjectScopePanel({
+  scopedRisks,
+  selectedControls,
+  onToggleControl,
+  onRemoveRisk,
+  onClear,
+}: {
+  scopedRisks: Risk[]
+  selectedControls: Set<string>
+  onToggleControl: (concept: string) => void
+  onRemoveRisk: (riskId: string) => void
+  onClear: () => void
+}) {
+  const [expandedRisk, setExpandedRisk] = useState<string | null>(null)
+  const [activeSection, setActiveSection] = useState<'controls' | 'risks'>('controls')
+
+  const allControls = useMemo(() => {
+    const set = new Set<string>()
+    scopedRisks.forEach(r => getControlsForRisk(r).forEach(c => set.add(c)))
+    return [...set].sort()
+  }, [scopedRisks])
+
+  const statusCounts = useMemo(() => {
+    let unmitigated = 0, partial = 0, mitigated = 0
+    scopedRisks.forEach(r => {
+      const controls = getControlsForRisk(r)
+      const s = getMitigationStatus(controls, selectedControls)
+      if (s === 'unmitigated') unmitigated++
+      else if (s === 'partial') partial++
+      else mitigated++
+    })
+    return { unmitigated, partial, mitigated }
+  }, [scopedRisks, selectedControls])
+
+  const implementedCount = allControls.filter(c => selectedControls.has(c)).length
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-sm font-bold" style={{ color: '#1E1B4B' }}>Project scope</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{scopedRisks.length} risk{scopedRisks.length !== 1 ? 's' : ''} · {implementedCount}/{allControls.length} controls</p>
+          </div>
+          <button
+            onClick={onClear}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors mt-0.5"
+          >
+            Clear
+          </button>
+        </div>
+
+        {/* Mitigation summary */}
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="rounded-lg px-2 py-2 text-center bg-red-50 border border-red-200">
+            <p className="text-lg font-bold text-red-700">{statusCounts.unmitigated}</p>
+            <p className="text-xs text-red-600 leading-tight">Unmitigated</p>
+          </div>
+          <div className="rounded-lg px-2 py-2 text-center bg-amber-50 border border-amber-200">
+            <p className="text-lg font-bold text-amber-700">{statusCounts.partial}</p>
+            <p className="text-xs text-amber-600 leading-tight">Partial</p>
+          </div>
+          <div className="rounded-lg px-2 py-2 text-center bg-green-50 border border-green-200">
+            <p className="text-lg font-bold text-green-700">{statusCounts.mitigated}</p>
+            <p className="text-xs text-green-600 leading-tight">Mitigated</p>
+          </div>
+        </div>
+
+        {/* Section tabs */}
+        <div className="flex gap-1 mt-3 border border-gray-200 rounded-lg p-0.5 bg-gray-50">
+          <button
+            onClick={() => setActiveSection('controls')}
+            className="flex-1 py-1 text-xs font-semibold rounded-md transition-all"
+            style={activeSection === 'controls'
+              ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+              : { color: '#6B7280' }
+            }
+          >
+            Controls ({allControls.length})
+          </button>
+          <button
+            onClick={() => setActiveSection('risks')}
+            className="flex-1 py-1 text-xs font-semibold rounded-md transition-all"
+            style={activeSection === 'risks'
+              ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+              : { color: '#6B7280' }
+            }
+          >
+            Risks ({scopedRisks.length})
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {activeSection === 'controls' && (
+          <div className="px-4 py-3 space-y-1">
+            {allControls.length === 0 ? (
+              <p className="text-xs text-gray-400 italic py-2">No controls mapped to selected risks.</p>
+            ) : (
+              <>
+                <p className="text-xs text-gray-400 mb-3">Tick the controls your system implements to track mitigation coverage.</p>
+                {allControls.map(concept => {
+                  const implemented = selectedControls.has(concept)
+                  // Which scoped risks does this control help?
+                  const coveredRisks = scopedRisks.filter(r => getControlsForRisk(r).includes(concept))
+                  return (
+                    <label
+                      key={concept}
+                      className="flex items-start gap-2.5 cursor-pointer py-2 px-2 rounded-lg hover:bg-gray-50 transition-colors group"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={implemented}
+                        onChange={() => onToggleControl(concept)}
+                        className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 flex-shrink-0 accent-indigo-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold leading-tight ${implemented ? 'text-green-800' : 'text-gray-800'}`}>
+                          {implemented && <span className="mr-1 text-green-600">✓</span>}
+                          {concept}
+                        </p>
+                        {CONCEPT_DEFS[concept] && (
+                          <p className="text-xs text-gray-400 mt-0.5 leading-tight">{CONCEPT_DEFS[concept]}</p>
+                        )}
+                        {coveredRisks.length > 0 && (
+                          <p className="text-xs text-indigo-500 mt-0.5">
+                            Covers {coveredRisks.length} risk{coveredRisks.length !== 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'risks' && (
+          <div className="px-4 py-3 space-y-2">
+            {scopedRisks.map(risk => {
+              const controls = getControlsForRisk(risk)
+              const status = getMitigationStatus(controls, selectedControls)
+              const expanded = expandedRisk === risk.id
+              const s = {
+                unmitigated: {
+                  bg: '#FEF2F2', text: '#991B1B', border: '#FECACA',
+                  label: 'Unmitigated', badge: '⚠️ Heightened risk',
+                  badgeBg: '#FEF2F2', badgeText: '#991B1B',
+                },
+                partial: {
+                  bg: '#FFFBEB', text: '#92400E', border: '#FDE68A',
+                  label: 'Partially mitigated', badge: '◑ Partial coverage',
+                  badgeBg: '#FFFBEB', badgeText: '#92400E',
+                },
+                mitigated: {
+                  bg: '#F0FDF4', text: '#166534', border: '#BBF7D0',
+                  label: 'Mitigated', badge: '✓ Mitigated',
+                  badgeBg: '#F0FDF4', badgeText: '#166534',
+                },
+              }[status]
+
+              return (
+                <div key={risk.id} className="rounded-xl border overflow-hidden" style={{ borderColor: s.border }}>
+                  <div className="px-3 py-2.5" style={{ backgroundColor: s.bg }}>
+                    <div className="flex items-start gap-2">
+                      <button
+                        onClick={() => setExpandedRisk(expanded ? null : risk.id)}
+                        className="flex-1 text-left min-w-0"
+                      >
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span
+                            className="text-xs font-semibold px-2 py-0.5 rounded-full border"
+                            style={{ backgroundColor: s.badgeBg, color: s.badgeText, borderColor: s.border }}
+                          >
+                            {s.badge}
+                          </span>
+                          <span className="text-xs font-mono text-gray-400">R-{String(risk.riskNum).padStart(3, '0')}</span>
+                        </div>
+                        <p className="text-xs font-semibold text-gray-800 leading-snug">{risk.title}</p>
+                        {!expanded && controls.length > 0 && (
+                          <p className="text-xs mt-1" style={{ color: s.text, opacity: 0.7 }}>
+                            {controls.filter(c => selectedControls.has(c)).length}/{controls.length} controls implemented · tap to view
+                          </p>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => onRemoveRisk(risk.id)}
+                        className="text-xs flex-shrink-0 opacity-40 hover:opacity-80 transition-opacity mt-0.5"
+                        style={{ color: s.text }}
+                        title="Remove from scope"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+
+                  {expanded && (
+                    <div className="border-t px-3 py-2.5 bg-white" style={{ borderColor: s.border }}>
+                      {controls.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">No controls mapped for this risk category.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Required controls</p>
+                          {controls.map(c => {
+                            const done = selectedControls.has(c)
+                            return (
+                              <label key={c} className="flex items-center gap-2 cursor-pointer py-1 group">
+                                <input
+                                  type="checkbox"
+                                  checked={done}
+                                  onChange={() => onToggleControl(c)}
+                                  className="h-3.5 w-3.5 rounded border-gray-300 flex-shrink-0 accent-indigo-600"
+                                />
+                                <span className={`text-xs ${done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{c}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -741,7 +961,7 @@ function SubmitRiskForm() {
   return (
     <div className="border border-gray-200 rounded-xl p-5">
       <h3 className="text-base font-semibold text-gray-900 mb-1">Submit a new risk</h3>
-      <p className="text-xs text-gray-400 mb-4">Propose a risk for inclusion in the next version. Submissions are reviewed before being added to the repository.</p>
+      <p className="text-xs text-gray-400 mb-4">Propose a risk for inclusion in the next version. Submissions are reviewed before being added.</p>
 
       {result && (
         <div
@@ -885,9 +1105,10 @@ export default function RiskClient() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'risks' | 'submit' | 'hazards' | 'graph'>('risks')
-  const [selectedRisk, setSelectedRisk] = useState<Risk | null>(null)
-  const [selectedHazardTypes, setSelectedHazardTypes] = useState<string[]>([])
+  const [sortMode, setSortMode] = useState<SortMode>('severity-desc')
+  const [activeTab, setActiveTab] = useState<'risks' | 'submit' | 'graph'>('risks')
+  const [scopeRiskIds, setScopeRiskIds] = useState<Set<string>>(new Set())
+  const [selectedControls, setSelectedControls] = useState<Set<string>>(new Set())
 
   void compareVersionId
 
@@ -908,23 +1129,36 @@ export default function RiskClient() {
       .then(({ risks }) => { setRisks(risks ?? []); setLoading(false) })
   }, [currentVersionId])
 
-  // Sort by community vote average (high → low); unvoted risks go to bottom
-  const sortedRisks = [...risks].sort((a, b) => {
-    if (a.voteAvg === null && b.voteAvg === null) return 0
-    if (a.voteAvg === null) return 1
-    if (b.voteAvg === null) return -1
-    return b.voteAvg - a.voteAvg
-  })
+  // Sort
+  const sortedRisks = useMemo(() => {
+    const arr = [...risks]
+    switch (sortMode) {
+      case 'severity-desc':
+        return arr.sort((a, b) => {
+          if (a.voteAvg === null && b.voteAvg === null) return 0
+          if (a.voteAvg === null) return 1
+          if (b.voteAvg === null) return -1
+          return b.voteAvg - a.voteAvg
+        })
+      case 'severity-asc':
+        return arr.sort((a, b) => {
+          if (a.voteAvg === null && b.voteAvg === null) return 0
+          if (a.voteAvg === null) return 1
+          if (b.voteAvg === null) return -1
+          return a.voteAvg - b.voteAvg
+        })
+      case 'votes-desc':
+        return arr.sort((a, b) => b.voteCount - a.voteCount)
+      case 'alpha':
+        return arr.sort((a, b) => a.title.localeCompare(b.title))
+      case 'risknum':
+        return arr.sort((a, b) => a.riskNum - b.riskNum)
+      default:
+        return arr
+    }
+  }, [risks, sortMode])
 
-  const controlConcepts = useMemo(() => {
-    if (selectedHazardTypes.length === 0) return []
-    const hazardIds = HAZARDS.filter(h => selectedHazardTypes.includes(h.type ?? '')).map(h => h.id)
-    const controlIds = new Set(hazardIds.flatMap(hId => HAZARD_CONTROLS[hId] ?? []))
-    const concepts = new Set([...controlIds].map(cId => CONTROL_MAP[cId]?.concept).filter(Boolean) as string[])
-    return [...concepts].sort()
-  }, [selectedHazardTypes])
-
-  // Effective category set: union of manual picks + task-implied categories
+  // Effective categories: manual picks OR task-implied
   const taskCategories = selectedTask
     ? (MODEL_TASKS.find((t) => t.label === selectedTask)?.categories ?? [])
     : []
@@ -933,15 +1167,16 @@ export default function RiskClient() {
     ? selectedCategories
     : taskCategories
 
-  // Apply filters
-  const filtered = sortedRisks.filter((r) => {
+  // Filter
+  const filtered = useMemo(() => sortedRisks.filter((r) => {
     const matchCat = effectiveCategories.length === 0 || effectiveCategories.includes(r.category)
     const q = search.toLowerCase()
     const matchSearch = !q || r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)
     return matchCat && matchSearch
-  })
+  }), [sortedRisks, effectiveCategories, search])
 
   function toggleCategory(cat: string) {
+    setSelectedTask(null)
     setSelectedCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     )
@@ -952,8 +1187,26 @@ export default function RiskClient() {
       setSelectedTask(null)
     } else {
       setSelectedTask(label)
-      setSelectedCategories([]) // clear manual picks; task drives the filter
+      setSelectedCategories([])
     }
+  }
+
+  function toggleScope(riskId: string) {
+    setScopeRiskIds(prev => {
+      const next = new Set(prev)
+      if (next.has(riskId)) next.delete(riskId)
+      else next.add(riskId)
+      return next
+    })
+  }
+
+  function toggleControl(concept: string) {
+    setSelectedControls(prev => {
+      const next = new Set(prev)
+      if (next.has(concept)) next.delete(concept)
+      else next.add(concept)
+      return next
+    })
   }
 
   const currentVersion = versions.find((v) => v.id === currentVersionId)
@@ -965,6 +1218,9 @@ export default function RiskClient() {
   for (const r of risks) catCounts[r.category] = (catCounts[r.category] ?? 0) + 1
 
   const votedRisks = risks.filter((r) => r.voteAvg !== null).length
+  const scopedRisks = risks.filter(r => scopeRiskIds.has(r.id))
+
+  const hasActiveFilters = selectedCategories.length > 0 || selectedTask !== null || search.length > 0
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -976,12 +1232,14 @@ export default function RiskClient() {
             <p className="text-sm text-gray-600 mt-2 leading-relaxed">
               A community-maintained catalogue of AI system risks, organised across eight harm categories. Each risk is independently rated by the community on a <strong>0–10 severity scale</strong>, where 0 represents negligible impact and 10 represents catastrophic, potentially irreversible harm.
             </p>
-            <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-              <strong>How severity is calculated:</strong> Community members rate each risk after reviewing its definition — voting is blinded so that individual judgements remain independent. The aggregate score uses the arithmetic mean of all submitted votes. The distribution chart (visible after you vote) shows the full spread with interquartile range and median, giving a richer picture than a single number. Risks are ordered by descending average score so the most severe concerns surface first.
-            </p>
             <div className="flex gap-4 mt-3 text-xs text-gray-400">
               <span><strong className="text-gray-700">{risks.length}</strong> risks tracked</span>
               <span><strong className="text-gray-700">{votedRisks}</strong> with community ratings</span>
+              {scopeRiskIds.size > 0 && (
+                <span className="text-indigo-600 font-semibold">
+                  <strong>{scopeRiskIds.size}</strong> in project scope
+                </span>
+              )}
             </div>
           </div>
 
@@ -1030,7 +1288,6 @@ export default function RiskClient() {
       <div className="flex items-center gap-1 border-b border-gray-200 mb-5 flex-wrap">
         {[
           { id: 'risks', label: `Risk list (${risks.length})` },
-          { id: 'hazards', label: 'Hazards & Controls' },
           { id: 'graph', label: 'Knowledge Graph' },
           { id: 'submit', label: 'Submit a risk' },
         ].map((t) => (
@@ -1054,12 +1311,6 @@ export default function RiskClient() {
         </div>
       )}
 
-      {activeTab === 'hazards' && (
-        <div>
-          <HazardsClient />
-        </div>
-      )}
-
       {activeTab === 'graph' && (
         <div className="py-2">
           <KnowledgeGraph />
@@ -1067,173 +1318,186 @@ export default function RiskClient() {
       )}
 
       {activeTab === 'risks' && (
-        <div className="border border-gray-200 rounded-xl overflow-hidden flex" style={{ height: '70vh', minHeight: 500 }}>
-          {/* Panel 1 — Risk tree */}
-          <div className="w-56 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
-            <div className="p-3 border-b border-gray-200">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search risks…"
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-400 bg-white"
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {CATEGORIES.map(cat => {
-                const q = search.toLowerCase()
-                const catRisks = sortedRisks.filter(r =>
-                  r.category === cat &&
-                  (!q || r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q))
-                )
-                return (
-                  <div key={cat}>
-                    <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-100 border-b border-gray-200 flex items-center justify-between">
-                      <span className="truncate">{cat.split(' ').slice(0, 2).join(' ')}</span>
-                      <span className="ml-1 text-gray-400 flex-shrink-0">({catCounts[cat] ?? 0})</span>
-                    </div>
-                    {catRisks.map(risk => (
-                      <div
-                        key={risk.id}
-                        onClick={() => { setSelectedRisk(risk); setSelectedHazardTypes([]) }}
-                        className="px-3 py-2 cursor-pointer border-b border-gray-100 hover:bg-white transition-colors"
-                        style={selectedRisk?.id === risk.id
-                          ? { backgroundColor: '#EEF2FF', borderLeft: '2px solid #4338CA' }
-                          : { borderLeft: '2px solid transparent' }
-                        }
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-mono text-gray-400">R-{String(risk.riskNum).padStart(3, '0')}</span>
-                          {risk.voteAvg !== null && (
-                            <span className="ml-auto text-xs font-bold" style={{ color: risk.voteAvg >= 7 ? '#991B1B' : risk.voteAvg >= 4 ? '#92400E' : '#166534' }}>
-                              {risk.voteAvg.toFixed(1)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-700 mt-0.5 leading-snug line-clamp-2">{risk.title}</p>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Panel 2 — Risk detail + hazard types */}
-          <div className="w-80 flex-shrink-0 border-r border-gray-200 overflow-y-auto">
-            {selectedRisk ? (
-              <div className="p-4 space-y-4">
-                <div>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full font-medium border"
-                    style={CAT_COLORS[selectedRisk.category] ?? { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}
+        <div>
+          {/* Filter bar */}
+          <div className="border border-gray-200 rounded-xl p-4 mb-5 space-y-4 bg-gray-50">
+            {/* Search + sort row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-48">
+                <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by title or description…"
+                  className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:border-indigo-400"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
                   >
-                    {selectedRisk.category}
-                  </span>
-                  <h3 className="text-sm font-bold text-gray-900 mt-2">{selectedRisk.title}</h3>
-                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{selectedRisk.description}</p>
-                </div>
-                <VotingWidget riskId={selectedRisk.id} />
-                {RISK_TO_AUDIT_CAT[selectedRisk.category] && (
-                  <a href={`/self-audit?cat=${RISK_TO_AUDIT_CAT[selectedRisk.category]}`}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-                    </svg>
-                    View test cases in Self Audit
-                  </a>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                  </button>
                 )}
-                <div>
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Linked hazard types</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(CATEGORY_HAZARD_TYPES[selectedRisk.category] ?? []).map(type => {
-                      const active = selectedHazardTypes.includes(type)
-                      const colors = TYPE_COLORS[type] ?? { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' }
-                      return (
-                        <button
-                          key={type}
-                          onClick={() => setSelectedHazardTypes(prev => active ? prev.filter(t => t !== type) : [...prev, type])}
-                          className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all"
-                          style={active
-                            ? { backgroundColor: colors.bg, color: colors.text, borderColor: colors.border, boxShadow: '0 0 0 1.5px ' + colors.border }
-                            : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
-                          }
-                        >
-                          {type}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {selectedHazardTypes.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-2">See definitions and controls →</p>
-                  )}
-                </div>
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center p-6">
-                <p className="text-xs text-gray-400 text-center">Select a risk from the list to explore linked hazard types</p>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-gray-500 whitespace-nowrap">Sort by</label>
+                <select
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as SortMode)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-indigo-400"
+                >
+                  <option value="severity-desc">Severity: High → Low</option>
+                  <option value="severity-asc">Severity: Low → High</option>
+                  <option value="votes-desc">Most voted</option>
+                  <option value="alpha">A → Z</option>
+                  <option value="risknum">Risk number</option>
+                </select>
               </div>
-            )}
-          </div>
-
-          {/* Panel 3 — Hazard definitions */}
-          <div className="flex-1 min-w-[280px] border-r border-gray-200 overflow-y-auto">
-            <div className="sticky top-0 px-4 py-2 bg-white border-b border-gray-200 z-10">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Hazard Definitions{selectedHazardTypes.length > 0 && <span> ({selectedHazardTypes.length})</span>}
-              </p>
+              {hasActiveFilters && (
+                <button
+                  onClick={() => { setSelectedCategories([]); setSelectedTask(null); setSearch('') }}
+                  className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors whitespace-nowrap"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
-            {selectedHazardTypes.length > 0 ? (
-              <div className="p-4 space-y-3">
-                {selectedHazardTypes.map(type => {
-                  const colors = TYPE_COLORS[type] ?? { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' }
+
+            {/* Category chips */}
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Filter by category</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setSelectedCategories([]); setSelectedTask(null) }}
+                  className="px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                  style={selectedCategories.length === 0 && selectedTask === null
+                    ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+                    : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+                  }
+                >
+                  All ({risks.length})
+                </button>
+                {CATEGORIES.map(cat => {
+                  const col = CAT_COLORS[cat]
+                  const active = selectedCategories.includes(cat)
                   return (
-                    <div key={type} className="rounded-xl border p-3" style={{ backgroundColor: colors.bg, borderColor: colors.border }}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-bold" style={{ color: colors.text }}>{type}</span>
-                        <button
-                          onClick={() => setSelectedHazardTypes(prev => prev.filter(t => t !== type))}
-                          className="text-xs opacity-50 hover:opacity-100"
-                          style={{ color: colors.text }}
-                        >
-                          × Remove
-                        </button>
-                      </div>
-                      <p className="text-xs leading-relaxed" style={{ color: colors.text, opacity: 0.85 }}>
-                        {HAZARD_TYPE_DEFS[type] ?? 'No definition available.'}
-                      </p>
-                    </div>
+                    <button
+                      key={cat}
+                      onClick={() => toggleCategory(cat)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                      style={active
+                        ? { backgroundColor: col.bg, color: col.text, borderColor: col.border, boxShadow: `0 0 0 1.5px ${col.border}` }
+                        : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+                      }
+                    >
+                      {/* Short label: first 3 words */}
+                      {cat.split(' ').slice(0, 3).join(' ')} ({catCounts[cat] ?? 0})
+                    </button>
                   )
                 })}
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center p-6">
-                <p className="text-xs text-gray-400 text-center">Select hazard types from the middle panel to see their definitions here</p>
+            </div>
+
+            {/* Capability chips */}
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Filter by model capability</p>
+              <div className="flex flex-wrap gap-2">
+                {MODEL_TASKS.map(task => {
+                  const active = selectedTask === task.label
+                  return (
+                    <button
+                      key={task.label}
+                      onClick={() => selectTask(task.label)}
+                      className="px-3 py-1 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5"
+                      style={active
+                        ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+                        : { backgroundColor: 'white', color: '#6B7280', borderColor: '#D1D5DB' }
+                      }
+                    >
+                      <span>{task.emoji}</span>
+                      {task.label}
+                    </button>
+                  )
+                })}
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Panel 4 — Control concepts */}
-          <div className="w-72 flex-shrink-0 overflow-y-auto">
-            <div className="sticky top-0 px-4 py-2 bg-white border-b border-gray-200 z-10">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Controls{controlConcepts.length > 0 && <span> ({controlConcepts.length})</span>}
-              </p>
-            </div>
-            {controlConcepts.length > 0 ? (
-              <div className="p-4 space-y-2">
-                {controlConcepts.map(concept => (
-                  <div key={concept} className="rounded-lg border border-green-200 p-3" style={{ backgroundColor: '#F0FDF4' }}>
-                    <p className="text-xs font-semibold text-green-900">{concept}</p>
-                    {CONCEPT_DEFS[concept] && (
-                      <p className="text-xs text-green-700 mt-1 leading-relaxed opacity-80">{CONCEPT_DEFS[concept]}</p>
-                    )}
+          {/* Main area: risk list + scope panel */}
+          <div className="flex gap-5 items-start">
+            {/* Risk list */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm text-gray-500">
+                  <strong className="text-gray-900">{filtered.length}</strong> of {risks.length} risks
+                  {selectedTask && (
+                    <span className="ml-2 text-indigo-600 font-medium">
+                      {MODEL_TASKS.find(t => t.label === selectedTask)?.emoji} {selectedTask}
+                    </span>
+                  )}
+                  {selectedCategories.length > 0 && (
+                    <span className="ml-2 text-indigo-600 font-medium">
+                      {selectedCategories.length} categor{selectedCategories.length === 1 ? 'y' : 'ies'}
+                    </span>
+                  )}
+                </p>
+                {scopeRiskIds.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full border"
+                      style={{ backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#A5B4FC' }}>
+                      {scopeRiskIds.size} in scope
+                    </span>
                   </div>
-                ))}
+                )}
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center p-6">
-                <p className="text-xs text-gray-400 text-center">Controls appear when hazard types are selected</p>
+
+              {loading ? (
+                <div className="text-sm text-gray-400 py-12 text-center">Loading risks…</div>
+              ) : filtered.length === 0 ? (
+                <div className="text-sm text-gray-400 py-12 text-center border border-gray-200 rounded-xl">
+                  No risks match your current filters.
+                  <button onClick={() => { setSelectedCategories([]); setSelectedTask(null); setSearch('') }}
+                    className="block mx-auto mt-2 text-indigo-600 hover:underline text-xs">
+                    Clear all filters
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  {filtered.map(risk => (
+                    <RiskCard
+                      key={risk.id}
+                      risk={risk}
+                      inScope={scopeRiskIds.has(risk.id)}
+                      onToggleScope={() => toggleScope(risk.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Project scope panel (sticky) */}
+            {scopeRiskIds.size > 0 && (
+              <div
+                className="flex-shrink-0 border border-gray-200 rounded-xl overflow-hidden"
+                style={{ width: 320, position: 'sticky', top: '1rem', maxHeight: 'calc(100vh - 120px)' }}
+              >
+                <ProjectScopePanel
+                  scopedRisks={scopedRisks}
+                  selectedControls={selectedControls}
+                  onToggleControl={toggleControl}
+                  onRemoveRisk={(riskId) => {
+                    setScopeRiskIds(prev => {
+                      const next = new Set(prev)
+                      next.delete(riskId)
+                      return next
+                    })
+                  }}
+                  onClear={() => { setScopeRiskIds(new Set()); setSelectedControls(new Set()) }}
+                />
               </div>
             )}
           </div>
