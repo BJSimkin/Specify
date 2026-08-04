@@ -20,6 +20,9 @@ interface AttackConfig {
 interface CampaignSample {
   categoryId: string; categoryShortName: string; vectorName: string; sampleIndex: number
   text: string; source: string | null; complexity: number | null; explicitness: number | null; risk: number | null
+  // If an attack transformation was applied before adding to campaign
+  transformedText?: string
+  attackConfigApplied?: Partial<AttackConfig>
 }
 
 interface CampaignResult {
@@ -29,6 +32,35 @@ interface CampaignResult {
   modelResponseTexts: Record<string, string>
   alignmentPrefs: Record<string, AlignmentLevel>
   completedAt?: string
+}
+
+// Default "no transformation" attack config
+const DEFAULT_ATTACK_CONFIG: AttackConfig = {
+  turn: 'Direct request',
+  language: 'English',
+  injection: null,
+  misalignment: null,
+  perturbation: null,
+}
+
+function isDefaultConfig(cfg: AttackConfig): boolean {
+  return (
+    cfg.turn === 'Direct request' &&
+    cfg.language === 'English' &&
+    cfg.injection === null &&
+    cfg.misalignment === null &&
+    cfg.perturbation === null
+  )
+}
+
+function describeConfig(cfg: AttackConfig): string {
+  const parts: string[] = []
+  if (cfg.turn && cfg.turn !== 'Direct request') parts.push(cfg.turn)
+  if (cfg.language && cfg.language !== 'English') parts.push(cfg.language)
+  if (cfg.injection) parts.push(cfg.injection)
+  if (cfg.misalignment) parts.push(cfg.misalignment)
+  if (cfg.perturbation) parts.push(cfg.perturbation)
+  return parts.length > 0 ? parts.join(' · ') : 'No transformation'
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -492,44 +524,109 @@ function AlignmentPanel({ prefs, onChange }: {
 }
 
 // ─── Attack Builder ────────────────────────────────────────────────────────────
-function AttackBuilder({ basePrompt, config, onChange }: {
+function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
   basePrompt: string | null
   config: AttackConfig
   onChange: (key: keyof AttackConfig, value: string | null) => void
+  onBasePromptChange: (text: string) => void
 }) {
   const [expanded, setExpanded] = useState<Record<keyof AttackConfig, boolean>>({
-    turn: true, language: false, injection: false, misalignment: false, perturbation: false,
+    turn: true, language: true, injection: false, misalignment: false, perturbation: false,
   })
-  const activeCount = Object.values(config).filter(Boolean).length
+  const [localPrompt, setLocalPrompt] = useState(basePrompt ?? '')
+  const [generatedVariant, setGeneratedVariant] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+
+  // Sync when parent sets base prompt from repository
+  const prevBasePrompt = basePrompt
+  if (basePrompt !== null && basePrompt !== prevBasePrompt && localPrompt !== basePrompt) {
+    setLocalPrompt(basePrompt)
+    setGeneratedVariant(null)
+  }
+
+  const nonDefault = !isDefaultConfig(config)
+
+  async function generateExample() {
+    if (!localPrompt.trim()) return
+    setGenerating(true); setGenError(null); setGeneratedVariant(null)
+    try {
+      const res = await fetch('/api/attack-transform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompts: [localPrompt.trim()], attackConfig: config }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setGenError(err.error ?? 'Generation failed')
+        return
+      }
+      const data = await res.json()
+      setGeneratedVariant(data.transformed?.[0] ?? null)
+    } catch {
+      setGenError('Network error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-900">⚡ Attack Builder</p>
-          <p className="text-xs text-gray-400 mt-0.5">Augment test prompts with adversarial strategies before running them against the model</p>
+          <p className="text-xs text-gray-400 mt-0.5">Configure adversarial transformations applied when adding samples to a test campaign</p>
         </div>
-        {activeCount > 0 && (
+        {nonDefault && (
           <div className="flex items-center gap-3">
-            <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>{activeCount} active</span>
-            <button onClick={() => (Object.keys(config) as (keyof AttackConfig)[]).forEach(k => onChange(k, null))}
-              className="text-xs text-red-500 hover:text-red-700 font-medium">Clear all</button>
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+              Active — samples will be transformed
+            </span>
+            <button onClick={() => {
+              onChange('turn', DEFAULT_ATTACK_CONFIG.turn)
+              onChange('language', DEFAULT_ATTACK_CONFIG.language)
+              onChange('injection', null)
+              onChange('misalignment', null)
+              onChange('perturbation', null)
+              setGeneratedVariant(null)
+            }} className="text-xs text-gray-400 hover:text-red-500 font-medium transition-colors">
+              Reset to defaults
+            </button>
           </div>
         )}
       </div>
+
       <div className="border border-indigo-200 rounded-xl overflow-hidden" style={{ backgroundColor: '#FAFBFF' }}>
         <div className="p-4 space-y-3">
           {(Object.keys(ATTACK_STRATEGY_DEFS) as (keyof AttackConfig)[]).map(key => {
-            const def = ATTACK_STRATEGY_DEFS[key]; const selected = config[key]; const isOpen = expanded[key]
+            const def = ATTACK_STRATEGY_DEFS[key]
+            const selected = config[key]
+            const isDefault =
+              (key === 'turn' && selected === 'Direct request') ||
+              (key === 'language' && selected === 'English') ||
+              ((key === 'injection' || key === 'misalignment' || key === 'perturbation') && selected === null)
+            const isOpen = expanded[key]
+
             return (
-              <div key={key} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+              <div key={key} className="border rounded-lg overflow-hidden bg-white"
+                style={{ borderColor: !isDefault ? '#A5B4FC' : '#E5E7EB' }}>
                 <button onClick={() => setExpanded(prev => ({ ...prev, [key]: !prev[key] }))}
                   className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-2">
                     <span>{def.icon}</span>
                     <span className="text-xs font-semibold text-gray-700">{def.label}</span>
-                    {selected && <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>{selected}</span>}
+                    {selected && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                        style={!isDefault
+                          ? { backgroundColor: '#EEF2FF', color: '#3730A3' }
+                          : { backgroundColor: '#F3F4F6', color: '#6B7280' }}>
+                        {selected}
+                      </span>
+                    )}
+                    {isDefault && <span className="text-xs text-gray-300">default</span>}
                   </div>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#9CA3AF" className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#9CA3AF"
+                    className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}>
                     <path d="M7 10l5 5 5-5z"/>
                   </svg>
                 </button>
@@ -542,7 +639,7 @@ function AttackBuilder({ basePrompt, config, onChange }: {
                           {options.map(opt => {
                             const active = selected === opt
                             return (
-                              <button key={opt} onClick={() => onChange(key, active ? null : opt)}
+                              <button key={opt} onClick={() => { onChange(key, active ? (DEFAULT_ATTACK_CONFIG[key] ?? null) : opt); setGeneratedVariant(null) }}
                                 className="px-2 py-1 rounded-md text-xs border transition-all"
                                 style={active
                                   ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
@@ -554,38 +651,98 @@ function AttackBuilder({ basePrompt, config, onChange }: {
                         </div>
                       </div>
                     ))}
-                    {selected && <button onClick={() => onChange(key, null)} className="text-xs text-red-400 hover:text-red-600 mt-1">× Clear {def.label.toLowerCase()}</button>}
+                    {!isDefault && (
+                      <button onClick={() => { onChange(key, DEFAULT_ATTACK_CONFIG[key] ?? null); setGeneratedVariant(null) }}
+                        className="text-xs text-gray-400 hover:text-indigo-600 mt-1 transition-colors">
+                        ↩ Reset to default
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             )
           })}
-          {activeCount > 0 && (
-            <div className="mt-3 space-y-3">
-              <div className="border border-gray-200 rounded-lg p-3 bg-white">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Base prompt</p>
-                {basePrompt
-                  ? <p className="text-xs text-gray-700 leading-relaxed line-clamp-4">{basePrompt}</p>
-                  : <p className="text-xs text-gray-400 italic">Go to Test Repository → select a sample to set the base prompt</p>}
-              </div>
-              <div className="border border-dashed border-indigo-200 rounded-lg p-3" style={{ backgroundColor: '#F5F7FF' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Augmented variant</p>
-                  <div className="flex flex-wrap gap-1">
-                    {(Object.entries(config) as [keyof AttackConfig, string | null][])
-                      .filter(([, v]) => v !== null)
-                      .map(([k, v]) => (
-                        <span key={k} className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>
-                          {ATTACK_STRATEGY_DEFS[k].icon} {v}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-                <p className="text-xs text-indigo-400 italic">Augmented prompts will be populated with precomputed values.</p>
-              </div>
-            </div>
+        </div>
+      </div>
+
+      {/* Base prompt + generate example */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Test prompt</p>
+          <p className="text-xs text-gray-400">Type a prompt or use ⚡ Attack in the repository to pre-fill</p>
+        </div>
+        <textarea
+          value={localPrompt}
+          onChange={e => { setLocalPrompt(e.target.value); onBasePromptChange(e.target.value); setGeneratedVariant(null) }}
+          placeholder="Enter a test prompt to preview what the transformation looks like…"
+          rows={4}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:border-indigo-400"
+        />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={generateExample}
+            disabled={!localPrompt.trim() || generating || isDefaultConfig(config)}
+            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            style={{ backgroundColor: '#1E1B4B', color: 'white' }}
+            title={isDefaultConfig(config) ? 'Change attack strategies from their defaults to enable transformation' : ''}
+          >
+            {generating ? (
+              <>
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2" strokeDasharray="60" strokeDashoffset="20"/>
+                </svg>
+                Generating…
+              </>
+            ) : '⚡ Generate example'}
+          </button>
+          {isDefaultConfig(config) && (
+            <p className="text-xs text-gray-400">Select non-default attack strategies to enable example generation</p>
           )}
         </div>
+
+        {genError && (
+          <div className="text-xs text-red-500 border border-red-200 rounded-lg px-3 py-2 bg-red-50">
+            Error: {genError}
+          </div>
+        )}
+
+        {generatedVariant && (
+          <div className="border border-dashed border-indigo-300 rounded-lg p-3 space-y-2" style={{ backgroundColor: '#F5F7FF' }}>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">⚡ Augmented variant</p>
+              <div className="flex flex-wrap gap-1">
+                {describeConfig(config).split(' · ').map(tag => (
+                  <span key={tag} className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-indigo-900 leading-relaxed whitespace-pre-wrap">{generatedVariant}</p>
+            <button onClick={() => navigator.clipboard.writeText(generatedVariant)}
+              className="text-xs text-indigo-400 hover:text-indigo-700 transition-colors">
+              Copy to clipboard
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Summary of what will happen when adding to campaign */}
+      <div className="border border-gray-100 rounded-xl p-4 bg-gray-50">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transformation status</p>
+        {isDefaultConfig(config) ? (
+          <p className="text-xs text-gray-500">
+            <span className="inline-block w-2 h-2 rounded-full bg-gray-300 mr-2" />
+            No transformation — samples added to campaigns as-is (single turn, English, no injection, no misalignment, no perturbation)
+          </p>
+        ) : (
+          <p className="text-xs text-gray-700">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-2" />
+            Active transformation: <strong>{describeConfig(config)}</strong>
+            <br/>
+            <span className="text-gray-400">Samples added from the repository will be transformed by AI before being added to the campaign. You will be asked to confirm before transformation runs.</span>
+          </p>
+        )}
       </div>
     </div>
   )
@@ -661,15 +818,106 @@ function SubmitForm() {
   )
 }
 
+// ─── Transform Confirm Modal ──────────────────────────────────────────────────
+function TransformConfirmModal({ sampleCount, attackConfig, onConfirm, onSkip, onCancel }: {
+  sampleCount: number
+  attackConfig: AttackConfig
+  onConfirm: () => void
+  onSkip: () => void
+  onCancel: () => void
+}) {
+  const estSeconds = Math.ceil(sampleCount * 1.8)
+  const estMins = estSeconds >= 60 ? `${Math.floor(estSeconds / 60)}m ${estSeconds % 60}s` : `~${estSeconds}s`
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: '#FEF3C7' }}>
+            <span className="text-lg">⚡</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900">Apply attack transformation?</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Your Attack Builder has non-default settings active
+            </p>
+          </div>
+        </div>
+
+        <div className="border border-amber-200 rounded-xl p-3 mb-4 space-y-2" style={{ backgroundColor: '#FFFBEB' }}>
+          <div className="flex flex-wrap gap-1.5">
+            {describeConfig(attackConfig).split(' · ').map(tag => (
+              <span key={tag} className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                {tag}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-4 text-xs text-amber-700 pt-1 border-t border-amber-100">
+            <span><strong>{sampleCount}</strong> samples to transform</span>
+            <span>Estimated time: <strong>{estMins}</strong></span>
+            <span>Model: <strong>claude-haiku</strong></span>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+          An AI model will rewrite each prompt according to the selected attack strategies. The original prompt is preserved alongside the transformed version in your campaign.
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <button onClick={onConfirm}
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold"
+            style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
+            ⚡ Transform and add to campaign
+          </button>
+          <button onClick={onSkip}
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:border-gray-300 transition-colors">
+            Add without transformation
+          </button>
+          <button onClick={onCancel}
+            className="w-full px-4 py-2.5 rounded-lg text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Transform Progress Modal ─────────────────────────────────────────────────
+function TransformProgressModal({ done, total }: { done: number; total: number }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          style={{ backgroundColor: '#EEF2FF' }}>
+          <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="#6366F1" strokeWidth="2" strokeDasharray="60" strokeDashoffset="20"/>
+          </svg>
+        </div>
+        <p className="text-sm font-bold text-gray-900 mb-1">Transforming samples…</p>
+        <p className="text-xs text-gray-400 mb-4">{done} of {total} complete</p>
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: '#6366F1' }} />
+        </div>
+        <p className="text-xs text-gray-300 mt-2">{pct}%</p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Test Repository ──────────────────────────────────────────────────────────
 function TestRepository({
-  campaignSamples, onAddSamples, onRemoveFromCampaign, onSetAttackBase, onSwitchToAttack,
+  campaignSamples, onAddSamples, onRemoveFromCampaign, onSetAttackBase, onSwitchToAttack, attackConfig,
 }: {
   campaignSamples: CampaignSample[]
-  onAddSamples: (samples: CampaignSample[]) => void
+  onAddSamples: (samples: CampaignSample[], skipTransform?: boolean) => void
   onRemoveFromCampaign: (key: string) => void
   onSetAttackBase: (text: string) => void
   onSwitchToAttack: () => void
+  attackConfig: AttackConfig
 }) {
   const { data: session } = useSession()
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
@@ -827,6 +1075,35 @@ function TestRepository({
           )}
         </div>
       </div>
+
+      {/* Attack config status banner */}
+      {!isDefaultConfig(attackConfig) ? (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200"
+          style={{ backgroundColor: '#FFFBEB' }}>
+          <span className="text-base flex-shrink-0">⚡</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-800">
+              Attack transformation active — samples added to campaign will be rewritten by AI
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">{describeConfig(attackConfig)}</p>
+          </div>
+          <button onClick={onSwitchToAttack}
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+            style={{ backgroundColor: 'white', borderColor: '#FCD34D', color: '#92400E' }}>
+            Edit strategies
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50">
+          <span className="text-sm flex-shrink-0">➕</span>
+          <p className="text-xs text-gray-400 flex-1">
+            No transformation active — samples added to campaign will be used as-is.
+            <button onClick={onSwitchToAttack} className="ml-1 text-indigo-500 hover:text-indigo-700 font-medium transition-colors">
+              Configure attack strategies →
+            </button>
+          </p>
+        </div>
+      )}
 
       {/* Benchmark source pills */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -1130,13 +1407,14 @@ function TestCampaign({
 
   // Benchmark vs synthetic breakdown for active campaign
   const sourceBreakdown = useMemo(() => {
-    let benchmark = 0; let synthetic = 0; let unknown = 0
+    let benchmark = 0; let synthetic = 0; let unknown = 0; let transformed = 0
     for (const s of campaignSamples) {
       if (!s.source) unknown++
       else if (PUBLIC_BENCHMARKS.has(s.source)) benchmark++
       else synthetic++
+      if (s.transformedText) transformed++
     }
-    return { benchmark, synthetic, unknown }
+    return { benchmark, synthetic, unknown, transformed }
   }, [campaignSamples])
 
   // Breakdown for a saved campaign
@@ -1250,6 +1528,9 @@ function TestCampaign({
                     {aligned !== null && <span className="text-sm flex-shrink-0 mt-0.5">{aligned ? '✓' : '✗'}</span>}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-700 line-clamp-2">{s.text}</p>
+                      {s.transformedText && (
+                        <p className="text-xs text-amber-600 italic mt-0.5 line-clamp-1">⚡ Transformed: {s.transformedText}</p>
+                      )}
                       {modelText && <p className="text-xs text-gray-500 italic mt-1 line-clamp-2">Response: {modelText}</p>}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-gray-400">{s.categoryShortName}</span>
@@ -1386,6 +1667,11 @@ function TestCampaign({
                     ❓ {sourceBreakdown.unknown} unknown source
                   </span>
                 )}
+                {sourceBreakdown.transformed > 0 && (
+                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                    ⚡ {sourceBreakdown.transformed} transformed
+                  </span>
+                )}
               </div>
 
               {/* Live score */}
@@ -1456,9 +1742,25 @@ function TestCampaign({
                           <div className="flex-1 min-w-0 space-y-3">
                             {/* Prompt text */}
                             <div>
-                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Prompt</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Original prompt</p>
+                                {s.transformedText && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded font-semibold"
+                                    style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                                    ⚡ Transformed · {describeConfig(s.attackConfigApplied as AttackConfig ?? DEFAULT_ATTACK_CONFIG)}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-sm text-gray-800 leading-relaxed">{s.text}</p>
                             </div>
+
+                            {/* Transformed prompt (if applicable) */}
+                            {s.transformedText && (
+                              <div className="border border-amber-200 rounded-lg p-3" style={{ backgroundColor: '#FFFBEB' }}>
+                                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">⚡ Transformed prompt (send this to the model)</p>
+                                <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{s.transformedText}</p>
+                              </div>
+                            )}
 
                             {/* Meta tags */}
                             <div className="flex items-center gap-2 flex-wrap text-xs text-gray-400">
@@ -1539,9 +1841,14 @@ export default function SelfAuditClient() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('repository')
   const [alignmentPrefs, setAlignmentPrefs] = useState<Record<string, AlignmentLevel>>(DEFAULT_ALIGNMENT)
   const [attackBase, setAttackBase] = useState<string | null>(null)
-  const [attackConfig, setAttackConfig] = useState<AttackConfig>({
-    turn: null, language: null, injection: null, misalignment: null, perturbation: null,
-  })
+  // Default = single turn, English, no injection/misalignment/perturbation
+  const [attackConfig, setAttackConfig] = useState<AttackConfig>({ ...DEFAULT_ATTACK_CONFIG })
+
+  // Pending transform state
+  const [pendingTransform, setPendingTransform] = useState<{
+    samples: CampaignSample[]
+  } | null>(null)
+  const [transformingProgress, setTransformingProgress] = useState<{ done: number; total: number } | null>(null)
 
   // Campaign state — lifted so it persists across tab switches
   const [campaignSamples, setCampaignSamples] = useState<CampaignSample[]>([])
@@ -1566,12 +1873,53 @@ export default function SelfAuditClient() {
     if (session?.user?.name && !testerName) setTesterName(session.user.name)
   }, [session, testerName])
 
-  function addSamples(incoming: CampaignSample[]) {
-    setCampaignSamples(prev => {
-      const existingKeys = new Set(prev.map(s => sampleKey(s)))
-      const toAdd = incoming.filter(s => !existingKeys.has(sampleKey(s)))
-      return [...prev, ...toAdd]
-    })
+  function addSamples(incoming: CampaignSample[], skipTransform = false) {
+    // Deduplicate
+    const toAdd = incoming.filter(s => !campaignSamples.some(x => sampleKey(x) === sampleKey(s)))
+    if (toAdd.length === 0) return
+
+    if (!skipTransform && !isDefaultConfig(attackConfig)) {
+      // Show confirm dialog
+      setPendingTransform({ samples: toAdd })
+    } else {
+      // Add directly (no transformation)
+      setCampaignSamples(prev => [...prev, ...toAdd])
+    }
+  }
+
+  async function runTransformation(samples: CampaignSample[]) {
+    setPendingTransform(null)
+    setTransformingProgress({ done: 0, total: samples.length })
+    try {
+      // Send in batches of 10 for progress tracking
+      const BATCH = 10
+      const result: CampaignSample[] = []
+      for (let i = 0; i < samples.length; i += BATCH) {
+        const batch = samples.slice(i, i + BATCH)
+        const res = await fetch('/api/attack-transform', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompts: batch.map(s => s.text), attackConfig }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          batch.forEach((s, idx) => {
+            result.push({
+              ...s,
+              transformedText: data.transformed?.[idx] ?? undefined,
+              attackConfigApplied: { ...attackConfig },
+            })
+          })
+        } else {
+          // On error, add samples untransformed
+          result.push(...batch)
+        }
+        setTransformingProgress({ done: Math.min(i + BATCH, samples.length), total: samples.length })
+      }
+      setCampaignSamples(prev => [...prev, ...result.filter(s => !prev.some(x => sampleKey(x) === sampleKey(s)))])
+    } finally {
+      setTransformingProgress(null)
+    }
   }
 
   function removeFromCampaign(key: string) {
@@ -1617,6 +1965,24 @@ export default function SelfAuditClient() {
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
+      {/* Transform confirm modal */}
+      {pendingTransform && (
+        <TransformConfirmModal
+          sampleCount={pendingTransform.samples.length}
+          attackConfig={attackConfig}
+          onConfirm={() => runTransformation(pendingTransform.samples)}
+          onSkip={() => {
+            setCampaignSamples(prev => [...prev, ...pendingTransform.samples.filter(s => !prev.some(x => sampleKey(x) === sampleKey(s)))])
+            setPendingTransform(null)
+          }}
+          onCancel={() => setPendingTransform(null)}
+        />
+      )}
+      {/* Transform progress modal */}
+      {transformingProgress && (
+        <TransformProgressModal done={transformingProgress.done} total={transformingProgress.total} />
+      )}
+
       <div className="flex items-start justify-between flex-wrap gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-1" style={{ color: '#1E1B4B' }}>Self Audit</h1>
@@ -1671,6 +2037,7 @@ export default function SelfAuditClient() {
           onRemoveFromCampaign={removeFromCampaign}
           onSetAttackBase={setAttackBase}
           onSwitchToAttack={() => setActiveTab('attack')}
+          attackConfig={attackConfig}
         />
       )}
 
@@ -1683,7 +2050,8 @@ export default function SelfAuditClient() {
           <AttackBuilder
             basePrompt={attackBase}
             config={attackConfig}
-            onChange={(key, value) => setAttackConfig(prev => ({ ...prev, [key]: value }))}
+            onChange={(key, value) => setAttackConfig(prev => ({ ...prev, [key]: value ?? DEFAULT_ATTACK_CONFIG[key] ?? null }))}
+            onBasePromptChange={text => setAttackBase(text)}
           />
         </div>
       )}
