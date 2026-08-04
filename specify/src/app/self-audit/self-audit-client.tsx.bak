@@ -9,7 +9,7 @@ import { AUDIT_CATEGORIES, type RiskCategory } from '@/lib/scenarios-data'
 type AlignmentLevel = 'Fully Allow' | 'Conditional' | 'Restricted' | 'Prohibited'
 type ResponseType = 'Direct response' | 'Direct response with warning' | 'Steer to safe space' | 'Refusal'
 type SortCriteria = 'confirmations' | 'complexity' | 'explicitness' | 'risk'
-type ActiveTab = 'alignment' | 'repository' | 'attack' | 'campaign'
+type ActiveTab = 'alignment' | 'repository' | 'contribution' | 'attack' | 'campaign'
 type SampleMethod = 'random' | 'top-risk' | 'top-explicitness'
 
 interface AttackConfig {
@@ -30,7 +30,6 @@ interface CampaignResult {
   samples: CampaignSample[]
   responses: Record<string, ResponseType>
   modelResponseTexts: Record<string, string>
-  modelResponseMedia?: Record<string, string[]>
   alignmentPrefs: Record<string, AlignmentLevel>
   completedAt?: string
 }
@@ -749,6 +748,76 @@ function AttackBuilder({ basePrompt, config, onChange, onBasePromptChange }: {
   )
 }
 
+// ─── Submit Form ──────────────────────────────────────────────────────────────
+function SubmitForm() {
+  const { data: session } = useSession()
+  const [mode, setMode] = useState<'url' | 'prompt'>('prompt')
+  const [url, setUrl] = useState('')
+  const [prompt, setPrompt] = useState('')
+  const [attribution, setAttribution] = useState('')
+  const [category, setCategory] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitted(true)
+    setTimeout(() => { setSubmitted(false); setPrompt(''); setUrl(''); setAttribution('') }, 3000)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">📤 Contribute test samples</p>
+        <p className="text-xs text-gray-400 mt-0.5">Submissions are reviewed before being added to the dataset.</p>
+      </div>
+      <form onSubmit={handleSubmit} className="border border-amber-200 rounded-xl p-4" style={{ backgroundColor: '#FFFBEB' }}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold text-amber-700">New submission</span>
+          <div className="flex gap-1 p-0.5 bg-amber-100 rounded-lg">
+            {(['prompt', 'url'] as const).map(m => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                className="px-3 py-1 rounded-md text-xs font-semibold transition-all"
+                style={mode === m ? { backgroundColor: 'white', color: '#92400E', boxShadow: '0 1px 2px rgba(0,0,0,.08)' } : { color: '#B45309' }}>
+                {m === 'prompt' ? 'Single prompt' : 'Dataset URL'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px_200px]">
+          {mode === 'prompt'
+            ? <textarea value={prompt} onChange={e => setPrompt(e.target.value)} required rows={3} placeholder="Enter a test prompt…"
+                className="border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-amber-400 bg-white" />
+            : <input type="url" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://… (CSV or JSON)"
+                className="border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 bg-white" />}
+          <select value={category} onChange={e => setCategory(e.target.value)}
+            className="border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400">
+            <option value="">Category (optional)</option>
+            {AUDIT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.shortName}</option>)}
+          </select>
+          <input value={attribution} onChange={e => setAttribution(e.target.value)}
+            placeholder={session?.user?.name ?? 'Your name / org'}
+            className="border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 bg-white" />
+        </div>
+        <div className="flex items-center justify-end mt-3">
+          <button type="submit" className="px-4 py-2 rounded-lg text-sm font-semibold"
+            style={submitted ? { backgroundColor: '#D1FAE5', color: '#065F46' } : { backgroundColor: '#92400E', color: 'white' }}>
+            {submitted ? '✓ Submitted!' : 'Submit'}
+          </button>
+        </div>
+      </form>
+      <div className="border border-gray-200 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contribution guidelines</p>
+        <ul className="space-y-1 text-xs text-gray-600">
+          <li>• Prompts must probe a specific risk vector and clearly relate to a risk category</li>
+          <li>• Redact any operational payloads — describe the attack surface, not the content</li>
+          <li>• Include source attribution where the prompt derives from published research</li>
+          <li>• Synthetic prompts are welcome; label the source as &ldquo;synthetic&rdquo;</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 // ─── Transform Confirm Modal ──────────────────────────────────────────────────
 function TransformConfirmModal({ sampleCount, attackConfig, onConfirm, onSkip, onCancel }: {
   sampleCount: number
@@ -1283,226 +1352,12 @@ function TestRepository({
   )
 }
 
-// ─── Results Panel (tabbed graphical views) ────────────────────────────────────
-function ResultsPanel({
-  scoringData, coverageData, responses, campaignSamples, alignmentPrefs,
-}: {
-  scoringData: { n: number; k: number; score: number; lo: number; hi: number }
-  coverageData: { id: string; shortName: string; total: number; tested: number; inCampaign: number }[]
-  responses: Record<string, ResponseType>
-  campaignSamples: CampaignSample[]
-  alignmentPrefs: Record<string, AlignmentLevel>
-}) {
-  const [resultsTab, setResultsTab] = useState<'overview' | 'by-category' | 'coverage'>('overview')
-
-  // Per-category alignment
-  const categoryAlignment = useMemo(() => {
-    const cats = new Map<string, { shortName: string; aligned: number; total: number }>()
-    for (const s of campaignSamples) {
-      const key = sampleKey(s)
-      const resp = responses[key]
-      if (!resp) continue
-      const domain = CAT_TO_DOMAIN[s.categoryId]
-      const level = domain ? (alignmentPrefs[domain] ?? 'Conditional') : 'Conditional'
-      const aligned = isAligned(level, resp)
-      const existing = cats.get(s.categoryId) ?? { shortName: s.categoryShortName, aligned: 0, total: 0 }
-      cats.set(s.categoryId, { ...existing, total: existing.total + 1, aligned: existing.aligned + (aligned ? 1 : 0) })
-    }
-    return Array.from(cats.entries()).map(([id, v]) => ({ id, ...v, pct: v.total > 0 ? v.aligned / v.total : 0 }))
-  }, [campaignSamples, responses, alignmentPrefs])
-
-  // Response type breakdown
-  const responseBreakdown = useMemo(() => {
-    const counts: Record<ResponseType, number> = {
-      'Direct response': 0, 'Direct response with warning': 0, 'Steer to safe space': 0, 'Refusal': 0,
-    }
-    for (const s of campaignSamples) {
-      const r = responses[sampleKey(s)]
-      if (r) counts[r]++
-    }
-    const total = Object.values(counts).reduce((a, b) => a + b, 0)
-    return { counts, total }
-  }, [campaignSamples, responses])
-
-  const scoreColor = scoringData.score >= 0.8 ? '#16A34A' : scoringData.score >= 0.6 ? '#D97706' : '#DC2626'
-  const scoreAngle = scoringData.n > 0 ? scoringData.score * 180 : 0
-  // SVG gauge: semi-circle arc
-  const gaugePath = (angle: number, r: number, cx: number, cy: number) => {
-    const rad = (angle - 90) * Math.PI / 180
-    const x = cx + r * Math.cos(rad - Math.PI / 2 + Math.PI)
-    const y = cy + r * Math.sin(rad - Math.PI / 2 + Math.PI)
-    return `M ${cx - r} ${cy} A ${r} ${r} 0 ${angle > 90 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`
-  }
-
-  return (
-    <div className="border border-indigo-200 rounded-xl overflow-hidden" style={{ backgroundColor: '#FAFBFF' }}>
-      <div className="px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">📊 Results</p>
-        <div className="flex gap-0.5 p-0.5 bg-indigo-100 rounded-lg">
-          {(['overview', 'by-category', 'coverage'] as const).map(t => (
-            <button key={t} type="button" onClick={() => setResultsTab(t)}
-              className="px-3 py-1 rounded-md text-xs font-semibold transition-all"
-              style={resultsTab === t
-                ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }
-                : { color: '#6366F1' }}>
-              {t === 'overview' ? 'Overview' : t === 'by-category' ? 'By Category' : 'Coverage'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-4">
-        {/* Overview tab */}
-        {resultsTab === 'overview' && (
-          <div className="space-y-4">
-            <div className="flex items-start gap-6 flex-wrap">
-              {/* Gauge */}
-              <div className="flex flex-col items-center">
-                <svg width="160" height="90" viewBox="0 0 160 90">
-                  {/* Background arc */}
-                  <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="#E5E7EB" strokeWidth="12" strokeLinecap="round" />
-                  {/* Score arc */}
-                  {scoringData.n > 0 && (
-                    <path d={gaugePath(scoreAngle, 60, 80, 80)} fill="none" stroke={scoreColor} strokeWidth="12" strokeLinecap="round" />
-                  )}
-                  {/* Center text */}
-                  <text x="80" y="72" textAnchor="middle" fontSize="20" fontWeight="bold" fill={scoreColor}>
-                    {scoringData.n > 0 ? `${(scoringData.score * 100).toFixed(0)}%` : '—'}
-                  </text>
-                  <text x="80" y="86" textAnchor="middle" fontSize="9" fill="#9CA3AF">alignment</text>
-                  {/* Tick marks */}
-                  {[0, 0.25, 0.5, 0.75, 1].map(v => {
-                    const ang = v * 180
-                    const rad = (ang - 90) * Math.PI / 180
-                    const r1 = 52, r2 = 48
-                    const x1 = 80 + r1 * Math.cos(rad - Math.PI / 2 + Math.PI)
-                    const y1 = 80 + r1 * Math.sin(rad - Math.PI / 2 + Math.PI)
-                    const x2 = 80 + r2 * Math.cos(rad - Math.PI / 2 + Math.PI)
-                    const y2 = 80 + r2 * Math.sin(rad - Math.PI / 2 + Math.PI)
-                    return <line key={v} x1={x1.toFixed(1)} y1={y1.toFixed(1)} x2={x2.toFixed(1)} y2={y2.toFixed(1)} stroke="#D1D5DB" strokeWidth="1.5" />
-                  })}
-                </svg>
-                <div className="text-center mt-1">
-                  <p className="text-xs text-gray-400">95% CI [{(scoringData.lo * 100).toFixed(0)}% — {(scoringData.hi * 100).toFixed(0)}%] · n={scoringData.n}</p>
-                  {scoringData.n < 30 && <p className="text-xs text-amber-600 mt-0.5">Add more samples for reliable CI</p>}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="space-y-3 flex-1 min-w-0">
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="border border-gray-200 rounded-lg p-2 bg-white">
-                    <p className="text-xl font-bold text-gray-900">{scoringData.n}</p>
-                    <p className="text-xs text-gray-400">Answered</p>
-                  </div>
-                  <div className="border border-gray-200 rounded-lg p-2 bg-white">
-                    <p className="text-xl font-bold text-gray-900">{campaignSamples.length}</p>
-                    <p className="text-xs text-gray-400">Total</p>
-                  </div>
-                </div>
-
-                {/* Response type stacked bar */}
-                {responseBreakdown.total > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1.5">Response type breakdown</p>
-                    <div className="h-6 rounded-lg overflow-hidden flex" style={{ backgroundColor: '#F3F4F6' }}>
-                      {RESPONSE_TYPES.map(rt => {
-                        const count = responseBreakdown.counts[rt]
-                        if (count === 0) return null
-                        const pct = (count / responseBreakdown.total) * 100
-                        const col = RESPONSE_COLORS[rt]
-                        return (
-                          <div key={rt} className="flex items-center justify-center text-xs font-bold transition-all"
-                            style={{ width: `${pct}%`, backgroundColor: col.bg, color: col.text, minWidth: pct > 8 ? undefined : 0 }}
-                            title={`${rt}: ${count} (${pct.toFixed(0)}%)`}>
-                            {pct >= 12 ? `${count}` : ''}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div className="flex gap-3 mt-1.5 flex-wrap">
-                      {RESPONSE_TYPES.map(rt => {
-                        const count = responseBreakdown.counts[rt]
-                        if (count === 0) return null
-                        const col = RESPONSE_COLORS[rt]
-                        return (
-                          <span key={rt} className="flex items-center gap-1 text-xs" style={{ color: col.text }}>
-                            <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: col.bg, border: `1px solid ${col.border}` }} />
-                            {rt} ({count})
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* By Category tab */}
-        {resultsTab === 'by-category' && (
-          <div className="space-y-2">
-            {categoryAlignment.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">No responses yet</p>
-            ) : categoryAlignment.map(c => (
-              <div key={c.id}>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs text-gray-700 w-36 flex-shrink-0 truncate" title={c.shortName}>{c.shortName}</span>
-                  <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all"
-                      style={{ width: `${c.pct * 100}%`, backgroundColor: c.pct >= 0.8 ? '#16A34A' : c.pct >= 0.6 ? '#D97706' : '#DC2626' }} />
-                  </div>
-                  <span className="text-xs font-semibold w-12 text-right flex-shrink-0"
-                    style={{ color: c.pct >= 0.8 ? '#16A34A' : c.pct >= 0.6 ? '#D97706' : '#DC2626' }}>
-                    {(c.pct * 100).toFixed(0)}%
-                  </span>
-                  <span className="text-xs text-gray-400 w-14 text-right flex-shrink-0">{c.aligned}/{c.total}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Coverage tab */}
-        {resultsTab === 'coverage' && (
-          <div className="space-y-2">
-            {coverageData.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">No samples in campaign</p>
-            ) : coverageData.map(c => {
-              const campaignPct = c.total > 0 ? (c.inCampaign / c.total) * 100 : 0
-              const testedPct = c.total > 0 ? (c.tested / c.total) * 100 : 0
-              return (
-                <div key={c.id}>
-                  <div className="flex items-center justify-between text-xs mb-0.5">
-                    <span className="text-gray-700">{c.shortName}</span>
-                    <span className="text-gray-400">{c.tested} answered / {c.inCampaign} in campaign / {c.total} total</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-                    <div className="absolute top-0 bottom-0 rounded-full" style={{ width: `${Math.min(campaignPct, 100)}%`, backgroundColor: '#C7D2FE' }} />
-                    <div className="absolute top-0 bottom-0 rounded-full" style={{ width: `${Math.min(testedPct, 100)}%`, backgroundColor: '#6366F1' }} />
-                  </div>
-                </div>
-              )
-            })}
-            <p className="text-xs text-gray-400 mt-1">
-              <span style={{ color: '#6366F1' }}>■</span> Answered
-              <span className="ml-2" style={{ color: '#C7D2FE' }}>■</span> In campaign
-              <span className="ml-2 text-gray-300">■</span> Full dataset
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── Test Campaign ────────────────────────────────────────────────────────────
 function TestCampaign({
   campaignSamples, alignmentPrefs, onClearCampaign, onRemoveSample,
-  responses, modelResponseTexts, modelResponseMedia, modelName, testerName, description, campaignDate,
-  onResponseChange, onModelResponseTextChange, onModelResponseMediaChange, onMetaChange,
-  savedCampaigns, onSaveCampaign, onDeleteCampaign, onStartNewCampaign, saveCampaignMsg,
+  responses, modelResponseTexts, modelName, testerName, description, campaignDate,
+  onResponseChange, onModelResponseTextChange, onMetaChange,
+  savedCampaigns, onSaveCampaign, onDeleteCampaign,
 }: {
   campaignSamples: CampaignSample[]
   alignmentPrefs: Record<string, AlignmentLevel>
@@ -1510,17 +1365,13 @@ function TestCampaign({
   onRemoveSample: (key: string) => void
   responses: Record<string, ResponseType>
   modelResponseTexts: Record<string, string>
-  modelResponseMedia: Record<string, string[]>
   modelName: string; testerName: string; description: string; campaignDate: string
   onResponseChange: (key: string, r: ResponseType) => void
   onModelResponseTextChange: (key: string, text: string) => void
-  onModelResponseMediaChange: (key: string, urls: string[]) => void
   onMetaChange: (field: 'modelName' | 'testerName' | 'description' | 'campaignDate', value: string) => void
   savedCampaigns: CampaignResult[]
   onSaveCampaign: () => void
   onDeleteCampaign: (id: string) => void
-  onStartNewCampaign: () => void
-  saveCampaignMsg: boolean
 }) {
   const [viewingCampaign, setViewingCampaign] = useState<CampaignResult | null>(null)
   const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
@@ -1633,13 +1484,33 @@ function TestCampaign({
           )}
         </div>
 
-        <ResultsPanel
-          scoringData={res}
-          coverageData={cov.map(c => ({ id: c.shortName, shortName: c.shortName, total: c.total, tested: c.tested, inCampaign: c.tested }))}
-          responses={campaign.responses}
-          campaignSamples={campaign.samples}
-          alignmentPrefs={campaign.alignmentPrefs}
-        />
+        <div className="border border-gray-200 rounded-xl p-4">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Alignment score</p>
+          <ConfidenceBar score={res.score} lo={res.lo} hi={res.hi} n={res.n} />
+          <p className="text-xs text-gray-400 mt-2">
+            {res.k} of {res.n} responses aligned. {res.n < 30 && <span className="text-amber-600">Wide CI — add more samples.</span>}
+          </p>
+        </div>
+
+        <div className="border border-gray-200 rounded-xl p-4">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Coverage by risk category</p>
+          <div className="space-y-2">
+            {cov.map(c => {
+              const pct = c.total > 0 ? (c.tested / c.total) * 100 : 0
+              return (
+                <div key={c.shortName}>
+                  <div className="flex items-center justify-between text-xs mb-0.5">
+                    <span className="text-gray-700">{c.shortName}</span>
+                    <span className="text-gray-400">{c.tested} / {c.total} ({pct.toFixed(1)}%)</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pct >= 5 ? '#6366F1' : '#CBD5E1' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
 
         <div className="border border-gray-200 rounded-xl p-4">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Sample responses</p>
@@ -1803,162 +1674,143 @@ function TestCampaign({
                 )}
               </div>
 
-              {/* 📊 Results section with tabs */}
-              {campaignSamples.length > 0 && (() => {
-                // Inline component to use useState for result tabs
-                return <ResultsPanel scoringData={scoringData} coverageData={coverageData} responses={responses} campaignSamples={campaignSamples} alignmentPrefs={alignmentPrefs} />
-              })()}
+              {/* Live score */}
+              {scoringData.n > 0 && (
+                <div className="border border-indigo-200 rounded-xl p-4" style={{ backgroundColor: '#FAFBFF' }}>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+                    Alignment score — live ({scoringData.n} of {campaignSamples.length} answered)
+                  </p>
+                  <ConfidenceBar score={scoringData.score} lo={scoringData.lo} hi={scoringData.hi} n={scoringData.n} />
+                  <p className="text-xs text-gray-400 mt-2">
+                    Target ≥30 responses for reliable estimates.
+                    {scoringData.n < 30 && ` ${30 - scoringData.n} more to reach minimum threshold.`}
+                  </p>
+                </div>
+              )}
+
+              {/* Coverage */}
+              {coverageData.length > 0 && (
+                <div className="border border-gray-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Coverage by risk category</p>
+                  <div className="space-y-2">
+                    {coverageData.map(c => {
+                      const campaignPct = c.total > 0 ? (c.inCampaign / c.total) * 100 : 0
+                      const testedPct = c.total > 0 ? (c.tested / c.total) * 100 : 0
+                      return (
+                        <div key={c.id}>
+                          <div className="flex items-center justify-between text-xs mb-0.5">
+                            <span className="text-gray-700">{c.shortName}</span>
+                            <span className="text-gray-400">{c.tested} answered / {c.inCampaign} in campaign / {c.total} total</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+                            <div className="absolute top-0 bottom-0 rounded-full" style={{ width: `${Math.min(campaignPct, 100)}%`, backgroundColor: '#C7D2FE' }} />
+                            <div className="absolute top-0 bottom-0 rounded-full" style={{ width: `${Math.min(testedPct, 100)}%`, backgroundColor: '#6366F1' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <p className="text-xs text-gray-400 mt-1">
+                      <span style={{ color: '#6366F1' }}>■</span> Answered
+                      <span className="ml-2" style={{ color: '#C7D2FE' }}>■</span> In campaign
+                      <span className="ml-2 text-gray-300">■</span> Full dataset
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Sample list */}
-              <div className="space-y-0">
-                <div className="flex items-center justify-between mb-3">
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Test samples ({campaignSamples.length})</p>
                   <button onClick={onClearCampaign} className="text-xs text-red-400 hover:text-red-600">Clear all</button>
                 </div>
-                <div className="space-y-4">
-                  {campaignSamples.map((s, sampleIdx) => {
+                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                  {campaignSamples.map(s => {
                     const key = sampleKey(s); const resp = responses[key]
                     const modelText = modelResponseTexts[key] ?? ''
-                    const mediaUrls = modelResponseMedia[key] ?? []
                     const domain = CAT_TO_DOMAIN[s.categoryId]
                     const level = domain ? (alignmentPrefs[domain] ?? 'Conditional') : 'Conditional'
                     const aligned = resp ? isAligned(level, resp) : null
                     const levelCol = LEVEL_COLORS[level]
-                    const idBadge = String(sampleIdx + 1).padStart(3, '0')
                     return (
-                      <div key={key} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-                        style={{ borderLeft: aligned === true ? '3px solid #16A34A' : aligned === false ? '3px solid #DC2626' : '3px solid #E5E7EB' }}>
-                        {/* Card header */}
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex-wrap">
-                          <span className="text-xs font-bold px-2 py-0.5 rounded font-mono flex-shrink-0"
-                            style={{ backgroundColor: '#1E1B4B', color: 'white' }}>#{idBadge}</span>
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0"
-                            style={{ backgroundColor: '#F3F4F6', color: '#374151', borderColor: '#E5E7EB' }}>
-                            {s.categoryShortName}
-                          </span>
-                          <span className="text-xs text-gray-500 truncate flex-1 min-w-0" title={s.vectorName}>{s.vectorName}</span>
-                          <SourceBadge source={s.source} />
-                          <RiskBadge value={s.risk} />
-                          {s.explicitness !== null && (
-                            <span className="text-xs flex items-center gap-1 text-gray-400 flex-shrink-0">
-                              E<ScorePips value={s.explicitness} color="#F59E0B" />
-                            </span>
-                          )}
-                          {aligned !== null && (
-                            <span className={`flex-shrink-0 text-sm font-bold ${aligned ? 'text-green-500' : 'text-red-500'}`}>{aligned ? '✓' : '✗'}</span>
-                          )}
-                          <button onClick={() => onRemoveSample(key)} className="text-gray-300 hover:text-red-400 flex-shrink-0 text-lg leading-none ml-auto">×</button>
-                        </div>
-
-                        <div className="p-4 space-y-3">
-                          {/* Prompt text */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Original prompt</p>
-                              {s.transformedText && (
-                                <span className="text-xs px-1.5 py-0.5 rounded font-semibold"
-                                  style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
-                                  ⚡ Transformed · {describeConfig(s.attackConfigApplied as AttackConfig ?? DEFAULT_ATTACK_CONFIG)}
-                                </span>
-                              )}
+                      <div key={key} className="p-4">
+                        <div className="flex items-start gap-3">
+                          {aligned !== null
+                            ? <span className={`text-lg flex-shrink-0 ${aligned ? 'text-green-500' : 'text-red-500'}`}>{aligned ? '✓' : '✗'}</span>
+                            : <div className="w-6 flex-shrink-0" />
+                          }
+                          <div className="flex-1 min-w-0 space-y-3">
+                            {/* Prompt text */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Original prompt</p>
+                                {s.transformedText && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded font-semibold"
+                                    style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                                    ⚡ Transformed · {describeConfig(s.attackConfigApplied as AttackConfig ?? DEFAULT_ATTACK_CONFIG)}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-800 leading-relaxed">{s.text}</p>
                             </div>
-                            <p className="text-sm text-gray-800 leading-relaxed">{s.text}</p>
-                          </div>
 
-                          {/* Transformed prompt */}
-                          {s.transformedText && (
-                            <div className="border border-amber-200 rounded-lg p-3" style={{ backgroundColor: '#FFFBEB' }}>
-                              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">⚡ Transformed prompt (send this to the model)</p>
-                              <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{s.transformedText}</p>
-                            </div>
-                          )}
-
-                          {/* Policy badge */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium border"
-                              style={{ backgroundColor: levelCol.bg, color: levelCol.text, borderColor: levelCol.border }}>
-                              Policy: {level}
-                            </span>
-                          </div>
-
-                          {/* Model response textarea + media attach */}
-                          <div>
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Model response</p>
-                            <textarea
-                              value={modelText}
-                              onChange={e => onModelResponseTextChange(key, e.target.value)}
-                              placeholder="Paste the model's response here…"
-                              rows={3}
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:border-indigo-400"
-                            />
-                            {/* Media attach */}
-                            <div className="mt-2">
-                              <label className="inline-flex items-center gap-1.5 cursor-pointer px-2.5 py-1 rounded-lg text-xs border border-gray-200 hover:border-indigo-400 transition-colors text-gray-500 hover:text-indigo-600">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
-                                Attach media
-                                <input type="file" accept="image/*,video/*,audio/*" multiple className="hidden"
-                                  onChange={e => {
-                                    const files = Array.from(e.target.files ?? [])
-                                    if (files.length === 0) return
-                                    const existing = modelResponseMedia[key] ?? []
-                                    Promise.all(files.map(file => new Promise<string>((resolve, reject) => {
-                                      const reader = new FileReader()
-                                      reader.onload = () => resolve(reader.result as string)
-                                      reader.onerror = reject
-                                      reader.readAsDataURL(file)
-                                    }))).then(urls => {
-                                      onModelResponseMediaChange(key, [...existing, ...urls])
-                                    })
-                                    e.target.value = ''
-                                  }}
-                                />
-                              </label>
-                            </div>
-                            {/* Media previews */}
-                            {mediaUrls.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {mediaUrls.map((url, mIdx) => (
-                                  <div key={mIdx} className="relative group">
-                                    {url.startsWith('data:image') ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={url} alt="" className="h-20 w-auto rounded-lg border border-gray-200 object-cover" />
-                                    ) : url.startsWith('data:video') ? (
-                                      <video src={url} controls className="h-20 rounded-lg border border-gray-200" />
-                                    ) : (
-                                      <audio src={url} controls className="h-10 rounded-lg" />
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => onModelResponseMediaChange(key, mediaUrls.filter((_, i) => i !== mIdx))}
-                                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity leading-none">
-                                      ×
-                                    </button>
-                                  </div>
-                                ))}
+                            {/* Transformed prompt (if applicable) */}
+                            {s.transformedText && (
+                              <div className="border border-amber-200 rounded-lg p-3" style={{ backgroundColor: '#FFFBEB' }}>
+                                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">⚡ Transformed prompt (send this to the model)</p>
+                                <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{s.transformedText}</p>
                               </div>
                             )}
-                          </div>
 
-                          {/* Response type selector */}
-                          <div>
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Response type</p>
-                            <div className="flex flex-wrap gap-2">
-                              {RESPONSE_TYPES.map(rt => {
-                                const col = RESPONSE_COLORS[rt]; const active = resp === rt
-                                const wouldAlign = isAligned(level, rt)
-                                return (
-                                  <button key={rt} type="button" onClick={() => onResponseChange(key, rt)}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5"
-                                    style={active
-                                      ? { backgroundColor: col.bg, color: col.text, borderColor: col.border, boxShadow: `0 0 0 1.5px ${col.border}` }
-                                      : { backgroundColor: 'white', color: '#6B7280', borderColor: '#E5E7EB' }
-                                    } title={wouldAlign ? 'Aligned with policy' : 'Not aligned with policy'}>
-                                    {rt}{active && <span>{wouldAlign ? ' ✓' : ' ✗'}</span>}
-                                  </button>
-                                )
-                              })}
+                            {/* Meta tags */}
+                            <div className="flex items-center gap-2 flex-wrap text-xs text-gray-400">
+                              <span className="px-2 py-0.5 rounded-full border text-xs font-medium"
+                                style={{ backgroundColor: '#F3F4F6', color: '#374151', borderColor: '#E5E7EB' }}>
+                                {s.categoryShortName}
+                              </span>
+                              <span className="truncate max-w-[160px]">{s.vectorName}</span>
+                              <RiskBadge value={s.risk} />
+                              <SourceBadge source={s.source} />
+                              <span className="text-xs px-1.5 py-0.5 rounded font-medium border"
+                                style={{ backgroundColor: levelCol.bg, color: levelCol.text, borderColor: levelCol.border }}>
+                                Policy: {level}
+                              </span>
+                            </div>
+
+                            {/* Model response textarea */}
+                            <div>
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Model response</p>
+                              <textarea
+                                value={modelText}
+                                onChange={e => onModelResponseTextChange(key, e.target.value)}
+                                placeholder="Paste the model's response here…"
+                                rows={3}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:border-indigo-400"
+                              />
+                            </div>
+
+                            {/* Response type selector */}
+                            <div>
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Response type</p>
+                              <div className="flex flex-wrap gap-2">
+                                {RESPONSE_TYPES.map(rt => {
+                                  const col = RESPONSE_COLORS[rt]; const active = resp === rt
+                                  const wouldAlign = isAligned(level, rt)
+                                  return (
+                                    <button key={rt} onClick={() => onResponseChange(key, rt)}
+                                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5"
+                                      style={active
+                                        ? { backgroundColor: col.bg, color: col.text, borderColor: col.border, boxShadow: `0 0 0 1.5px ${col.border}` }
+                                        : { backgroundColor: 'white', color: '#6B7280', borderColor: '#E5E7EB' }
+                                      } title={wouldAlign ? 'Aligned with policy' : 'Not aligned with policy'}>
+                                      {rt}{active && <span>{wouldAlign ? ' ✓' : ' ✗'}</span>}
+                                    </button>
+                                  )
+                                })}
+                              </div>
                             </div>
                           </div>
+                          <button onClick={() => onRemoveSample(key)} className="text-gray-300 hover:text-red-400 flex-shrink-0 text-lg leading-none">×</button>
                         </div>
                       </div>
                     )
@@ -1967,26 +1819,13 @@ function TestCampaign({
               </div>
 
               {/* Save */}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <p className="text-xs text-gray-400">{scoringData.n} / {campaignSamples.length} responses recorded</p>
-                  <button type="button" onClick={onStartNewCampaign}
-                    className="text-xs text-gray-400 hover:text-red-500 transition-colors border border-gray-200 px-3 py-1.5 rounded-lg hover:border-red-300">
-                    Start new campaign
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  {saveCampaignMsg && (
-                    <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
-                      ✓ Campaign saved!
-                    </span>
-                  )}
-                  <button type="button" onClick={onSaveCampaign} disabled={!modelName || campaignSamples.length === 0}
-                    className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-                    style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
-                    Save campaign results
-                  </button>
-                </div>
+              <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                <p className="text-xs text-gray-400">{scoringData.n} / {campaignSamples.length} responses recorded</p>
+                <button onClick={onSaveCampaign} disabled={!modelName || campaignSamples.length === 0}
+                  className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
+                  Save campaign results
+                </button>
               </div>
             </>
           )}
@@ -2020,8 +1859,6 @@ export default function SelfAuditClient() {
   const [description, setDescription] = useState('')
   const [campaignDate, setCampaignDate] = useState(new Date().toISOString().slice(0, 10))
   const [savedCampaigns, setSavedCampaigns] = useState<CampaignResult[]>([])
-  const [modelResponseMedia, setModelResponseMedia] = useState<Record<string, string[]>>({})
-  const [saveCampaignMsg, setSaveCampaignMsg] = useState(false)
 
   useEffect(() => {
     try {
@@ -2029,38 +1866,12 @@ export default function SelfAuditClient() {
       if (saved) setAlignmentPrefs({ ...DEFAULT_ALIGNMENT, ...JSON.parse(saved) })
       const sc = localStorage.getItem('specifyCampaigns')
       if (sc) setSavedCampaigns(JSON.parse(sc))
-      // Restore active campaign
-      const ac = localStorage.getItem('specifyActiveCampaign')
-      if (ac) {
-        const parsed = JSON.parse(ac)
-        if (parsed.campaignSamples?.length > 0) {
-          setCampaignSamples(parsed.campaignSamples ?? [])
-          setResponses(parsed.responses ?? {})
-          setModelResponseTexts(parsed.modelResponseTexts ?? {})
-          setModelResponseMedia(parsed.modelResponseMedia ?? {})
-          if (parsed.modelName) setModelName(parsed.modelName)
-          if (parsed.description) setDescription(parsed.description)
-          if (parsed.campaignDate) setCampaignDate(parsed.campaignDate)
-        }
-      }
     } catch { /**/ }
   }, [])
 
   useEffect(() => {
     if (session?.user?.name && !testerName) setTesterName(session.user.name)
   }, [session, testerName])
-
-  // Persist active campaign to localStorage whenever state changes
-  useEffect(() => {
-    try {
-      if (campaignSamples.length > 0) {
-        localStorage.setItem('specifyActiveCampaign', JSON.stringify({
-          campaignSamples, responses, modelResponseTexts, modelResponseMedia,
-          modelName, description, campaignDate,
-        }))
-      }
-    } catch { /**/ }
-  }, [campaignSamples, responses, modelResponseTexts, modelResponseMedia, modelName, description, campaignDate])
 
   function addSamples(incoming: CampaignSample[], skipTransform = false) {
     // Deduplicate
@@ -2116,7 +1927,6 @@ export default function SelfAuditClient() {
     setCampaignSamples(prev => prev.filter(s => !(s.categoryId === catId && s.vectorName === vecName && s.sampleIndex === Number(idxStr))))
     setResponses(prev => { const next = { ...prev }; delete next[key]; return next })
     setModelResponseTexts(prev => { const next = { ...prev }; delete next[key]; return next })
-    setModelResponseMedia(prev => { const next = { ...prev }; delete next[key]; return next })
   }
 
   function handleMetaChange(field: 'modelName' | 'testerName' | 'description' | 'campaignDate', value: string) {
@@ -2130,21 +1940,11 @@ export default function SelfAuditClient() {
     const result: CampaignResult = {
       id: uid(), modelName: modelName || 'Unknown model', description, date: campaignDate,
       testerName: testerName || 'Unknown', samples: campaignSamples,
-      responses, modelResponseTexts, modelResponseMedia, alignmentPrefs, completedAt: new Date().toISOString(),
+      responses, modelResponseTexts, alignmentPrefs, completedAt: new Date().toISOString(),
     }
     const updated = [result, ...savedCampaigns]
     setSavedCampaigns(updated)
     try { localStorage.setItem('specifyCampaigns', JSON.stringify(updated)) } catch { /**/ }
-    setSaveCampaignMsg(true)
-    setTimeout(() => setSaveCampaignMsg(false), 3000)
-  }
-
-  function startNewCampaign() {
-    setCampaignSamples([])
-    setResponses({})
-    setModelResponseTexts({})
-    setModelResponseMedia({})
-    try { localStorage.removeItem('specifyActiveCampaign') } catch { /**/ }
   }
 
   function deleteCampaign(id: string) {
@@ -2158,6 +1958,7 @@ export default function SelfAuditClient() {
   const TABS: { id: ActiveTab; label: string; icon: string }[] = [
     { id: 'alignment',    label: 'Model alignment',    icon: '⚙️' },
     { id: 'repository',   label: 'Test repository',    icon: '🗂️' },
+    { id: 'contribution', label: 'Contribute samples', icon: '📤' },
     { id: 'attack',       label: 'Attack builder',     icon: '⚡' },
     { id: 'campaign',     label: savedCampaigns.length > 0 ? `Test campaign (${savedCampaigns.length})` : 'Test campaign', icon: '🎯' },
   ]
@@ -2240,6 +2041,10 @@ export default function SelfAuditClient() {
         />
       )}
 
+      {activeTab === 'contribution' && (
+        <div className="max-w-2xl"><SubmitForm /></div>
+      )}
+
       {activeTab === 'attack' && (
         <div className="max-w-2xl">
           <AttackBuilder
@@ -2255,24 +2060,20 @@ export default function SelfAuditClient() {
         <TestCampaign
           campaignSamples={campaignSamples}
           alignmentPrefs={alignmentPrefs}
-          onClearCampaign={() => { setCampaignSamples([]); setResponses({}); setModelResponseTexts({}); setModelResponseMedia({}) }}
+          onClearCampaign={() => { setCampaignSamples([]); setResponses({}); setModelResponseTexts({}) }}
           onRemoveSample={removeFromCampaign}
           responses={responses}
           modelResponseTexts={modelResponseTexts}
-          modelResponseMedia={modelResponseMedia}
           modelName={modelName}
           testerName={testerName}
           description={description}
           campaignDate={campaignDate}
           onResponseChange={(key, r) => setResponses(prev => ({ ...prev, [key]: r }))}
           onModelResponseTextChange={(key, text) => setModelResponseTexts(prev => ({ ...prev, [key]: text }))}
-          onModelResponseMediaChange={(key, urls) => setModelResponseMedia(prev => ({ ...prev, [key]: urls }))}
           onMetaChange={handleMetaChange}
           savedCampaigns={savedCampaigns}
           onSaveCampaign={saveCampaign}
           onDeleteCampaign={deleteCampaign}
-          onStartNewCampaign={startNewCampaign}
-          saveCampaignMsg={saveCampaignMsg}
         />
       )}
     </div>

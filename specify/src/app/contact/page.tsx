@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { AUDIT_CATEGORIES } from '@/lib/scenarios-data'
 
 // ─── Newsletter Section ────────────────────────────────────────────────────────
 const NEWSLETTER_TOPICS = ['Risk', 'Regulatory', 'Research', 'Tooling'] as const
@@ -147,6 +148,148 @@ function NewsletterSection() {
           </form>
         )}
       </div>
+    </div>
+  )
+}
+
+
+// ─── Contribute Samples Section ───────────────────────────────────────────────
+function ContributeSamplesSection() {
+  const { data: session } = useSession()
+  const [mode, setMode] = useState<'url' | 'prompt'>('prompt')
+  const [url, setUrl] = useState('')
+  const [prompt, setPrompt] = useState('')
+  const [attribution, setAttribution] = useState('')
+  const [category, setCategory] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitted(true)
+    setTimeout(() => { setSubmitted(false); setPrompt(''); setUrl(''); setAttribution('') }, 3000)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold mb-1" style={{ color: '#1E1B4B' }}>📤 Contribute test samples</h2>
+        <p className="text-sm text-gray-500">
+          Help expand the risk repository by submitting new test prompts. Submissions are reviewed before being added to the dataset.
+        </p>
+      </div>
+      <form onSubmit={handleSubmit} className="border border-amber-200 rounded-xl p-4" style={{ backgroundColor: '#FFFBEB' }}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold text-amber-700">New submission</span>
+          <div className="flex gap-1 p-0.5 bg-amber-100 rounded-lg">
+            {(['prompt', 'url'] as const).map(m => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                className="px-3 py-1 rounded-md text-xs font-semibold transition-all"
+                style={mode === m ? { backgroundColor: 'white', color: '#92400E', boxShadow: '0 1px 2px rgba(0,0,0,.08)' } : { color: '#B45309' }}>
+                {m === 'prompt' ? 'Single prompt' : 'Dataset URL'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px_200px]">
+          {mode === 'prompt'
+            ? <textarea value={prompt} onChange={e => setPrompt(e.target.value)} required rows={3} placeholder="Enter a test prompt…"
+                className="border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-amber-400 bg-white" />
+            : <input type="url" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://… (CSV or JSON)"
+                className="border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 bg-white" />}
+          <select value={category} onChange={e => setCategory(e.target.value)}
+            className="border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400">
+            <option value="">Category (optional)</option>
+            {AUDIT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.shortName}</option>)}
+          </select>
+          <input value={attribution} onChange={e => setAttribution(e.target.value)}
+            placeholder={session?.user?.name ?? 'Your name / org'}
+            className="border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 bg-white" />
+        </div>
+        <div className="flex items-center justify-end mt-3">
+          <button type="submit"
+            className="px-4 py-2 rounded-lg text-sm font-semibold"
+            style={submitted ? { backgroundColor: '#D1FAE5', color: '#065F46' } : { backgroundColor: '#92400E', color: 'white' }}>
+            {submitted ? '✓ Submitted!' : 'Submit'}
+          </button>
+        </div>
+      </form>
+      <div className="border border-gray-200 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contribution guidelines</p>
+        <ul className="space-y-1 text-xs text-gray-600">
+          <li>• Prompts must probe a specific risk vector and clearly relate to a risk category</li>
+          <li>• Redact any operational payloads — describe the attack surface, not the content</li>
+          <li>• Include source attribution where the prompt derives from published research</li>
+          <li>• Synthetic prompts are welcome; label the source as &ldquo;synthetic&rdquo;</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+// ─── Submit Risk Section ──────────────────────────────────────────────────────
+function SubmitRiskSection() {
+  const { data: session } = useSession()
+  const [form, setForm] = useState({ title: '', category: '', description: '', impact: '', attribution: '' })
+  const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    if (session?.user?.name) setForm(f => ({ ...f, attribution: f.attribution || session.user?.name || '' }))
+  }, [session])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitted(true)
+    setTimeout(() => { setSubmitted(false); setForm({ title: '', category: '', description: '', impact: '', attribution: '' }) }, 3000)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold mb-1" style={{ color: '#1E1B4B' }}>⚠️ Submit a risk</h2>
+        <p className="text-sm text-gray-500">
+          Spotted a risk scenario not yet in the repository? Submit it for review and inclusion.
+        </p>
+      </div>
+      <form onSubmit={handleSubmit} className="border border-red-200 rounded-xl p-4 space-y-3" style={{ backgroundColor: '#FFF5F5' }}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Risk title *</label>
+            <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="Brief title for this risk"
+              className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-red-400" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Category</label>
+            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+              className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-red-400">
+              <option value="">Select category…</option>
+              {AUDIT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.shortName}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Description *</label>
+          <textarea required rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Describe the risk scenario in detail…"
+            className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm resize-none bg-white focus:outline-none focus:border-red-400" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Potential impact</label>
+          <input value={form.impact} onChange={e => setForm(f => ({ ...f, impact: e.target.value }))}
+            placeholder="What harm could this enable?"
+            className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-red-400" />
+        </div>
+        <div className="flex items-center gap-3">
+          <input value={form.attribution} onChange={e => setForm(f => ({ ...f, attribution: e.target.value }))}
+            placeholder="Your name / org (optional)"
+            className="flex-1 border border-red-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-red-400" />
+          <button type="submit"
+            className="px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
+            style={submitted ? { backgroundColor: '#D1FAE5', color: '#065F46' } : { backgroundColor: '#DC2626', color: 'white' }}>
+            {submitted ? '✓ Submitted!' : 'Submit risk'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
@@ -323,6 +466,12 @@ export default function ContactPage() {
             </form>
           )}
         </div>
+      </div>
+
+      {/* Contribute samples + Submit risk */}
+      <div className="mt-12 pt-10 border-t border-gray-100 grid grid-cols-1 lg:grid-cols-2 gap-10">
+        <ContributeSamplesSection />
+        <SubmitRiskSection />
       </div>
 
       {/* Newsletter signup */}
