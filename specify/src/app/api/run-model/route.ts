@@ -11,10 +11,15 @@ interface ModelRunConfig {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { prompt, modelConfig } = body as { prompt: string; modelConfig: ModelRunConfig }
+    // Support both single-turn (prompt) and multi-turn (messages[]) modes
+    const { prompt, messages: incomingMessages, modelConfig } = body as {
+      prompt?: string
+      messages?: { role: string; content: string }[]
+      modelConfig: ModelRunConfig
+    }
 
-    if (!prompt || typeof prompt !== 'string') {
-      return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
+    if (!incomingMessages && (!prompt || typeof prompt !== 'string')) {
+      return NextResponse.json({ error: 'prompt or messages is required' }, { status: 400 })
     }
     if (!modelConfig?.provider || !modelConfig?.modelId || !modelConfig?.apiKey) {
       return NextResponse.json(
@@ -34,7 +39,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({ inputs: prompt }),
+        body: JSON.stringify({ inputs: prompt ?? '' }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -63,11 +68,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 })
     }
 
-    const messages: { role: string; content: string }[] = []
-    if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt })
+    // Multi-turn: use provided messages array; single-turn: build from prompt
+    let messages: { role: string; content: string }[]
+    if (incomingMessages) {
+      messages = incomingMessages
+    } else {
+      messages = []
+      if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
+      messages.push({ role: 'user', content: prompt! })
     }
-    messages.push({ role: 'user', content: prompt })
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
