@@ -2058,26 +2058,6 @@ function TestRepository({
         </div>
       )}
 
-      {/* Benchmark source pills */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {benchmarkData.map(bm => {
-          const col = SOURCE_COLORS[bm.name] ?? { bg: '#F3F4F6', text: '#374151' }
-          return (
-            <button key={bm.name} onClick={() => setSourceFilter(sourceFilter === bm.name ? 'ALL' : bm.name)}
-              className="flex-shrink-0 border rounded-xl px-3 py-2 min-w-[110px] text-left transition-all"
-              style={{
-                backgroundColor: col.bg, borderColor: sourceFilter === bm.name ? col.text : 'transparent',
-                boxShadow: sourceFilter === bm.name ? `0 0 0 1.5px ${col.text}` : undefined,
-              }}>
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-xs font-bold" style={{ color: col.text }}>{bm.name}</span>
-                <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-white/60" style={{ color: col.text }}>{bm.count}</span>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
       {/* Explorer: samples first, category/vector selectors below */}
       <div className="space-y-4">
 
@@ -2232,7 +2212,7 @@ function TestRepository({
           )}
         </div>
 
-        {/* Category + Vector selectors */}
+        {/* Category + Vector selectors — below samples */}
         <div className="flex gap-4 border-t border-gray-100 pt-4">
           {/* Column 1 — Categories */}
           <div className="w-52 flex-shrink-0">
@@ -2337,6 +2317,29 @@ function TestRepository({
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Benchmark source pills — bottom of tab */}
+      <div className="border-t border-gray-100 pt-3">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Benchmark sources</p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {benchmarkData.map(bm => {
+            const col = SOURCE_COLORS[bm.name] ?? { bg: '#F3F4F6', text: '#374151' }
+            return (
+              <button key={bm.name} onClick={() => setSourceFilter(sourceFilter === bm.name ? 'ALL' : bm.name)}
+                className="flex-shrink-0 border rounded-xl px-3 py-2 min-w-[100px] text-left transition-all"
+                style={{
+                  backgroundColor: col.bg, borderColor: sourceFilter === bm.name ? col.text : 'transparent',
+                  boxShadow: sourceFilter === bm.name ? `0 0 0 1.5px ${col.text}` : undefined,
+                }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold" style={{ color: col.text }}>{bm.name}</span>
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-white/60" style={{ color: col.text }}>{bm.count}</span>
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -2820,31 +2823,25 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
     return { score, pct, lo, hi, label: pct < 20 ? 'Low' : pct < 40 ? 'Medium' : pct < 65 ? 'High' : 'Critical' }
   }, [catStats])
 
-  // ── Coverage ───────────────────────────────────────────────────────────────
+  // ── Coverage (relative to total repository, not just campaign) ────────────
   const stCoverage = useMemo(() => {
-    const total = catStats.reduce((a, c) => a + c.tested, 0)
-    const available = catStats.reduce((a, c) => a + (c.totalInCat ?? 10), 0)
-    return available > 0 ? Math.round((total / available) * 100) : 0
+    const totalRun = catStats.reduce((a, c) => a + c.tested, 0)
+    // Denominator = all prompts in entire repository
+    const totalInRepo = AUDIT_CATEGORIES.reduce((a, cat) => a + cat.vectors.reduce((b, v) => b + v.samples.length, 0), 0)
+    return totalInRepo > 0 ? Math.round((totalRun / totalInRepo) * 100) : 0
   }, [catStats])
 
   const mtCoverage = useMemo(() => {
-    const tested = catStats.filter(c => c.mtASR !== null).length
-    return catStats.length > 0 ? Math.round((tested / catStats.length) * 100) : 0
+    const attacked = catStats.filter(c => c.mtASR !== null).length
+    // Denominator = total categories in repository
+    return AUDIT_CATEGORIES.length > 0 ? Math.round((attacked / AUDIT_CATEGORIES.length) * 100) : 0
   }, [catStats])
 
   const noData = !stOverall && !mtOverall
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">Risk Dashboard</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Combine single-turn and multi-turn test results into a configurable risk score.
-          Adjust severity weights to reflect your organisation&rsquo;s risk priorities.
-        </p>
-      </div>
-
+    <div className="max-w-5xl space-y-3">
       {noData && (
         <div className="border border-amber-200 rounded-xl p-6 text-center" style={{ backgroundColor: '#FFFBEB' }}>
           <p className="text-sm text-amber-700 font-medium">No test data yet.</p>
@@ -2854,29 +2851,31 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
 
       {/* ── Dual risk score cards ──────────────────────────────────────────────── */}
       {!noData && (
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 gap-3">
 
           {/* Single-Turn Risk card */}
           {(() => {
             const bg = !stOverall ? '#FAFBFF' : stOverall.pct < 20 ? '#F0FDF4' : stOverall.pct < 40 ? '#FFFBEB' : stOverall.pct < 65 ? '#FFF7ED' : '#FEF2F2'
             const color = !stOverall ? '#6B7280' : stOverall.pct < 20 ? '#166534' : stOverall.pct < 40 ? '#854D0E' : stOverall.pct < 65 ? '#C2410C' : '#991B1B'
             return (
-              <div className="border border-gray-200 rounded-xl p-5" style={{ backgroundColor: bg }}>
-                <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: '#6B7280' }}>Single-Turn Risk</p>
+              <div className="border border-gray-200 rounded-xl p-3" style={{ backgroundColor: bg }}>
+                <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: '#6B7280' }}>Single-Turn Risk</p>
                 {stOverall ? (
-                  <>
-                    <div className="flex items-end gap-2 mb-1">
-                      <span className="text-4xl font-bold" style={{ color }}>{stOverall.pct}%</span>
-                      <span className="text-sm font-semibold mb-1" style={{ color }}>{stOverall.label}</span>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-bold" style={{ color }}>{stOverall.pct}%</span>
+                        <span className="text-xs font-semibold" style={{ color }}>{stOverall.label}</span>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color }}>CI: {Math.round(stOverall.lo * 100)}–{Math.round(stOverall.hi * 100)}%</p>
                     </div>
-                    <p className="text-xs mb-3" style={{ color }}>95% CI: {Math.round(stOverall.lo * 100)}–{Math.round(stOverall.hi * 100)}%</p>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
                       style={{ backgroundColor: stCoverage >= 50 ? '#D1FAE5' : '#FEF9C3', color: stCoverage >= 50 ? '#065F46' : '#78350F' }}>
-                      {stCoverage}% coverage
+                      {stCoverage}% repo coverage
                     </span>
-                  </>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">No single-turn tests yet</p>
+                  <p className="text-xs text-gray-400 italic">No single-turn tests yet</p>
                 )}
               </div>
             )
@@ -2887,22 +2886,24 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
             const bg = !mtOverall ? '#FAFBFF' : mtOverall.pct < 20 ? '#F0FDF4' : mtOverall.pct < 40 ? '#FFFBEB' : mtOverall.pct < 65 ? '#FFF7ED' : '#FEF2F2'
             const color = !mtOverall ? '#6B7280' : mtOverall.pct < 20 ? '#166534' : mtOverall.pct < 40 ? '#854D0E' : mtOverall.pct < 65 ? '#C2410C' : '#991B1B'
             return (
-              <div className="border border-gray-200 rounded-xl p-5" style={{ backgroundColor: bg }}>
-                <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: '#6B7280' }}>Multi-Turn Attack Success</p>
+              <div className="border border-gray-200 rounded-xl p-3" style={{ backgroundColor: bg }}>
+                <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: '#6B7280' }}>Multi-Turn Attack Success</p>
                 {mtOverall ? (
-                  <>
-                    <div className="flex items-end gap-2 mb-1">
-                      <span className="text-4xl font-bold" style={{ color }}>{mtOverall.pct}%</span>
-                      <span className="text-sm font-semibold mb-1" style={{ color }}>{mtOverall.label}</span>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-bold" style={{ color }}>{mtOverall.pct}%</span>
+                        <span className="text-xs font-semibold" style={{ color }}>{mtOverall.label}</span>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color }}>CI: {Math.round(mtOverall.lo * 100)}–{Math.round(mtOverall.hi * 100)}%</p>
                     </div>
-                    <p className="text-xs mb-3" style={{ color }}>95% CI: {Math.round(mtOverall.lo * 100)}–{Math.round(mtOverall.hi * 100)}%</p>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
                       style={{ backgroundColor: mtCoverage >= 50 ? '#D1FAE5' : '#FEF9C3', color: mtCoverage >= 50 ? '#065F46' : '#78350F' }}>
-                      {mtCoverage}% of categories attacked
+                      {mtCoverage}% categories attacked
                     </span>
-                  </>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">No multi-turn sessions yet</p>
+                  <p className="text-xs text-gray-400 italic">No multi-turn sessions yet</p>
                 )}
               </div>
             )
@@ -2940,107 +2941,131 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
         </div>
       )}
 
-      {/* ── Coverage overlay ──────────────────────────────────────────────────── */}
+      {/* ── Coverage charts (ST + MT split) ──────────────────────────────────── */}
       {!noData && (
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-800">📊 Coverage overlay</span>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
 
-          {/* Coverage overlay chart */}
-          {(
-            <div className="p-4">
-              <p className="text-xs text-gray-500 mb-4">Bars show single-turn test coverage per category. Orange dots = multi-turn attack sessions. Height = % of campaign samples tested.</p>
+          {/* ST Coverage chart */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700">🔵 Single-Turn Coverage</span>
+              <span className="text-xs text-gray-400">{stCoverage}% of repo</span>
+            </div>
+            <div className="p-3">
+              <p className="text-xs text-gray-400 mb-2">Prompts run vs total in repository per category</p>
               <div className="overflow-x-auto">
-                <svg viewBox={`0 0 ${Math.max(600, catStats.length * 56)} 280`} style={{ minWidth: Math.max(600, catStats.length * 56), width: '100%' }}>
-                  {/* Grid lines */}
-                  {[0, 25, 50, 75, 100].map(pct => {
-                    const y = 20 + (100 - pct) * 1.8
-                    return (
-                      <g key={pct}>
-                        <line x1="48" y1={y} x2={Math.max(600, catStats.length * 56) - 10} y2={y} stroke="#F3F4F6" strokeWidth="1" />
-                        <text x="44" y={y + 3} textAnchor="end" fontSize="9" fill="#9CA3AF">{pct}%</text>
-                      </g>
-                    )
-                  })}
-
-                  {/* Coverage threshold line */}
-                  {(() => {
-                    const ty = 20 + (100 - weights.coverageThreshold * 100) * 1.8
-                    return (
-                      <g>
-                        <line x1="48" x2={Math.max(600, catStats.length * 56) - 10} y1={ty} y2={ty} stroke="#FCD34D" strokeWidth="1.5" strokeDasharray="4 3" />
-                        <text x={Math.max(600, catStats.length * 56) - 12} y={ty - 3} textAnchor="end" fontSize="8" fill="#D97706">coverage threshold</text>
-                      </g>
-                    )
-                  })()}
-
-                  {catStats.map((cat, i) => {
-                    const barW = 32
-                    const gap = 56
-                    const x = 56 + i * gap
-                    const stH = cat.coverage * 180
-                    const mtH = cat.mtSessions > 0 ? Math.min(180, (cat.mtSessions / Math.max(1, cat.campaignCount)) * 180) : 0
-                    const riskH = cat.effectiveRisk * 180
-                    const humanH = cat.humanAnnotated > 0 ? (cat.humanAnnotated / Math.max(1, cat.campaignCount)) * 180 : 0
-
-                    return (
-                      <g key={cat.id}>
-                        {/* Single-turn bar */}
-                        <rect x={x} y={200 - stH} width={barW} height={stH} rx="3"
-                          fill={cat.coverage >= weights.coverageThreshold ? '#3730A3' : '#A5B4FC'} opacity="0.85" />
-                        {/* Human annotation overlay */}
-                        {humanH > 0 && (
-                          <rect x={x} y={200 - humanH} width={barW} height={humanH} rx="3"
-                            fill="none" stroke="#7C3AED" strokeWidth="2" strokeDasharray="3 2" />
-                        )}
-                        {/* Multi-turn dot */}
-                        {mtH > 0 && (
-                          <circle cx={x + barW / 2} cy={200 - mtH} r="7" fill="#EA580C" opacity="0.9" />
-                        )}
-                        {/* Multi-turn steered dot */}
-                        {cat.mtHumanSteered > 0 && (
-                          <circle cx={x + barW / 2} cy={200 - mtH} r="7" fill="none" stroke="#7C3AED" strokeWidth="2" />
-                        )}
-                        {/* Risk score line marker */}
-                        <line x1={x - 2} x2={x + barW + 2} y1={200 - riskH} y2={200 - riskH}
-                          stroke="#DC2626" strokeWidth="2" strokeDasharray="3 2" />
-                        {/* CI error bar */}
-                        {cat.tested > 0 && (
-                          <g>
-                            <line x1={x + barW / 2} y1={200 - cat.riskHi * 180} x2={x + barW / 2} y2={200 - cat.riskLo * 180}
-                              stroke="#DC2626" strokeWidth="1" opacity="0.5" />
-                            <line x1={x + barW / 2 - 4} y1={200 - cat.riskHi * 180} x2={x + barW / 2 + 4} y2={200 - cat.riskHi * 180}
-                              stroke="#DC2626" strokeWidth="1" opacity="0.5" />
-                            <line x1={x + barW / 2 - 4} y1={200 - cat.riskLo * 180} x2={x + barW / 2 + 4} y2={200 - cat.riskLo * 180}
-                              stroke="#DC2626" strokeWidth="1" opacity="0.5" />
+                {(() => {
+                  // Include all categories that have data or any campaign samples
+                  const allCats = AUDIT_CATEGORIES.map(cat => {
+                    const cs = catStats.find(c => c.id === cat.id)
+                    const totalInCat = cat.vectors.reduce((s, v) => s + v.samples.length, 0)
+                    return { id: cat.id, shortName: cat.shortName, tested: cs?.tested ?? 0, totalInCat, stFailRate: cs?.stFailRate ?? 0 }
+                  }).filter(c => c.tested > 0)
+                  if (!allCats.length) return <p className="text-xs text-gray-400 italic">No single-turn tests yet</p>
+                  const w = Math.max(400, allCats.length * 52)
+                  return (
+                    <svg viewBox={`0 0 ${w} 180`} style={{ minWidth: w, width: '100%' }}>
+                      {[0, 50, 100].map(pct => {
+                        const y = 10 + (100 - pct) * 1.3
+                        return <g key={pct}>
+                          <line x1="36" y1={y} x2={w - 8} y2={y} stroke="#F3F4F6" strokeWidth="1" />
+                          <text x="32" y={y + 3} textAnchor="end" fontSize="8" fill="#9CA3AF">{pct}%</text>
+                        </g>
+                      })}
+                      {allCats.map((cat, i) => {
+                        const bw = 28; const gap = 52; const x = 40 + i * gap
+                        const covH = totalInCat => Math.min(130, (cat.tested / Math.max(1, cat.totalInCat)) * 130)
+                        const riskH = cat.stFailRate * 130
+                        const ch = covH(cat.totalInCat)
+                        return (
+                          <g key={cat.id}>
+                            {/* Total capacity (faint) */}
+                            <rect x={x} y={140 - 130} width={bw} height={130} rx="3" fill="#EEF2FF" opacity="0.5" />
+                            {/* Tested bar */}
+                            <rect x={x} y={140 - ch} width={bw} height={ch} rx="3" fill="#3730A3" opacity="0.85" />
+                            {/* Risk line */}
+                            <line x1={x - 1} x2={x + bw + 1} y1={140 - riskH} y2={140 - riskH} stroke="#DC2626" strokeWidth="1.5" strokeDasharray="3 2" />
+                            <text x={x + bw / 2} y={156} textAnchor="middle" fontSize="7.5" fill="#6B7280"
+                              transform={`rotate(-30, ${x + bw / 2}, 156)`}>{cat.shortName}</text>
                           </g>
-                        )}
-                        {/* X label */}
-                        <text x={x + barW / 2} y={216} textAnchor="middle" fontSize="8.5" fill="#6B7280"
-                          transform={`rotate(-35, ${x + barW / 2}, 216)`}>{cat.shortName}</text>
+                        )
+                      })}
+                      <line x1="36" x2={w - 8} y1="140" y2="140" stroke="#E5E7EB" strokeWidth="1" />
+                      <g transform="translate(40, 163)">
+                        <rect x="0" y="0" width="10" height="8" rx="1" fill="#3730A3" opacity="0.85" />
+                        <text x="13" y="7" fontSize="8" fill="#374151">Tested</text>
+                        <rect x="55" y="0" width="10" height="8" rx="1" fill="#EEF2FF" opacity="0.8" />
+                        <text x="68" y="7" fontSize="8" fill="#374151">Total in repo</text>
+                        <line x1="145" y1="4" x2="157" y2="4" stroke="#DC2626" strokeWidth="1.5" strokeDasharray="3 2" />
+                        <text x="160" y="7" fontSize="8" fill="#374151">Fail rate</text>
                       </g>
-                    )
-                  })}
-
-                  {/* X axis */}
-                  <line x1="48" x2={Math.max(600, catStats.length * 56) - 10} y1="200" y2="200" stroke="#E5E7EB" strokeWidth="1" />
-
-                  {/* Legend */}
-                  <g transform="translate(56, 240)">
-                    <rect x="0" y="0" width="12" height="10" rx="2" fill="#3730A3" opacity="0.85" />
-                    <text x="16" y="9" fontSize="9" fill="#374151">Single-turn coverage</text>
-                    <rect x="110" y="0" width="12" height="10" rx="2" fill="none" stroke="#7C3AED" strokeWidth="2" strokeDasharray="3 2" />
-                    <text x="126" y="9" fontSize="9" fill="#374151">Human-annotated</text>
-                    <circle cx="224" cy="5" r="5" fill="#EA580C" opacity="0.9" />
-                    <text x="233" y="9" fontSize="9" fill="#374151">Multi-turn sessions</text>
-                    <line x1="320" y1="5" x2="335" y2="5" stroke="#DC2626" strokeWidth="2" strokeDasharray="3 2" />
-                    <text x="339" y="9" fontSize="9" fill="#374151">Risk score + CI</text>
-                  </g>
-                </svg>
+                    </svg>
+                  )
+                })()}
               </div>
             </div>
-          )}
+          </div>
+
+          {/* MT Coverage chart */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700">🟠 Multi-Turn Coverage</span>
+              <span className="text-xs text-gray-400">{mtCoverage}% of categories</span>
+            </div>
+            <div className="p-3">
+              <p className="text-xs text-gray-400 mb-2">Attack sessions per category vs all repository categories</p>
+              <div className="overflow-x-auto">
+                {(() => {
+                  const allCats = AUDIT_CATEGORIES.map(cat => {
+                    const cs = catStats.find(c => c.id === cat.id)
+                    return { id: cat.id, shortName: cat.shortName, sessions: cs?.mtSessions ?? 0, asr: cs?.mtASR ?? null, succeeded: cs?.mtSucceeded ?? 0 }
+                  })
+                  const hasMT = allCats.some(c => c.sessions > 0)
+                  if (!hasMT) return <p className="text-xs text-gray-400 italic">No multi-turn sessions yet</p>
+                  const maxSessions = Math.max(1, ...allCats.map(c => c.sessions))
+                  const w = Math.max(400, allCats.length * 52)
+                  return (
+                    <svg viewBox={`0 0 ${w} 180`} style={{ minWidth: w, width: '100%' }}>
+                      {[0, 50, 100].map(pct => {
+                        const y = 10 + (100 - pct) * 1.3
+                        return <g key={pct}>
+                          <line x1="36" y1={y} x2={w - 8} y2={y} stroke="#F3F4F6" strokeWidth="1" />
+                          <text x="32" y={y + 3} textAnchor="end" fontSize="8" fill="#9CA3AF">{pct}%</text>
+                        </g>
+                      })}
+                      {allCats.map((cat, i) => {
+                        const bw = 28; const gap = 52; const x = 40 + i * gap
+                        const sessH = (cat.sessions / maxSessions) * 130
+                        const succH = cat.sessions > 0 ? (cat.succeeded / cat.sessions) * sessH : 0
+                        return (
+                          <g key={cat.id}>
+                            {/* Sessions bar */}
+                            {cat.sessions > 0 && (
+                              <>
+                                <rect x={x} y={140 - sessH} width={bw} height={sessH} rx="3" fill="#FED7AA" />
+                                {/* Success overlay */}
+                                <rect x={x} y={140 - succH} width={bw} height={succH} rx="3" fill="#EA580C" opacity="0.85" />
+                                <text x={x + bw / 2} y={140 - sessH - 3} textAnchor="middle" fontSize="8" fill="#374151">{cat.sessions}</text>
+                              </>
+                            )}
+                            <text x={x + bw / 2} y={156} textAnchor="middle" fontSize="7.5" fill="#6B7280"
+                              transform={`rotate(-30, ${x + bw / 2}, 156)`}>{cat.shortName}</text>
+                          </g>
+                        )
+                      })}
+                      <line x1="36" x2={w - 8} y1="140" y2="140" stroke="#E5E7EB" strokeWidth="1" />
+                      <g transform="translate(40, 163)">
+                        <rect x="0" y="0" width="10" height="8" rx="1" fill="#EA580C" opacity="0.85" />
+                        <text x="13" y="7" fontSize="8" fill="#374151">Breached</text>
+                        <rect x="60" y="0" width="10" height="8" rx="1" fill="#FED7AA" />
+                        <text x="73" y="7" fontSize="8" fill="#374151">Attempted</text>
+                      </g>
+                    </svg>
+                  )
+                })()}
+              </div>
+            </div>
+          </div>
 
         </div>
       )}
@@ -3088,18 +3113,18 @@ function autoSelectBehavior(turnIndex: number, lastLabel: ResponseType | null): 
 }
 
 function AttackAgentPanel({
-  campaignSamples, sessions, onSessionsChange,
+  campaignSamples, sessions, onSessionsChange, testConfig,
 }: {
   campaignSamples: CampaignSample[]
   sessions: AttackSession[]
   onSessionsChange: (s: AttackSession[]) => void
+  testConfig: TestConfigState
 }) {
   const [config, setConfig] = useState<AgentRunConfig>(DEFAULT_AGENT_CONFIG)
   const [selectedSampleKey, setSelectedSampleKey] = useState<string>('')
   const [activeSession, setActiveSession] = useState<AttackSession | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showAttackerKey, setShowAttackerKey] = useState(false)
   const cancelRef = useRef(false)
 
   // Human-in-loop mode state
@@ -3135,6 +3160,8 @@ function AttackAgentPanel({
   // ── API helpers ──────────────────────────────────────────────────────────────
 
   async function generateAttackPrompt(history: AttackTurn[], behavior: AttackBehavior, seed: string): Promise<string> {
+    // Attacker model comes from Test Configuration tab (OpenRouter)
+    const attackModelId = testConfig.roles.attackAgent || 'meta-llama/llama-3.3-70b-instruct'
     const res = await fetch('/api/attack-agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3147,9 +3174,9 @@ function AttackAgentPanel({
         })),
         behavior,
         modelConfig: {
-          provider: config.attackerProvider,
-          modelId: config.attackerModelId,
-          apiKey: config.attackerApiKey,
+          provider: 'openrouter',
+          modelId: attackModelId,
+          apiKey: testConfig.openrouterApiKey,
         },
       }),
     })
@@ -3405,7 +3432,7 @@ function AttackAgentPanel({
     return { total: completed.length, successes: successes.length, asr, avgTurns }
   }, [sessions])
 
-  const canStart = !!selectedSampleKey && !!config.attackerApiKey && !!runnerConfig.modelConfig.apiKey && !running
+  const canStart = !!selectedSampleKey && !!testConfig.openrouterApiKey && !!runnerConfig.modelConfig.apiKey && !running
   const currentTurns = activeSession?.turns ?? []
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -3493,54 +3520,17 @@ function AttackAgentPanel({
             </div>
           </div>
 
-          {/* Attacker model */}
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Attacker model (generates attack prompts)</p>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">Provider</label>
-              <select value={config.attackerProvider}
-                onChange={e => setConfig(prev => ({
-                  ...prev,
-                  attackerProvider: e.target.value as AgentRunConfig['attackerProvider'],
-                  attackerModelId: e.target.value === 'groq' ? 'llama-3.3-70b-versatile' : e.target.value === 'openrouter' ? 'meta-llama/llama-3.3-70b-instruct' : '',
-                }))}
-                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
-                <option value="groq">Groq</option>
-                <option value="openrouter">OpenRouter</option>
-                <option value="together">Together AI</option>
-              </select>
+          {/* Attacker model + model under test come from Test Configuration tab */}
+          {testConfig.openrouterApiKey ? (
+            <div className="text-xs text-gray-500 border border-gray-100 rounded-lg px-3 py-2 bg-gray-50">
+              Attacker: <strong>{testConfig.roles.attackAgent || 'meta-llama/llama-3.3-70b-instruct'}</strong> via OpenRouter
+              — configure in the <strong>Test Configuration</strong> tab
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">Model</label>
-              {config.attackerProvider === 'groq' ? (
-                <select value={config.attackerModelId}
-                  onChange={e => setConfig(prev => ({ ...prev, attackerModelId: e.target.value }))}
-                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
-                  {GROQ_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                </select>
-              ) : (
-                <input value={config.attackerModelId}
-                  onChange={e => setConfig(prev => ({ ...prev, attackerModelId: e.target.value }))}
-                  placeholder="model-id"
-                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400" />
-              )}
+          ) : (
+            <div className="text-xs text-amber-600 border border-amber-200 rounded-lg px-3 py-2 bg-amber-50">
+              No OpenRouter API key set. Go to the <strong>Test Configuration</strong> tab and save your settings.
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-gray-600 w-20 flex-shrink-0">API key</label>
-              <div className="flex flex-1 gap-1">
-                <input type={showAttackerKey ? 'text' : 'password'} value={config.attackerApiKey}
-                  onChange={e => setConfig(prev => ({ ...prev, attackerApiKey: e.target.value }))}
-                  placeholder="sk-…"
-                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-indigo-400" />
-                <button type="button" onClick={() => setShowAttackerKey(v => !v)}
-                  className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-500 hover:border-gray-300">
-                  {showAttackerKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Model under test and judge config come from Test Configuration tab */}
+          )}
           {!runnerConfig.modelConfig.apiKey && (
             <div className="text-xs text-amber-600 border border-amber-200 rounded-lg px-3 py-2 bg-amber-50">
               Model under test not configured. Go to the <strong>Test Configuration</strong> tab and save your settings.
@@ -3561,7 +3551,7 @@ function AttackAgentPanel({
               </button>
             )}
           </div>
-          {!config.attackerApiKey && <p className="text-xs text-amber-600">Enter an API key for the attacker model to enable runs.</p>}
+          {!testConfig.openrouterApiKey && <p className="text-xs text-amber-600">Set your OpenRouter API key in the Test Configuration tab to enable runs.</p>}
         </div>
       </div>
 
@@ -4804,7 +4794,6 @@ export default function SelfAuditClient() {
   const [attackSessions, setAttackSessions] = useState<AttackSession[]>([])
   const [viewingCampaign, setViewingCampaign] = useState<CampaignResult | null>(null)
   const [activeSection, setActiveSection] = useState<'active' | 'history'>('active')
-  const [riskOpen, setRiskOpen] = useState(false)
   // Centralised test configuration (persisted to localStorage)
   const [testConfig, setTestConfig] = useState<TestConfigState>(() => {
     try {
@@ -5241,26 +5230,20 @@ export default function SelfAuditClient() {
         )}
       </div>
 
-      {/* ── Risk Dashboard (collapsible, between campaign panel and tabs) ────── */}
-      <div className="border border-gray-200 rounded-2xl mb-6 bg-white shadow-sm overflow-hidden">
-        <button onClick={() => setRiskOpen(o => !o)}
-          className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-gray-50 transition-colors">
-          <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-            📊 Risk Dashboard
-            <span className="text-xs font-normal text-gray-400">Combined single + multi-turn risk score with coverage metrics</span>
-          </span>
-          <span className="text-gray-400 text-xs">{riskOpen ? '▲ Hide' : '▼ Show'}</span>
-        </button>
-        {riskOpen && (
-          <div className="border-t border-gray-100 p-5">
-            <RiskDashboard
-              campaignSamples={campaignSamples}
-              responses={responses}
-              annotations={annotations}
-              attackSessions={attackSessions}
-            />
-          </div>
-        )}
+      {/* ── Risk Dashboard (always visible) ────── */}
+      <div className="border border-gray-200 rounded-2xl mb-4 bg-white shadow-sm overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-800">📊 Risk Dashboard</span>
+          <span className="text-xs text-gray-400">Single + multi-turn risk score</span>
+        </div>
+        <div className="p-4">
+          <RiskDashboard
+            campaignSamples={campaignSamples}
+            responses={responses}
+            annotations={annotations}
+            attackSessions={attackSessions}
+          />
+        </div>
       </div>
 
       {/* ── Workflow guide ────────────────────────────────────────────────────── */}
@@ -5352,6 +5335,7 @@ export default function SelfAuditClient() {
           campaignSamples={campaignSamples}
           sessions={attackSessions}
           onSessionsChange={setAttackSessions}
+          testConfig={testConfig}
         />
       )}
 
