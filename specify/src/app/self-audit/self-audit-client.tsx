@@ -608,13 +608,14 @@ const ROLE_LABELS: Record<string, { label: string; icon: string; description: st
 }
 
 function ModelSelector({
-  value, registry, onChange, multi = false,
+  value, registry: registryProp, onChange, multi = false,
 }: {
   value: string | string[]
   registry: OpenRouterModel[]
   onChange: (v: string | string[]) => void
   multi?: boolean
 }) {
+  const registry = registryProp ?? []
   if (registry.length === 0) {
     return <p className="text-xs text-gray-400 italic">Add models to your registry first.</p>
   }
@@ -685,21 +686,21 @@ function TestConfigPanel({
   }
 
   function addFromCatalog(model: OpenRouterModel) {
-    if (config.modelRegistry.some(m => m.id === model.id)) return
-    onChange({ ...config, modelRegistry: [...config.modelRegistry, model] })
+    if (registry.some(m => m.id === model.id)) return
+    onChange({ ...config, modelRegistry: [...registry, model] })
   }
 
   function addCustomModel() {
     const id = customModelId.trim()
     if (!id) return
     const nickname = customNickname.trim() || id.split('/').pop() || id
-    if (config.modelRegistry.some(m => m.id === id)) return
-    onChange({ ...config, modelRegistry: [...config.modelRegistry, { id, nickname }] })
+    if (registry.some(m => m.id === id)) return
+    onChange({ ...config, modelRegistry: [...registry, { id, nickname }] })
     setCustomModelId(''); setCustomNickname(''); setAddingCustom(false)
   }
 
   function removeFromRegistry(id: string) {
-    const next = config.modelRegistry.filter(m => m.id !== id)
+    const next = registry.filter(m => m.id !== id)
     const cleanRoles = {
       modelUnderTest:   next.some(m => m.id === config.roles.modelUnderTest) ? config.roles.modelUnderTest : (next[0]?.id ?? ''),
       judgeModels:      config.roles.judgeModels.filter(j => next.some(m => m.id === j)),
@@ -709,13 +710,14 @@ function TestConfigPanel({
     onChange({ ...config, modelRegistry: next, roles: cleanRoles })
   }
 
+  const registry = config.modelRegistry ?? []
   const catalogFiltered = OPENROUTER_POPULAR_MODELS.filter(m =>
-    !config.modelRegistry.some(r => r.id === m.id) &&
+    !registry.some(r => r.id === m.id) &&
     (catalogSearch === '' || m.nickname.toLowerCase().includes(catalogSearch.toLowerCase()) || m.id.toLowerCase().includes(catalogSearch.toLowerCase()))
   )
 
-  const apiKeySet = !!config.openrouterApiKey.trim()
-  const registryReady = config.modelRegistry.length > 0
+  const apiKeySet = !!(config.openrouterApiKey ?? '').trim()
+  const registryReady = registry.length > 0
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -768,15 +770,15 @@ function TestConfigPanel({
             <p className="text-xs text-gray-400">Models available for role assignment below</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-400">
-            <span className="font-semibold text-gray-700">{config.modelRegistry.length}</span> model{config.modelRegistry.length !== 1 ? 's' : ''} registered
+            <span className="font-semibold text-gray-700">{registry.length}</span> model{registry.length !== 1 ? 's' : ''} registered
           </div>
         </div>
 
         <div className="p-4 space-y-4">
           {/* Registered models */}
-          {config.modelRegistry.length > 0 && (
+          {registry.length > 0 && (
             <div className="space-y-1.5">
-              {config.modelRegistry.map(m => (
+              {registry.map(m => (
                 <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-white group hover:border-gray-200 transition-colors">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-semibold text-gray-800">{m.nickname}</span>
@@ -870,10 +872,10 @@ function TestConfigPanel({
                   {/* Active assignment indicator */}
                   <div className="ml-auto text-xs text-gray-400">
                     {isMulti
-                      ? config.roles.judgeModels.length > 0
-                        ? config.roles.judgeModels.map(id => config.modelRegistry.find(m => m.id === id)?.nickname ?? id).join(', ')
+                      ? (config.roles.judgeModels ?? []).length > 0
+                        ? (config.roles.judgeModels ?? []).map(id => registry.find(m => m.id === id)?.nickname ?? id).join(', ')
                         : 'None selected'
-                      : config.modelRegistry.find(m => m.id === (config.roles[role] as string))?.nickname ?? 'None'
+                      : registry.find(m => m.id === (config.roles[role] as string))?.nickname ?? 'None'
                     }
                   </div>
                 </div>
@@ -882,7 +884,7 @@ function TestConfigPanel({
                 ) : (
                   <ModelSelector
                     value={isMulti ? config.roles.judgeModels : (config.roles[role] as string)}
-                    registry={config.modelRegistry}
+                    registry={registry}
                     multi={isMulti}
                     onChange={v => {
                       if (isMulti) onChange({ ...config, roles: { ...config.roles, judgeModels: v as string[] } })
@@ -4963,12 +4965,20 @@ export default function SelfAuditClient() {
     try {
       const saved = localStorage.getItem('specifyTestConfig')
       if (saved) {
-        const parsed = JSON.parse(saved) as TestConfigState
-        // Ensure new fields exist if migrating from old format
-        if (!parsed.modelRegistry) parsed.modelRegistry = DEFAULT_TEST_CONFIG.modelRegistry
-        if (!parsed.roles) parsed.roles = DEFAULT_TEST_CONFIG.roles
-        if (!parsed.openrouterApiKey && !parsed.roles) return DEFAULT_TEST_CONFIG
-        return parsed
+        const parsed = JSON.parse(saved) as Partial<TestConfigState> & Record<string, unknown>
+        // Deep merge with defaults so every field is guaranteed present,
+        // even when migrating from a previous format that had modelUnderTest/judgeModels as objects.
+        return {
+          openrouterApiKey:  typeof parsed.openrouterApiKey === 'string' ? parsed.openrouterApiKey : '',
+          modelRegistry:     Array.isArray(parsed.modelRegistry) ? parsed.modelRegistry : DEFAULT_TEST_CONFIG.modelRegistry,
+          roles: {
+            ...DEFAULT_TEST_CONFIG.roles,
+            ...(parsed.roles && typeof parsed.roles === 'object' ? parsed.roles as TestConfigState['roles'] : {}),
+          },
+          tts:      parsed.tts      && typeof parsed.tts      === 'object' ? { ...DEFAULT_TEST_CONFIG.tts,      ...(parsed.tts      as object) } : DEFAULT_TEST_CONFIG.tts,
+          imageGen: parsed.imageGen && typeof parsed.imageGen === 'object' ? { ...DEFAULT_TEST_CONFIG.imageGen, ...(parsed.imageGen as object) } : DEFAULT_TEST_CONFIG.imageGen,
+          videoGen: parsed.videoGen && typeof parsed.videoGen === 'object' ? { ...DEFAULT_TEST_CONFIG.videoGen, ...(parsed.videoGen as object) } : DEFAULT_TEST_CONFIG.videoGen,
+        }
       }
     } catch { /**/ }
     return DEFAULT_TEST_CONFIG
