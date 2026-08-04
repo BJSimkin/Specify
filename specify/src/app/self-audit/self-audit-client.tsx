@@ -1615,15 +1615,20 @@ function ResultsPanel({
 
 // ─── Model Runner Panel ───────────────────────────────────────────────────────
 const OPENROUTER_MODELS = [
-  { id: 'meta-llama/llama-3.3-70b-instruct',              label: 'Llama 3.3 70B' },
+  // ── Free models ────────────────────────────────────────────────────────
   { id: 'meta-llama/llama-3.1-8b-instruct:free',          label: 'Llama 3.1 8B (free)' },
-  { id: 'anthropic/claude-3.5-haiku',                      label: 'Claude 3.5 Haiku' },
-  { id: 'google/gemini-flash-1.5',                         label: 'Gemini Flash 1.5' },
-  { id: 'google/gemini-2.0-flash-001',                     label: 'Gemini 2.0 Flash' },
+  { id: 'meta-llama/llama-3.3-8b-instruct:free',          label: 'Llama 3.3 8B (free)' },
   { id: 'mistralai/mistral-7b-instruct:free',              label: 'Mistral 7B (free)' },
-  { id: 'microsoft/phi-3-medium-128k-instruct:free',       label: 'Phi-3 Medium (free)' },
+  { id: 'google/gemma-3-12b-it:free',                      label: 'Gemma 3 12B (free)' },
+  { id: 'qwen/qwen3-8b:free',                              label: 'Qwen3 8B (free)' },
+  { id: 'microsoft/phi-4-reasoning:free',                  label: 'Phi-4 Reasoning (free)' },
+  // ── Paid models ────────────────────────────────────────────────────────
+  { id: 'meta-llama/llama-3.3-70b-instruct',              label: 'Llama 3.3 70B' },
+  { id: 'deepseek/deepseek-r1',                            label: 'DeepSeek R1' },
+  { id: 'deepseek/deepseek-v3',                            label: 'DeepSeek V3' },
+  { id: 'anthropic/claude-3.5-haiku',                      label: 'Claude 3.5 Haiku' },
+  { id: 'google/gemini-2.0-flash-001',                     label: 'Gemini 2.0 Flash' },
   { id: 'qwen/qwen-2.5-72b-instruct',                      label: 'Qwen 2.5 72B' },
-  { id: 'deepseek/deepseek-r1:free',                       label: 'DeepSeek R1 (free)' },
 ]
 
 const GROQ_MODELS = [
