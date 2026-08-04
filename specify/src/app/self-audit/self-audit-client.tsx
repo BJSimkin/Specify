@@ -1725,7 +1725,8 @@ function ModelRunnerPanel({
         })
         const modelData = await modelRes.json()
         if (!modelRes.ok) {
-          throw new Error(modelData.error ?? `Model API error ${modelRes.status}`)
+          const detail = modelData.detail ? ` — ${typeof modelData.detail === 'string' ? modelData.detail : JSON.stringify(modelData.detail)}` : ''
+          throw new Error((modelData.error ?? `Model API error ${modelRes.status}`) + detail)
         }
         const responseText = modelData.response ?? ''
         results.modelResponseTexts[key] = responseText
