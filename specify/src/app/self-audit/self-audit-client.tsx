@@ -146,31 +146,63 @@ function describeConfig(cfg: AttackConfig): string {
 
 // ─── Test Config Types ────────────────────────────────────────────────────────
 
-interface ModelEndpoint {
-  provider: string
-  modelId: string
-  apiKey: string
-  baseUrl?: string
+interface OpenRouterModel {
+  id: string        // e.g. "meta-llama/llama-3.3-70b-instruct"
+  nickname: string  // user-given or auto-generated display name
 }
 
 interface TestConfigState {
-  modelUnderTest: ModelEndpoint
-  judgeModels: ModelEndpoint[]
-  attackAgent: ModelEndpoint
-  textAugmentation: ModelEndpoint
+  openrouterApiKey: string
+  modelRegistry: OpenRouterModel[]   // models the user has added
+  roles: {
+    modelUnderTest: string   // model id from registry
+    judgeModels: string[]    // model ids from registry
+    attackAgent: string
+    textAugmentation: string
+  }
   tts: { apiKey: string; model: 'tts-1' | 'tts-1-hd' }
   imageGen: { provider: 'together' | 'replicate'; model: string; apiKey: string }
   videoGen: { provider: string; model: string; apiKey: string }
 }
 
+const OPENROUTER_POPULAR_MODELS: OpenRouterModel[] = [
+  { id: 'meta-llama/llama-3.3-70b-instruct',             nickname: 'Llama 3.3 70B' },
+  { id: 'meta-llama/llama-3.1-8b-instruct',              nickname: 'Llama 3.1 8B' },
+  { id: 'meta-llama/llama-3.1-405b-instruct',            nickname: 'Llama 3.1 405B' },
+  { id: 'anthropic/claude-opus-4-5',                      nickname: 'Claude Opus 4.5' },
+  { id: 'anthropic/claude-sonnet-4-5',                    nickname: 'Claude Sonnet 4.5' },
+  { id: 'anthropic/claude-haiku-4-5',                     nickname: 'Claude Haiku 4.5' },
+  { id: 'openai/gpt-4o',                                  nickname: 'GPT-4o' },
+  { id: 'openai/gpt-4o-mini',                             nickname: 'GPT-4o mini' },
+  { id: 'openai/o3-mini',                                 nickname: 'o3-mini' },
+  { id: 'google/gemini-2.0-flash-001',                    nickname: 'Gemini 2.0 Flash' },
+  { id: 'google/gemini-pro-1.5',                          nickname: 'Gemini Pro 1.5' },
+  { id: 'mistralai/mistral-large',                        nickname: 'Mistral Large' },
+  { id: 'mistralai/mistral-7b-instruct',                  nickname: 'Mistral 7B (free)' },
+  { id: 'deepseek/deepseek-chat-v3-0324',                 nickname: 'DeepSeek V3 (free)' },
+  { id: 'deepseek/deepseek-r1',                           nickname: 'DeepSeek R1' },
+  { id: 'qwen/qwen-2.5-72b-instruct',                     nickname: 'Qwen 2.5 72B (free)' },
+  { id: 'microsoft/phi-4',                                nickname: 'Phi-4' },
+  { id: 'cohere/command-r-plus',                          nickname: 'Command R+' },
+  { id: 'x-ai/grok-3-mini-beta',                          nickname: 'Grok 3 Mini' },
+]
+
 const DEFAULT_TEST_CONFIG: TestConfigState = {
-  modelUnderTest:   { provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' },
-  judgeModels:      [{ provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' }],
-  attackAgent:      { provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' },
-  textAugmentation: { provider: 'groq',     modelId: 'llama-3.3-70b-versatile', apiKey: '' },
-  tts:              { apiKey: '',            model: 'tts-1' },
-  imageGen:         { provider: 'together', model: 'black-forest-labs/FLUX.1-schnell-Free', apiKey: '' },
-  videoGen:         { provider: 'runway',   model: 'gen3a_turbo', apiKey: '' },
+  openrouterApiKey: '',
+  modelRegistry: [
+    { id: 'meta-llama/llama-3.3-70b-instruct', nickname: 'Llama 3.3 70B' },
+    { id: 'openai/gpt-4o-mini',                nickname: 'GPT-4o mini' },
+    { id: 'google/gemini-2.0-flash-001',        nickname: 'Gemini 2.0 Flash' },
+  ],
+  roles: {
+    modelUnderTest:   'meta-llama/llama-3.3-70b-instruct',
+    judgeModels:      ['meta-llama/llama-3.3-70b-instruct'],
+    attackAgent:      'meta-llama/llama-3.3-70b-instruct',
+    textAugmentation: 'meta-llama/llama-3.3-70b-instruct',
+  },
+  tts:      { apiKey: '', model: 'tts-1' },
+  imageGen: { provider: 'together', model: 'black-forest-labs/FLUX.1-schnell-Free', apiKey: '' },
+  videoGen: { provider: 'runway',   model: 'gen3a_turbo', apiKey: '' },
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -566,119 +598,60 @@ function BulkAddModal({ target, onConfirm, onClose }: {
   )
 }
 
-// ─── Shared sub-components ────────────────────────────────────────────────────
+// ─── Test Configuration Panel ─────────────────────────────────────────────────
 
-const PROVIDER_MODELS: Record<string, string[]> = {
-  groq:       ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
-  openai:     ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  openrouter: ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001', 'mistralai/mistral-large'],
-  together:   ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'mistralai/Mixtral-8x22B-Instruct-v0.1'],
-  anthropic:  ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5-20251001'],
-  custom:     [],
+const ROLE_LABELS: Record<string, { label: string; icon: string; description: string }> = {
+  modelUnderTest:   { label: 'Model under test',    icon: '🤖', description: 'Primary model being evaluated' },
+  judgeModels:      { label: 'Judge model(s)',       icon: '⚖️', description: 'Evaluate model responses for safety' },
+  attackAgent:      { label: 'Attack agent',         icon: '🕵️', description: 'Generates adversarial multi-turn attacks' },
+  textAugmentation: { label: 'Text augmentation',   icon: '✏️', description: 'Transforms prompts in Attack Strategy' },
 }
 
-const PROVIDERS = [
-  { id: 'groq',       label: 'Groq',         color: '#F97316' },
-  { id: 'openai',     label: 'OpenAI',        color: '#10A37F' },
-  { id: 'openrouter', label: 'OpenRouter',    color: '#6366F1' },
-  { id: 'together',   label: 'Together AI',   color: '#8B5CF6' },
-  { id: 'anthropic',  label: 'Anthropic',     color: '#D97706' },
-  { id: 'custom',     label: 'Custom',        color: '#6B7280' },
-]
-
-function EndpointConfig({
-  label, description, icon, value, onChange, showCustomUrl = false,
+function ModelSelector({
+  value, registry, onChange, multi = false,
 }: {
-  label: string
-  description: string
-  icon: string
-  value: { provider: string; modelId: string; apiKey: string; baseUrl?: string }
-  onChange: (v: { provider: string; modelId: string; apiKey: string; baseUrl?: string }) => void
-  showCustomUrl?: boolean
+  value: string | string[]
+  registry: OpenRouterModel[]
+  onChange: (v: string | string[]) => void
+  multi?: boolean
 }) {
-  const models = PROVIDER_MODELS[value.provider] ?? []
+  if (registry.length === 0) {
+    return <p className="text-xs text-gray-400 italic">Add models to your registry first.</p>
+  }
+  if (!multi) {
+    const selected = value as string
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {registry.map(m => (
+          <button key={m.id} onClick={() => onChange(m.id)}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
+            style={selected === m.id
+              ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+              : { backgroundColor: 'white', color: '#374151', borderColor: '#E5E7EB' }}>
+            {m.nickname}
+          </button>
+        ))}
+      </div>
+    )
+  }
+  // Multi-select for judge models
+  const selected = value as string[]
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-        <span className="text-base">{icon}</span>
-        <div>
-          <p className="text-sm font-bold text-gray-800">{label}</p>
-          <p className="text-xs text-gray-400">{description}</p>
-        </div>
-      </div>
-      <div className="p-4 space-y-3">
-        {/* Provider pills */}
-        <div>
-          <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
-          <div className="flex flex-wrap gap-1.5">
-            {PROVIDERS.map(p => (
-              <button key={p.id}
-                onClick={() => onChange({ ...value, provider: p.id, modelId: PROVIDER_MODELS[p.id]?.[0] ?? '' })}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
-                style={value.provider === p.id
-                  ? { backgroundColor: p.color + '18', color: p.color, borderColor: p.color + '60' }
-                  : { backgroundColor: 'white', color: '#6B7280', borderColor: '#E5E7EB' }}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          {/* Model */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
-            {models.length > 0 ? (
-              <select value={value.modelId}
-                onChange={e => onChange({ ...value, modelId: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
-                {models.map(m => <option key={m} value={m}>{m}</option>)}
-                <option value="__custom">Custom…</option>
-              </select>
-            ) : (
-              <input value={value.modelId}
-                onChange={e => onChange({ ...value, modelId: e.target.value })}
-                placeholder="model-id"
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-400 font-mono" />
-            )}
-            {value.modelId === '__custom' && (
-              <input autoFocus
-                onChange={e => onChange({ ...value, modelId: e.target.value })}
-                placeholder="Enter model ID…"
-                className="mt-1 w-full border border-indigo-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 font-mono" />
-            )}
-          </div>
-
-          {/* API Key */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">API key</p>
-            <input type="password" value={value.apiKey}
-              onChange={e => onChange({ ...value, apiKey: e.target.value })}
-              placeholder="sk-…"
-              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
-          </div>
-        </div>
-
-        {/* Custom base URL */}
-        {(showCustomUrl || value.provider === 'custom') && (
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Base URL</p>
-            <input value={(value as Record<string, unknown>).baseUrl as string ?? ''}
-              onChange={e => onChange({ ...value, baseUrl: e.target.value })}
-              placeholder="https://your-endpoint.com/v1"
-              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
-          </div>
-        )}
-
-        {/* Status indicator */}
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: value.apiKey && value.modelId ? '#22C55E' : '#E5E7EB' }} />
-          <p className="text-xs text-gray-400">
-            {value.apiKey && value.modelId ? `Configured: ${value.modelId}` : 'Not configured'}
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-wrap gap-1.5">
+      {registry.map(m => {
+        const checked = selected.includes(m.id)
+        return (
+          <button key={m.id}
+            onClick={() => onChange(checked ? selected.filter(x => x !== m.id) : [...selected, m.id])}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all flex items-center gap-1"
+            style={checked
+              ? { backgroundColor: '#1E1B4B', color: 'white', borderColor: '#1E1B4B' }
+              : { backgroundColor: 'white', color: '#374151', borderColor: '#E5E7EB' }}>
+            {checked && <span>✓</span>}
+            {m.nickname}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -690,179 +663,288 @@ function TestConfigPanel({
   onChange: (c: TestConfigState) => void
 }) {
   const [saved, setSaved] = useState(false)
+  const [customModelId, setCustomModelId] = useState('')
+  const [customNickname, setCustomNickname] = useState('')
+  const [addingCustom, setAddingCustom] = useState(false)
+  const [catalogSearch, setCatalogSearch] = useState('')
 
   function save() {
-    // Also write to legacy specifyRunnerConfig so ModelRunnerPanel picks it up
+    // Write to legacy specifyRunnerConfig so ModelRunnerPanel keeps working
     try {
       localStorage.setItem('specifyRunnerConfig', JSON.stringify({
-        modelConfig: config.modelUnderTest,
-        judgeConfig: { judges: config.judgeModels },
+        modelConfig: { provider: 'openrouter', modelId: config.roles.modelUnderTest, apiKey: config.openrouterApiKey },
+        judgeConfig: {
+          judges: config.roles.judgeModels.map(id => ({
+            provider: 'openrouter', modelId: id, apiKey: config.openrouterApiKey,
+          })),
+        },
       }))
     } catch { /**/ }
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setTimeout(() => setSaved(false), 2200)
   }
 
+  function addFromCatalog(model: OpenRouterModel) {
+    if (config.modelRegistry.some(m => m.id === model.id)) return
+    onChange({ ...config, modelRegistry: [...config.modelRegistry, model] })
+  }
+
+  function addCustomModel() {
+    const id = customModelId.trim()
+    if (!id) return
+    const nickname = customNickname.trim() || id.split('/').pop() || id
+    if (config.modelRegistry.some(m => m.id === id)) return
+    onChange({ ...config, modelRegistry: [...config.modelRegistry, { id, nickname }] })
+    setCustomModelId(''); setCustomNickname(''); setAddingCustom(false)
+  }
+
+  function removeFromRegistry(id: string) {
+    const next = config.modelRegistry.filter(m => m.id !== id)
+    const cleanRoles = {
+      modelUnderTest:   next.some(m => m.id === config.roles.modelUnderTest) ? config.roles.modelUnderTest : (next[0]?.id ?? ''),
+      judgeModels:      config.roles.judgeModels.filter(j => next.some(m => m.id === j)),
+      attackAgent:      next.some(m => m.id === config.roles.attackAgent) ? config.roles.attackAgent : (next[0]?.id ?? ''),
+      textAugmentation: next.some(m => m.id === config.roles.textAugmentation) ? config.roles.textAugmentation : (next[0]?.id ?? ''),
+    }
+    onChange({ ...config, modelRegistry: next, roles: cleanRoles })
+  }
+
+  const catalogFiltered = OPENROUTER_POPULAR_MODELS.filter(m =>
+    !config.modelRegistry.some(r => r.id === m.id) &&
+    (catalogSearch === '' || m.nickname.toLowerCase().includes(catalogSearch.toLowerCase()) || m.id.toLowerCase().includes(catalogSearch.toLowerCase()))
+  )
+
+  const apiKeySet = !!config.openrouterApiKey.trim()
+  const registryReady = config.modelRegistry.length > 0
+
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-5 max-w-3xl">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-gray-900">Test configuration</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Configure all model endpoints used across your audit campaign. Settings are saved locally.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Configure your OpenRouter connection, add models to your registry, then assign them to each role.</p>
         </div>
         <button onClick={save}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all flex items-center gap-1.5"
           style={{ backgroundColor: saved ? '#16A34A' : '#1E1B4B' }}>
           {saved ? '✓ Saved' : 'Save configuration'}
         </button>
       </div>
 
-      {/* Model under test */}
-      <EndpointConfig
-        icon="🤖"
-        label="Model under test"
-        description="The primary model being evaluated in this campaign"
-        value={config.modelUnderTest}
-        onChange={v => onChange({ ...config, modelUnderTest: v })}
-        showCustomUrl
-      />
-
-      {/* Judge models */}
+      {/* ── 1. API Key ───────────────────────────────────────────────────────── */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">⚖️</span>
-            <div>
-              <p className="text-sm font-bold text-gray-800">Judge model(s)</p>
-              <p className="text-xs text-gray-400">Evaluate model responses for safety and alignment</p>
-            </div>
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
+          <span className="text-lg">🔑</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">OpenRouter API key</p>
+            <p className="text-xs text-gray-400">One key gives access to 300+ models. Get yours at{' '}
+              <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="underline text-indigo-500">openrouter.ai/keys</a>
+            </p>
           </div>
-          <button onClick={() => onChange({ ...config, judgeModels: [...config.judgeModels, { provider: 'groq', modelId: 'llama-3.3-70b-versatile', apiKey: '' }] })}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold border border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 transition-colors">
-            + Add judge
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: apiKeySet ? '#22C55E' : '#E5E7EB' }} />
+            <span className="text-xs text-gray-400">{apiKeySet ? 'Connected' : 'Not set'}</span>
+          </div>
         </div>
-        <div className="p-4 space-y-3">
-          {config.judgeModels.map((judge, i) => (
-            <div key={i} className="space-y-2">
-              {config.judgeModels.length > 1 && (
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-gray-500">Judge {i + 1}</p>
-                  <button onClick={() => onChange({ ...config, judgeModels: config.judgeModels.filter((_, j) => j !== i) })}
-                    className="text-xs text-red-400 hover:text-red-600">Remove</button>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
-                  <div className="flex flex-wrap gap-1">
-                    {PROVIDERS.slice(0,4).map(p => (
-                      <button key={p.id}
-                        onClick={() => onChange({ ...config, judgeModels: config.judgeModels.map((j, k) => k === i ? { ...j, provider: p.id, modelId: PROVIDER_MODELS[p.id]?.[0] ?? '' } : j) })}
-                        className="px-2 py-0.5 rounded text-xs border transition-all"
-                        style={judge.provider === p.id ? { backgroundColor: p.color + '18', color: p.color, borderColor: p.color + '60' } : { color: '#6B7280', borderColor: '#E5E7EB' }}>
-                        {p.label}
-                      </button>
-                    ))}
+        <div className="p-4">
+          <input
+            type="password"
+            value={config.openrouterApiKey}
+            onChange={e => onChange({ ...config, openrouterApiKey: e.target.value })}
+            placeholder="sk-or-v1-…"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400"
+          />
+        </div>
+      </div>
+
+      {/* ── 2. Model Registry ─────────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-lg">📋</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Model registry</p>
+            <p className="text-xs text-gray-400">Models available for role assignment below</p>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-400">
+            <span className="font-semibold text-gray-700">{config.modelRegistry.length}</span> model{config.modelRegistry.length !== 1 ? 's' : ''} registered
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Registered models */}
+          {config.modelRegistry.length > 0 && (
+            <div className="space-y-1.5">
+              {config.modelRegistry.map(m => (
+                <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-white group hover:border-gray-200 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-semibold text-gray-800">{m.nickname}</span>
+                    <span className="ml-2 text-xs text-gray-400 font-mono truncate">{m.id}</span>
                   </div>
+                  <button onClick={() => removeFromRegistry(m.id)}
+                    className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-600 transition-all flex-shrink-0">
+                    Remove
+                  </button>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
-                  <select value={judge.modelId}
-                    onChange={e => onChange({ ...config, judgeModels: config.judgeModels.map((j, k) => k === i ? { ...j, modelId: e.target.value } : j) })}
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
-                    {(PROVIDER_MODELS[judge.provider] ?? []).map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1.5">API key</p>
-                <input type="password" value={judge.apiKey}
-                  onChange={e => onChange({ ...config, judgeModels: config.judgeModels.map((j, k) => k === i ? { ...j, apiKey: e.target.value } : j) })}
-                  placeholder="sk-…"
-                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Attack agent */}
-      <EndpointConfig
-        icon="🕵️"
-        label="Attack agent"
-        description="LLM that generates adversarial follow-up turns in multi-turn probes"
-        value={config.attackAgent}
-        onChange={v => onChange({ ...config, attackAgent: v })}
-      />
-
-      {/* Text augmentation */}
-      <EndpointConfig
-        icon="✏️"
-        label="Text augmentation"
-        description="LLM used to transform and augment attack prompts in Attack Strategy"
-        value={config.textAugmentation}
-        onChange={v => onChange({ ...config, textAugmentation: v })}
-      />
-
-      {/* TTS */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-          <span className="text-base">🎙️</span>
-          <div>
-            <p className="text-sm font-bold text-gray-800">Text-to-speech (TTS)</p>
-            <p className="text-xs text-gray-400">Convert prompts to audio for speech-based model testing. Requires an OpenAI API key.</p>
-          </div>
-        </div>
-        <div className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
-              <select value={config.tts.model}
-                onChange={e => onChange({ ...config, tts: { ...config.tts, model: e.target.value as 'tts-1' | 'tts-1-hd' } })}
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
-                <option value="tts-1">tts-1 (faster)</option>
-                <option value="tts-1-hd">tts-1-hd (higher quality)</option>
-              </select>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">OpenAI API key</p>
-              <input type="password" value={config.tts.apiKey}
-                onChange={e => onChange({ ...config, tts: { ...config.tts, apiKey: e.target.value } })}
-                placeholder="sk-…"
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.tts.apiKey ? '#22C55E' : '#E5E7EB' }} />
-            <p className="text-xs text-gray-400">{config.tts.apiKey ? 'API key configured' : 'Not configured'}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Image generation */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-          <span className="text-base">🖼️</span>
-          <div>
-            <p className="text-sm font-bold text-gray-800">Image generation</p>
-            <p className="text-xs text-gray-400">Generate images for multimodal attack scenarios</p>
-          </div>
-        </div>
-        <div className="p-4 space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
-            <div className="flex gap-1.5">
-              {(['together', 'replicate'] as const).map(p => (
-                <button key={p} onClick={() => onChange({ ...config, imageGen: { ...config.imageGen, provider: p, model: p === 'together' ? 'black-forest-labs/FLUX.1-schnell-Free' : 'black-forest-labs/flux-schnell' } })}
-                  className="px-3 py-1 rounded-lg text-xs font-medium border transition-all capitalize"
-                  style={config.imageGen.provider === p
-                    ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
-                    : { color: '#6B7280', borderColor: '#E5E7EB' }}>
-                  {p === 'together' ? 'Together AI' : 'Replicate'}
-                </button>
               ))}
             </div>
+          )}
+
+          {/* Add from popular catalog */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-2">Add from popular models</p>
+            <input
+              value={catalogSearch}
+              onChange={e => setCatalogSearch(e.target.value)}
+              placeholder="Search models…"
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs mb-2 focus:outline-none focus:border-indigo-400"
+            />
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+              {catalogFiltered.map(m => (
+                <button key={m.id} onClick={() => addFromCatalog(m)}
+                  className="px-2.5 py-1 rounded-lg text-xs border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all">
+                  + {m.nickname}
+                </button>
+              ))}
+              {catalogFiltered.length === 0 && catalogSearch && (
+                <p className="text-xs text-gray-400 italic">No matches — add as custom below.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Add custom model */}
+          {addingCustom ? (
+            <div className="border border-indigo-200 rounded-lg p-3 space-y-2 bg-indigo-50">
+              <p className="text-xs font-semibold text-indigo-700">Add custom OpenRouter model</p>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={customModelId} onChange={e => setCustomModelId(e.target.value)}
+                  placeholder="provider/model-name"
+                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono bg-white focus:outline-none focus:border-indigo-400" />
+                <input value={customNickname} onChange={e => setCustomNickname(e.target.value)}
+                  placeholder="Display name (optional)"
+                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={addCustomModel} disabled={!customModelId.trim()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: '#1E1B4B' }}>
+                  Add model
+                </button>
+                <button onClick={() => { setAddingCustom(false); setCustomModelId(''); setCustomNickname('') }}
+                  className="px-3 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-200">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAddingCustom(true)}
+              className="text-xs text-indigo-500 hover:underline">
+              + Add custom model ID
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── 3. Role Assignment ─────────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-lg">🎭</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Role assignment</p>
+            <p className="text-xs text-gray-400">Assign registered models to each function in your audit</p>
+          </div>
+        </div>
+        <div className="p-4 space-y-4 divide-y divide-gray-100">
+          {(['modelUnderTest', 'judgeModels', 'attackAgent', 'textAugmentation'] as const).map(role => {
+            const meta = ROLE_LABELS[role]
+            const isMulti = role === 'judgeModels'
+            return (
+              <div key={role} className="pt-4 first:pt-0 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span>{meta.icon}</span>
+                  <div>
+                    <p className="text-xs font-bold text-gray-800">{meta.label}</p>
+                    <p className="text-xs text-gray-400">{meta.description}</p>
+                  </div>
+                  {/* Active assignment indicator */}
+                  <div className="ml-auto text-xs text-gray-400">
+                    {isMulti
+                      ? config.roles.judgeModels.length > 0
+                        ? config.roles.judgeModels.map(id => config.modelRegistry.find(m => m.id === id)?.nickname ?? id).join(', ')
+                        : 'None selected'
+                      : config.modelRegistry.find(m => m.id === (config.roles[role] as string))?.nickname ?? 'None'
+                    }
+                  </div>
+                </div>
+                {!registryReady ? (
+                  <p className="text-xs text-gray-400 italic">Add models to your registry first.</p>
+                ) : (
+                  <ModelSelector
+                    value={isMulti ? config.roles.judgeModels : (config.roles[role] as string)}
+                    registry={config.modelRegistry}
+                    multi={isMulti}
+                    onChange={v => {
+                      if (isMulti) onChange({ ...config, roles: { ...config.roles, judgeModels: v as string[] } })
+                      else onChange({ ...config, roles: { ...config.roles, [role]: v as string } })
+                    }}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── 4. TTS ───────────────────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-lg">🎙️</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Text-to-speech</p>
+            <p className="text-xs text-gray-400">Requires an <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="underline text-indigo-500">OpenAI API key</a> (separate from OpenRouter)</p>
+          </div>
+        </div>
+        <div className="p-4 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Model</p>
+            <select value={config.tts.model}
+              onChange={e => onChange({ ...config, tts: { ...config.tts, model: e.target.value as 'tts-1' | 'tts-1-hd' } })}
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
+              <option value="tts-1">tts-1 (faster)</option>
+              <option value="tts-1-hd">tts-1-hd (better quality)</option>
+            </select>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">OpenAI API key</p>
+            <input type="password" value={config.tts.apiKey}
+              onChange={e => onChange({ ...config, tts: { ...config.tts, apiKey: e.target.value } })}
+              placeholder="sk-…"
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 5. Image generation ──────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-lg">🖼️</span>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Image generation</p>
+            <p className="text-xs text-gray-400">For multimodal attack scenarios in Attack Strategy</p>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="flex gap-1.5">
+            {(['together', 'replicate'] as const).map(p => (
+              <button key={p} onClick={() => onChange({ ...config, imageGen: { ...config.imageGen, provider: p, model: p === 'together' ? 'black-forest-labs/FLUX.1-schnell-Free' : 'black-forest-labs/flux-schnell' } })}
+                className="px-3 py-1 rounded-lg text-xs font-medium border transition-all"
+                style={config.imageGen.provider === p
+                  ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
+                  : { color: '#6B7280', borderColor: '#E5E7EB' }}>
+                {p === 'together' ? 'Together AI' : 'Replicate'}
+              </button>
+            ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -894,43 +976,35 @@ function TestConfigPanel({
                 className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.imageGen.apiKey ? '#22C55E' : '#E5E7EB' }} />
-            <p className="text-xs text-gray-400">{config.imageGen.apiKey ? `${config.imageGen.provider} configured — ${config.imageGen.model}` : 'Not configured'}</p>
-          </div>
         </div>
       </div>
 
-      {/* Video generation */}
+      {/* ── 6. Video generation ──────────────────────────────────────────────── */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-          <span className="text-base">🎬</span>
+          <span className="text-lg">🎬</span>
           <div>
             <p className="text-sm font-bold text-gray-800">Video generation</p>
-            <p className="text-xs text-gray-400">Generate short video clips for multimodal scenarios</p>
+            <p className="text-xs text-gray-400">For video multimodal attacks</p>
           </div>
         </div>
         <div className="p-4 space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Provider</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: 'runway',   label: 'RunwayML',     models: ['gen3a_turbo', 'gen3a'] },
-                { id: 'kling',    label: 'Kling AI',     models: ['kling-v1', 'kling-v1-5'] },
-                { id: 'pika',     label: 'Pika',         models: ['pika-2.0', 'pika-1.5'] },
-                { id: 'hailuo',   label: 'Hailuo',       models: ['hailuo-video-01'] },
-                { id: 'luma',     label: 'Luma Dream Machine', models: ['dream-machine'] },
-              ].map(p => (
-                <button key={p.id}
-                  onClick={() => onChange({ ...config, videoGen: { provider: p.id, model: p.models[0], apiKey: config.videoGen.apiKey } })}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
-                  style={config.videoGen.provider === p.id
-                    ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
-                    : { color: '#6B7280', borderColor: '#E5E7EB' }}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { id: 'runway', label: 'RunwayML',  models: ['gen3a_turbo', 'gen3a'] },
+              { id: 'kling',  label: 'Kling AI',  models: ['kling-v1', 'kling-v1-5'] },
+              { id: 'pika',   label: 'Pika',      models: ['pika-2.0'] },
+              { id: 'luma',   label: 'Luma',      models: ['dream-machine'] },
+            ].map(p => (
+              <button key={p.id}
+                onClick={() => onChange({ ...config, videoGen: { provider: p.id, model: p.models[0], apiKey: config.videoGen.apiKey } })}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-all"
+                style={config.videoGen.provider === p.id
+                  ? { backgroundColor: '#EEF2FF', color: '#3730A3', borderColor: '#818CF8' }
+                  : { color: '#6B7280', borderColor: '#E5E7EB' }}>
+                {p.label}
+              </button>
+            ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -947,15 +1021,9 @@ function TestConfigPanel({
                 className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-400" />
             </div>
           </div>
-          <p className="text-xs text-gray-400">
-            Video generation is used in Attack Strategy multimodal mode. Each provider has its own API — configure the key for your chosen provider.
-          </p>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.videoGen.apiKey ? '#22C55E' : '#E5E7EB' }} />
-            <p className="text-xs text-gray-400">{config.videoGen.apiKey ? `${config.videoGen.provider} configured` : 'Not configured'}</p>
-          </div>
         </div>
       </div>
+
     </div>
   )
 }
@@ -4894,22 +4962,13 @@ export default function SelfAuditClient() {
   const [testConfig, setTestConfig] = useState<TestConfigState>(() => {
     try {
       const saved = localStorage.getItem('specifyTestConfig')
-      if (saved) return JSON.parse(saved) as TestConfigState
-    } catch { /**/ }
-    // Migrate from existing specifyRunnerConfig if present
-    try {
-      const rc = localStorage.getItem('specifyRunnerConfig')
-      if (rc) {
-        const parsed = JSON.parse(rc)
-        return {
-          modelUnderTest: { provider: parsed.modelConfig?.provider ?? 'groq', modelId: parsed.modelConfig?.modelId ?? '', apiKey: parsed.modelConfig?.apiKey ?? '' },
-          judgeModels: parsed.judgeConfig?.judges ?? [],
-          attackAgent: { provider: 'groq', modelId: 'llama-3.3-70b-versatile', apiKey: '' },
-          textAugmentation: { provider: 'groq', modelId: 'llama-3.3-70b-versatile', apiKey: '' },
-          tts: { apiKey: '', model: 'tts-1' as const },
-          imageGen: { provider: 'together' as const, model: 'black-forest-labs/FLUX.1-schnell-Free', apiKey: '' },
-          videoGen: { provider: 'runway', model: 'gen3a_turbo', apiKey: '' },
-        }
+      if (saved) {
+        const parsed = JSON.parse(saved) as TestConfigState
+        // Ensure new fields exist if migrating from old format
+        if (!parsed.modelRegistry) parsed.modelRegistry = DEFAULT_TEST_CONFIG.modelRegistry
+        if (!parsed.roles) parsed.roles = DEFAULT_TEST_CONFIG.roles
+        if (!parsed.openrouterApiKey && !parsed.roles) return DEFAULT_TEST_CONFIG
+        return parsed
       }
     } catch { /**/ }
     return DEFAULT_TEST_CONFIG
@@ -5136,7 +5195,7 @@ export default function SelfAuditClient() {
   const totalSamples = AUDIT_CATEGORIES.reduce((s, c) => s + c.vectors.reduce((vs, v) => vs + v.samples.length, 0), 0)
 
   const TABS: { id: ActiveTab; label: string; icon: string; done: boolean }[] = [
-    { id: 'config',     label: 'Test configuration',       icon: '🔌',  done: !!(testConfig.modelUnderTest.apiKey && testConfig.modelUnderTest.modelId) },
+    { id: 'config',     label: 'Test configuration',       icon: '🔌',  done: !!(testConfig.openrouterApiKey && testConfig.modelRegistry.length > 0) },
     { id: 'alignment',  label: 'Model alignment',          icon: '⚙️',  done: alignmentSaved },
     { id: 'attack',     label: 'Attack strategy',          icon: '⚡',  done: !isDefaultConfig(attackConfig) },
     { id: 'repository', label: 'Test repository',          icon: '🗂️', done: campaignSamples.length > 0 },
