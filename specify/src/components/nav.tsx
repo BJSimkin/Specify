@@ -130,6 +130,12 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           System Audit
         </Link>
         <Link
+          href="/human-eval"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+        >
+          Human Eval
+        </Link>
+        <Link
           href="/education"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
