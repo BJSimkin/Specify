@@ -1895,7 +1895,9 @@ function TestRepository({
 }) {
   const { data: session } = useSession()
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null)
   const [selectedVectorName, setSelectedVectorName] = useState<string | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [sourceFilter, setSourceFilter] = useState('ALL')
   const [search, setSearch] = useState('')
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
@@ -1984,7 +1986,16 @@ function TestRepository({
   const categoryTotal = selectedCategory ? selectedCategory.vectors.reduce((s, v) => s + v.samples.length, 0) : 0
 
   function handleCategorySelect(cat: RiskCategory) {
-    setSelectedCategoryId(cat.id); setSelectedVectorName(null); setSourceFilter('ALL'); setSearch('')
+    setSelectedCategoryId(cat.id); setSelectedGroupName(null); setSelectedVectorName(null); setSourceFilter('ALL'); setSearch('')
+    setCollapsedGroups(new Set()) // expand all groups when switching category
+  }
+
+  function toggleGroup(groupName: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupName)) next.delete(groupName); else next.add(groupName)
+      return next
+    })
   }
 
   function copyToClipboard(text: string, idx: number) {
@@ -2027,6 +2038,7 @@ function TestRepository({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-4 text-xs text-gray-400">
           <span><strong className="text-gray-700">{AUDIT_CATEGORIES.length}</strong> categories</span>
+          <span><strong className="text-gray-700">{(() => { const g = new Set<string>(); AUDIT_CATEGORIES.forEach(c => c.vectors.forEach(v => g.add(v.group ?? 'Other'))); return g.size })()} </strong> groups</span>
           <span><strong className="text-gray-700">{AUDIT_CATEGORIES.reduce((s, c) => s + c.vectors.length, 0)}</strong> vectors</span>
           <span><strong className="text-gray-700">{totalSamples.toLocaleString()}</strong> samples</span>
           {campaignSamples.length > 0 && <span className="text-indigo-600 font-semibold"><strong>{campaignSamples.length}</strong> in campaign</span>}
@@ -2126,62 +2138,112 @@ function TestRepository({
           </div>
         </div>
 
-        {/* Col 2 — Threat vectors */}
-        <div className="w-52 flex-shrink-0 flex flex-col">
+        {/* Col 2 — Threat vectors (grouped by sub-category) */}
+        <div className="w-60 flex-shrink-0 flex flex-col">
           {!selectedCategory ? (
             <div className="flex-1 flex items-center justify-center text-center text-gray-400 text-xs border border-dashed border-gray-200 rounded-xl p-4">
               Select a category
             </div>
-          ) : (
-            <>
-              <div className="mb-2 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 flex-shrink-0">
-                <p className="text-xs font-semibold text-gray-900 leading-snug">{selectedCategory.shortName}</p>
-                <div className="flex gap-3 mt-0.5 text-xs text-gray-400">
-                  <span><strong className="text-gray-700">{categoryTotal}</strong> samples</span>
-                  <span><strong className="text-gray-700">{selectedCategory.vectors.length}</strong> vectors</span>
+          ) : (() => {
+            // Build group map preserving insertion order
+            const groupMap = new Map<string, typeof selectedCategory.vectors>()
+            for (const v of selectedCategory.vectors) {
+              const g = v.group ?? 'Other'
+              if (!groupMap.has(g)) groupMap.set(g, [])
+              groupMap.get(g)!.push(v)
+            }
+            const numGroups = groupMap.size
+            return (
+              <>
+                <div className="mb-2 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 flex-shrink-0">
+                  <p className="text-xs font-semibold text-gray-900 leading-snug">{selectedCategory.shortName}</p>
+                  <div className="flex gap-3 mt-0.5 text-xs text-gray-400">
+                    <span><strong className="text-gray-700">{categoryTotal}</strong> samples</span>
+                    <span><strong className="text-gray-700">{numGroups}</strong> groups</span>
+                    <span><strong className="text-gray-700">{selectedCategory.vectors.length}</strong> vectors</span>
+                  </div>
                 </div>
-              </div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Threat vectors</p>
-              <div className="space-y-1 overflow-y-auto flex-1 pr-1">
-                {selectedCategory.vectors.map(v => {
-                  const count = v.samples.length; const isSelected = selectedVectorName === v.name
-                  return (
-                    <div key={v.name} className="group relative">
-                      <button
-                        onClick={() => { setSelectedVectorName(v.name); setSourceFilter('ALL'); setSearch('') }}
-                        className="w-full text-left px-3 py-2 rounded-xl border transition-all"
-                        style={isSelected
-                          ? { borderColor: '#818CF8', backgroundColor: '#EEF2FF' }
-                          : { borderColor: '#E5E7EB', backgroundColor: 'white' }}>
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-medium text-gray-900 leading-snug flex-1">{v.name}</p>
-                          <span className="flex-shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-full"
-                            style={count > 0 ? { backgroundColor: '#EEF2FF', color: '#3730A3' } : { backgroundColor: '#F3F4F6', color: '#9CA3AF' }}>
-                            {count}
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Threat vectors</p>
+                <div className="space-y-1.5 overflow-y-auto flex-1 pr-1">
+                  {Array.from(groupMap.entries()).map(([groupName, vectors]) => {
+                    const isCollapsed = collapsedGroups.has(groupName)
+                    const groupTotal = vectors.reduce((s, v) => s + v.samples.length, 0)
+                    const isGroupActive = selectedGroupName === groupName
+                    return (
+                      <div key={groupName}>
+                        {/* Group header */}
+                        <button
+                          onClick={() => {
+                            toggleGroup(groupName)
+                            setSelectedGroupName(groupName)
+                          }}
+                          className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                          style={isGroupActive
+                            ? { backgroundColor: '#E0E7FF', color: '#3730A3' }
+                            : { backgroundColor: '#F9FAFB', color: '#374151' }}>
+                          <svg
+                            className={`w-3 h-3 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                          </svg>
+                          <span className="text-xs font-semibold flex-1 leading-snug">{groupName}</span>
+                          <span className="text-xs font-bold flex-shrink-0"
+                            style={{ color: isGroupActive ? '#3730A3' : '#9CA3AF' }}>
+                            {groupTotal}
                           </span>
-                        </div>
-                      </button>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation()
-                          setBulkTarget({
-                            label: `${selectedCategory.shortName} → ${v.name}`,
-                            totalAvailable: v.samples.filter((_, i) => !campaignKeys.has(`${selectedCategoryId}:::${v.name}:::${i}`)).length,
-                            getSamples: (pct, method) =>
-                              pickSamples(selectedCategoryId!, selectedCategory.shortName, v.name, v.samples, pct, method, campaignKeys),
-                          })
-                        }}
-                        className="absolute right-8 top-1 opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded text-xs font-bold"
-                        style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}
-                        title="Bulk add from this vector">
-                        + All
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
+                        </button>
+                        {/* Vectors within group */}
+                        {!isCollapsed && (
+                          <div className="ml-3 mt-1 space-y-1 border-l-2 border-indigo-100 pl-2">
+                            {vectors.map(v => {
+                              const count = v.samples.length
+                              const isSelected = selectedVectorName === v.name
+                              return (
+                                <div key={v.name} className="group relative">
+                                  <button
+                                    onClick={() => { setSelectedVectorName(v.name); setSourceFilter('ALL'); setSearch('') }}
+                                    className="w-full text-left px-2.5 py-1.5 rounded-lg border transition-all"
+                                    style={isSelected
+                                      ? { borderColor: '#818CF8', backgroundColor: '#EEF2FF' }
+                                      : { borderColor: '#E5E7EB', backgroundColor: 'white' }}>
+                                    <div className="flex items-start justify-between gap-1.5">
+                                      <p className="text-xs text-gray-800 leading-snug flex-1"
+                                        style={isSelected ? { fontWeight: 600, color: '#3730A3' } : {}}>
+                                        {v.name}
+                                      </p>
+                                      <span className="flex-shrink-0 text-xs font-bold px-1 py-0.5 rounded-full"
+                                        style={count > 0 ? { backgroundColor: '#EEF2FF', color: '#3730A3' } : { backgroundColor: '#F3F4F6', color: '#9CA3AF' }}>
+                                        {count}
+                                      </span>
+                                    </div>
+                                  </button>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      setBulkTarget({
+                                        label: `${selectedCategory.shortName} › ${groupName} › ${v.name}`,
+                                        totalAvailable: v.samples.filter((_, i) => !campaignKeys.has(`${selectedCategoryId}:::${v.name}:::${i}`)).length,
+                                        getSamples: (pct, method) =>
+                                          pickSamples(selectedCategoryId!, selectedCategory.shortName, v.name, v.samples, pct, method, campaignKeys),
+                                      })
+                                    }}
+                                    className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity px-1 py-0.5 rounded text-xs font-bold"
+                                    style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}
+                                    title="Bulk add from this vector">
+                                    +
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
         </div>
 
         {/* Col 3 — Samples */}
@@ -2698,6 +2760,7 @@ function RiskDashboard({
   const [minSamples, setMinSamples] = useState(5)
   const [testTypeFilter, setTestTypeFilter] = useState<string[]>(['sst', 'smt', 'ddm', 'he'])
   const [drillCatId, setDrillCatId] = useState<string | null>(null)
+  const [drillGroupName, setDrillGroupName] = useState<string | null>(null)
   const [mainChartId, setMainChartId] = useState<'sst' | 'smt' | 'ddm' | 'he'>('sst')
   const [configOpen, setConfigOpen] = useState(false)
 
@@ -2887,14 +2950,6 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
             <text x="27" y={y + 3} textAnchor="end" fontSize="7" fill="#9CA3AF">{pct}</text>
           </g>
         })}
-        {/* Threshold line */}
-        {(() => {
-          const ty = BASE + H - thresh * H
-          return <g>
-            <line x1="30" y1={ty} x2={w - 4} y2={ty} stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="4,2" />
-            <text x={w - 4} y={ty - 2} textAnchor="end" fontSize="6" fill="#D97706">threshold {opts.threshold}%</text>
-          </g>
-        })()}
         {/* Bars */}
         {bars.map((bar, i) => {
           const x = 34 + i * gap
@@ -2935,6 +2990,14 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
             </g>
           )
         })}
+        {/* Threshold line — rendered after bars so it appears on top */}
+        {(() => {
+          const ty = BASE + H - thresh * H
+          return <g>
+            <line x1="30" y1={ty} x2={w - 4} y2={ty} stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="4,2" />
+            <text x={w - 4} y={ty - 2} textAnchor="end" fontSize="6" fill="#D97706">threshold {opts.threshold}% ({opts.ciMode === 'average' ? 'average' : opts.ciMode === 'lower' ? 'optimistic' : 'conservative'})</text>
+          </g>
+        })()}
         <line x1="30" x2={w - 4} y1={FLOOR} y2={FLOOR} stroke="#E5E7EB" strokeWidth="1" />
         <text x="8" y={BASE + H / 2} textAnchor="middle" fontSize="7" fill="#9CA3AF" transform={`rotate(-90,8,${BASE + H / 2})`}>ASR %</text>
       </svg>
@@ -3051,7 +3114,7 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
               {drillCatId && (
                 <div className="mt-4 pt-3 border-t border-gray-100">
                   <p className="text-xs text-indigo-600 font-semibold mb-1">📍 Drill-down: {AUDIT_CATEGORIES.find(c => c.id === drillCatId)?.name}</p>
-                  <button type="button" onClick={() => setDrillCatId(null)} className="text-xs text-gray-500 underline">← Back to all categories</button>
+                  <button type="button" onClick={() => { setDrillCatId(null); setDrillGroupName(null); }} className="text-xs text-gray-500 underline">← Back to all categories</button>
                 </div>
               )}
             </div>
@@ -3061,46 +3124,86 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
 
       {/* ── ASR Chart Grid ────────────────────────────────────────────────────── */}
       {(() => {
-        const drillVectors = drillCatId ? (AUDIT_CATEGORIES.find(c => c.id === drillCatId)?.vectors ?? []) : null
-        const drillCatName = drillCatId ? AUDIT_CATEGORIES.find(c => c.id === drillCatId)?.name : null
+        const drillCat = drillCatId ? AUDIT_CATEGORIES.find(c => c.id === drillCatId) : null
+        const drillCatName = drillCat?.name ?? null
+        // All vectors for this category, filtered to the selected group if drillGroupName is set
+        const drillVectors = drillCat
+          ? (drillGroupName
+              ? drillCat.vectors.filter(v => (v.group ?? 'Other') === drillGroupName)
+              : drillCat.vectors)
+          : null
+        // Unique groups within the drilled category (for group-level view)
+        const drillGroups = drillCat && !drillGroupName
+          ? Array.from(new Set(drillCat.vectors.map(v => v.group ?? 'Other')))
+          : null
 
-        // SST bars
-        const sstBars = drillVectors
-          ? drillVectors.map(v => {
+        // Build bars depending on drill level
+        function makeSSTBars() {
+          if (drillGroups) {
+            // Group-level: aggregate SST per group
+            return drillGroups.map(g => {
+              const gVecs = drillCat!.vectors.filter(v => (v.group ?? 'Other') === g)
+              const gSamples = campaignSamples.filter(s => s.categoryId === drillCatId && gVecs.some(v => v.name === s.vectorName))
+              const tested = gSamples.filter(s => responses[sampleKey(s)] !== undefined)
+              const failed = tested.filter(s => responses[sampleKey(s)] === 'Direct response' || responses[sampleKey(s)] === 'Direct response with warning')
+              const asr = tested.length > 0 ? failed.length / tested.length : null
+              return { id: g, sn: g.slice(0, 10), asr, n: tested.length }
+            })
+          } else if (drillVectors) {
+            // Vector-level
+            return drillVectors.map(v => {
               const vSamples = campaignSamples.filter(s => s.categoryId === drillCatId && s.vectorName === v.name)
               const tested = vSamples.filter(s => responses[sampleKey(s)] !== undefined)
               const failed = tested.filter(s => responses[sampleKey(s)] === 'Direct response' || responses[sampleKey(s)] === 'Direct response with warning')
               const asr = tested.length > 0 ? failed.length / tested.length : null
               return { id: v.name, sn: v.name.slice(0, 8), asr, n: tested.length }
             })
-          : AUDIT_CATEGORIES
+          } else {
+            // Category-level
+            return AUDIT_CATEGORIES
               .filter(c => activeRiskIds.includes(c.id))
               .map(c => {
                 const cs = catStats.find(x => x.id === c.id)
                 return { id: c.id, sn: c.shortName, asr: cs ? cs.stFailRate : null, n: cs?.tested ?? 0, ciLo: cs ? adjCI(cs.stFailed, cs.tested)[0] : 0, ciHi: cs ? adjCI(cs.stFailed, cs.tested)[1] : 0 }
               })
+          }
+        }
 
-        // SMT bars — placeholder until eval methods plumbed in
-        const smtBars = AUDIT_CATEGORIES
-          .filter(c => activeRiskIds.includes(c.id))
-          .map(c => ({ id: c.id, sn: c.shortName, asr: null as number | null, n: 0 }))
-
-        // DDM bars
-        const ddmBars = drillVectors
-          ? drillVectors.map(v => {
+        function makeDDMBars() {
+          if (drillGroups) {
+            return drillGroups.map(g => {
+              const gVecs = drillCat!.vectors.filter(v => (v.group ?? 'Other') === g)
+              const gSessions = attackSessions.filter(s => s.sampleKey.startsWith(drillCatId + ':::') && gVecs.some(v => s.sampleKey.includes(v.name)))
+              const succeeded = gSessions.filter(s => s.attackSucceeded).length
+              const asr = gSessions.length > 0 ? succeeded / gSessions.length : null
+              return { id: g, sn: g.slice(0, 10), asr, n: gSessions.length }
+            })
+          } else if (drillVectors) {
+            return drillVectors.map(v => {
               const vSessions = attackSessions.filter(s => s.sampleKey.startsWith(drillCatId + ':::') && s.sampleKey.includes(v.name))
               const succeeded = vSessions.filter(s => s.attackSucceeded).length
               const asr = vSessions.length > 0 ? succeeded / vSessions.length : null
               return { id: v.name, sn: v.name.slice(0, 8), asr, n: vSessions.length }
             })
-          : AUDIT_CATEGORIES
+          } else {
+            return AUDIT_CATEGORIES
               .filter(c => activeRiskIds.includes(c.id))
               .map(c => {
                 const cs = catStats.find(x => x.id === c.id)
                 return { id: c.id, sn: c.shortName, asr: cs?.mtASR ?? null, n: cs?.mtSessions ?? 0, ciLo: cs && cs.mtASR !== null ? adjCI(cs.mtSucceeded, cs.mtSessions)[0] : 0, ciHi: cs && cs.mtASR !== null ? adjCI(cs.mtSucceeded, cs.mtSessions)[1] : 0 }
               })
+          }
+        }
 
-        // HE bars — always category level; drill-down shows same categories (no vectorName on HumanEvalSession)
+        const sstBars = makeSSTBars()
+        const ddmBars = makeDDMBars()
+
+        // SMT bars — placeholder
+        const smtBars = AUDIT_CATEGORIES
+          .filter(c => activeRiskIds.includes(c.id))
+          .map(c => ({ id: c.id, sn: c.shortName, asr: null as number | null, n: 0 }))
+
+        // HE bars — always category level (no vectorName on HumanEvalSession)
         const heBars = AUDIT_CATEGORIES
           .filter(c => activeRiskIds.includes(c.id))
           .map(c => {
@@ -3109,11 +3212,29 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
               : humanEvalSessions.filter(s => s.categoryId === c.id && s.status === 'complete')
             const succeeded = catSess.filter(s => s.attackSucceeded).length
             const asr = catSess.length > 0 ? succeeded / catSess.length : null
-            // For drill-down: show one bar per category (HE has no vector info)
             if (drillCatId && c.id !== drillCatId) return null
             return { id: c.id, sn: c.shortName, asr, n: catSess.length }
           })
           .filter((b): b is NonNullable<typeof b> => b !== null)
+
+        // Bar click handler: category → group → vector (back on vector click goes to group)
+        function handleBarClick(id: string) {
+          if (!drillCatId) {
+            // Category level → go to group level for this category
+            setDrillCatId(id)
+            setDrillGroupName(null)
+          } else if (drillGroups) {
+            // Group level → go to vector level for this group
+            setDrillGroupName(id)
+          }
+          // Vector level: no further drill-down
+        }
+
+        const levelLabel = !drillCatId
+          ? 'Category view'
+          : !drillGroupName
+            ? `Group view: ${drillCatName}`
+            : `Vector view: ${drillCatName} › ${drillGroupName}`
 
         const allCharts: { id: 'sst' | 'smt' | 'ddm' | 'he'; label: string; icon: string; bars: typeof sstBars; coverage: string; overallLabel?: string }[] = [
           { id: 'sst', label: 'SST — Static Single Turn', icon: '🎯', bars: sstBars, coverage: stCoverage.toFixed(3), overallLabel: stOverall ? `ASR ${stOverall.pct}%` : undefined },
@@ -3130,16 +3251,19 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
         return (
           <>
             {/* Drill-down header */}
-            {(drillCatId || true) && (
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                  {drillCatId ? `Vector drill-down: ${drillCatName}` : 'Category view'}
-                </p>
-                {drillCatId && (
-                  <button type="button" onClick={() => setDrillCatId(null)} className="text-xs text-indigo-600 underline">← Back to all categories</button>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                {levelLabel}
+              </p>
+              <div className="flex items-center gap-2">
+                {drillGroupName && (
+                  <button type="button" onClick={() => setDrillGroupName(null)} className="text-xs text-indigo-600 underline">← Back to groups</button>
+                )}
+                {drillCatId && !drillGroupName && (
+                  <button type="button" onClick={() => { setDrillCatId(null); setDrillGroupName(null); }} className="text-xs text-indigo-600 underline">← Back to categories</button>
                 )}
               </div>
-            )}
+            </div>
 
             {/* Main (enlarged) chart */}
             {mainChart && (
@@ -3152,7 +3276,7 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
                   </div>
                 </div>
                 <div className="p-3" style={{ minHeight: 200 }}>
-                  {renderChart(mainChart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: id => setDrillCatId(drillCatId ? null : id), emptyMsg: `No ${mainChart.id.toUpperCase()} data yet`, ciMode })}
+                  {renderChart(mainChart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${mainChart.id.toUpperCase()} data yet`, ciMode })}
                 </div>
               </div>
             )}
@@ -3173,7 +3297,7 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
                       </div>
                     </button>
                     <div className="p-2">
-                      {renderChart(chart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: id => setDrillCatId(drillCatId ? null : id), emptyMsg: `No ${chart.id.toUpperCase()} data yet`, ciMode })}
+                      {renderChart(chart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${chart.id.toUpperCase()} data yet`, ciMode })}
                     </div>
                   </div>
                 ))}
@@ -5873,6 +5997,11 @@ export default function SelfAuditClient() {
   })
   const [alignmentSaved, setAlignmentSaved] = useState(false)
   const [attackPrefsSaved, setAttackPrefsSaved] = useState(false)
+  const [dashOpen, setDashOpen] = useState(true)
+  const [ddmSeedPrompt, setDdmSeedPrompt] = useState('')
+  const [ddmExampleResult, setDdmExampleResult] = useState<string | null>(null)
+  const [ddmExampleError, setDdmExampleError] = useState<string | null>(null)
+  const [generatingDdmExample, setGeneratingDdmExample] = useState(false)
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null)
   const [activeTeamName, setActiveTeamName] = useState<string | null>(null)
   const [showTeamModal, setShowTeamModal] = useState(false)
@@ -6047,17 +6176,16 @@ export default function SelfAuditClient() {
       // Also save all model responses if we have them
       if (data.campaign.id && campaignSamples.length > 0) {
         const responseRows = campaignSamples
-          .filter(s => responses[s.promptKey])
+          .filter(s => responses[sampleKey(s)])
           .map(s => {
-            const ann = annotations[s.promptKey]
+            const ann = annotations[sampleKey(s)]
             return {
               sampleText: s.text,
               categoryId: s.categoryId,
               vectorName: s.vectorName,
               modelId: modelName,
-              response: responses[s.promptKey],
-              verdict: ann?.verdict ?? undefined,
-              score: ann?.score ?? undefined,
+              response: responses[sampleKey(s)],
+              responseType: ann?.responseType ?? undefined,
             }
           })
         if (responseRows.length > 0) {
@@ -6085,6 +6213,39 @@ export default function SelfAuditClient() {
     try { localStorage.removeItem('specifyActiveCampaign') } catch { /**/ }
   }
 
+  const generateDdmExample = async () => {
+    if (!ddmSeedPrompt.trim() || generatingDdmExample) return
+    setGeneratingDdmExample(true)
+    setDdmExampleResult(null)
+    setDdmExampleError(null)
+    try {
+      const strategy = selectedStrategies[0] ?? 'crescendo'
+      const res = await fetch('/api/attack-transform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: ddmSeedPrompt,
+          attackConfig: {
+            turn: 'multi',
+            language: 'none',
+            injectionStyle: 'none',
+            misalignment: 'none',
+            perturbation: 'none',
+          },
+          strategy,
+          mode: 'ddm-example',
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json()
+      setDdmExampleResult(data.transformed ?? data.result ?? JSON.stringify(data))
+    } catch (e: unknown) {
+      setDdmExampleError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGeneratingDdmExample(false)
+    }
+  }
+
   function deleteCampaign(id: string) {
     const updated = savedCampaigns.filter(c => c.id !== id)
     setSavedCampaigns(updated)
@@ -6100,8 +6261,8 @@ export default function SelfAuditClient() {
     { id: 'repository', label: 'Test Repository',                          icon: '🗂️', done: campaignSamples.length > 0 },
     { id: 'campaign',   label: 'Static Single Turn Probe',                 icon: '🎯',  done: Object.keys(responses).length > 0 },
     { id: 'static-mt',     label: 'Static Multi Turn Probe',                  icon: '🔄',  done: false },
-    { id: 'agent',         label: 'Defensive & Dynamic Multi Turn Probe',     icon: '🕵️', done: attackSessions.length > 0 },
-    { id: 'human-eval',    label: 'Human Eval',                               icon: '🧑‍⚖️', done: humanEvalSessions.length > 0 },
+    { id: 'agent',         label: 'Dynamic multi turn probe',                 icon: '🕵️', done: attackSessions.length > 0 },
+    { id: 'human-eval',    label: 'Human interactive probes',                 icon: '🧑‍⚖️', done: humanEvalSessions.length > 0 },
     { id: 'failure-cases', label: 'Failure Cases',                            icon: '🔍',  done: attackSessions.some(s => s.attackSucceeded) || humanEvalSessions.some(s => s.attackSucceeded) || campaignSamples.some(s => responses[sampleKey(s)] === 'Direct response' || responses[sampleKey(s)] === 'Direct response with warning') },
   ]
 
@@ -6233,7 +6394,6 @@ export default function SelfAuditClient() {
                   }
                   return (
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs font-semibold text-gray-500">Sources:</span>
                       {benchmark > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#3730A3' }}>📊 {benchmark} public benchmark</span>}
                       {synthetic > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>🔬 {synthetic} third-party</span>}
                       {unknown > 0 && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>❓ {unknown} unknown</span>}
@@ -6287,21 +6447,30 @@ export default function SelfAuditClient() {
         )}
       </div>
 
-      {/* ── Risk Dashboard (always visible) ────── */}
-      <div className="border border-gray-200 rounded-2xl mb-4 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-800">📊 Risk Dashboard</span>
-          <span className="text-xs text-gray-400">Single + multi-turn risk score</span>
-        </div>
-        <div className="p-4">
-          <RiskDashboard
-            campaignSamples={campaignSamples}
-            responses={responses}
-            annotations={annotations}
-            attackSessions={attackSessions}
-            humanEvalSessions={humanEvalSessions}
-          />
-        </div>
+      {/* ── Risk Dashboard (collapsible) ────── */}
+      <div className="mb-4">
+        <button
+          onClick={() => setDashOpen(o => !o)}
+          className="flex items-center gap-2 w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+        >
+          <span className="text-sm font-semibold text-gray-700 flex-1">Risk Dashboard</span>
+          <svg className={`w-4 h-4 text-gray-400 transition-transform ${dashOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {dashOpen && (
+          <div className="mt-2 border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden">
+            <div className="p-4">
+              <RiskDashboard
+                campaignSamples={campaignSamples}
+                responses={responses}
+                annotations={annotations}
+                attackSessions={attackSessions}
+                humanEvalSessions={humanEvalSessions}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Workflow guide ────────────────────────────────────────────────────── */}
@@ -6323,7 +6492,6 @@ export default function SelfAuditClient() {
               ? { color: '#1E1B4B', borderColor: '#1E1B4B' }
               : { color: '#6B7280', borderColor: 'transparent' }
             }>
-            <span>{tab.icon}</span>
             {tab.label}
             {tab.done
               ? <span className="ml-1 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold" style={{ backgroundColor: '#16A34A', fontSize: '9px' }}>✓</span>
@@ -6375,59 +6543,113 @@ export default function SelfAuditClient() {
       )}
 
       {activeTab === 'attack' && (
-        <div className="max-w-2xl flex flex-col gap-4">
-          <AttackBuilder
-            basePrompt={attackBase}
-            config={attackConfig}
-            onChange={(key, value) => setAttackConfig(prev => ({ ...prev, [key]: value ?? DEFAULT_ATTACK_CONFIG[key] ?? null }))}
-            onBasePromptChange={text => setAttackBase(text)}
-            ttsConfig={testConfig.tts}
-            imageGenConfig={testConfig.imageGen}
-            onSave={() => setAttackPrefsSaved(true)}
-          />
-
-          {/* Multi-Turn Attack Strategies */}
-          <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-              <span className="text-base">🎯</span>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-800">Multi-Turn Attack Strategies</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Select one or more strategies for the DDM agent to apply. Multiple selections are distributed across sessions.</p>
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-3 gap-4">
+            {/* SST column */}
+            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-800">Static Single Turn (SST)</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Prompt transformations applied to each test sample</p>
+              </div>
+              <div className="p-4">
+                <AttackBuilder
+                  basePrompt={attackBase}
+                  config={attackConfig}
+                  onChange={(key, value) => setAttackConfig(prev => ({ ...prev, [key]: value ?? DEFAULT_ATTACK_CONFIG[key] ?? null }))}
+                  onBasePromptChange={text => setAttackBase(text)}
+                  ttsConfig={testConfig.tts}
+                  imageGenConfig={testConfig.imageGen}
+                  onSave={() => setAttackPrefsSaved(true)}
+                />
               </div>
             </div>
-            <div className="p-4 grid grid-cols-1 gap-2">
-              {ATTACK_STRATEGIES.map(strat => {
-                const active = selectedStrategies.includes(strat.id)
-                return (
-                  <button
-                    key={strat.id}
-                    onClick={() => setSelectedStrategies(prev =>
-                      prev.includes(strat.id)
-                        ? prev.filter(s => s !== strat.id)
-                        : [...prev, strat.id]
-                    )}
-                    className={`text-left px-3 py-2.5 rounded-lg border transition-all ${
-                      active
-                        ? 'border-indigo-400 bg-indigo-50'
-                        : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors ${
-                        active ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 bg-white'
-                      }`}>
-                        {active && <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12"><path d="M10 3L5 8 2 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>}
-                      </div>
-                      <span className={`text-xs font-semibold ${active ? 'text-indigo-700' : 'text-gray-700'}`}>{strat.name}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 ml-6">{strat.description}</p>
-                  </button>
-                )
-              })}
+
+            {/* SMT column */}
+            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-800">Static Multi Turn (SMT)</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Predetermined multi-turn attack sequences</p>
+              </div>
+              <div className="p-4 flex flex-col items-center justify-center min-h-[200px] text-center gap-2">
+                <p className="text-xs text-gray-400">Static multi-turn attack configuration coming soon.</p>
+              </div>
             </div>
-            {selectedStrategies.length === 0 && (
-              <p className="text-xs text-amber-600 px-4 pb-3">⚠ No strategy selected — the agent will use generic red-team prompting.</p>
-            )}
+
+            {/* DDM column */}
+            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-800">Dynamic Multi Turn (DDM)</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Adaptive agent strategies. Multiple selections are distributed across sessions.</p>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-1 gap-2">
+                  {ATTACK_STRATEGIES.map(strat => {
+                    const active = selectedStrategies.includes(strat.id)
+                    return (
+                      <button
+                        key={strat.id}
+                        onClick={() => setSelectedStrategies(prev =>
+                          prev.includes(strat.id)
+                            ? prev.filter(s => s !== strat.id)
+                            : [...prev, strat.id]
+                        )}
+                        className={`text-left px-3 py-2.5 rounded-lg border transition-all ${
+                          active
+                            ? 'border-indigo-400 bg-indigo-50'
+                            : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors ${
+                            active ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 bg-white'
+                          }`}>
+                            {active && <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12"><path d="M10 3L5 8 2 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>}
+                          </div>
+                          <span className={`text-xs font-semibold ${active ? 'text-indigo-700' : 'text-gray-700'}`}>{strat.name}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 ml-6">{strat.description}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+                {selectedStrategies.length === 0 && (
+                  <p className="text-xs text-amber-600">⚠ No strategy selected — the agent will use generic red-team prompting.</p>
+                )}
+
+                <div className="border-t border-gray-100 pt-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500">Example seed scenario</p>
+                  <textarea
+                    value={ddmSeedPrompt}
+                    onChange={e => setDdmSeedPrompt(e.target.value)}
+                    placeholder="Paste a seed scenario to preview how the selected strategy shapes the opening turn…"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  />
+                  <button
+                    onClick={generateDdmExample}
+                    disabled={!ddmSeedPrompt.trim() || generatingDdmExample}
+                    className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                  >
+                    {generatingDdmExample ? 'Generating…' : '✨ Generate example opening turn'}
+                  </button>
+                  {ddmExampleResult && (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 whitespace-pre-wrap">{ddmExampleResult}</div>
+                  )}
+                  {ddmExampleError && <p className="text-xs text-red-500">{ddmExampleError}</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Multimodal augmentation section */}
+          <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-800">Multimodal Augmentation</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Apply audio or image transformations to attack prompts</p>
+            </div>
+            <div className="p-4">
+              <p className="text-xs text-gray-400">Configure multimodal transformations (audio / image) in the SST column above under the attack builder settings.</p>
+            </div>
           </div>
         </div>
       )}
