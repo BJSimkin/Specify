@@ -56,13 +56,15 @@ Rules:
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { attackGoal, conversationHistory, behavior, modelConfig, strategy } = body as {
+    const { attackGoal, conversationHistory, behavior, modelConfig, strategy, attackerSystemPrompt } = body as {
       attackGoal: string
       conversationHistory: HistoryTurn[]
       behavior: AttackBehavior
       modelConfig: AttackerModelConfig
       strategy?: AttackStrategy
+      attackerSystemPrompt?: string
     }
+    const effectiveAttackerSystem = attackerSystemPrompt ?? ATTACKER_SYSTEM
 
     if (!attackGoal || !behavior || !modelConfig?.apiKey || !modelConfig?.modelId) {
       return NextResponse.json({ error: 'Missing required fields: attackGoal, behavior, modelConfig' }, { status: 400 })
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: modelConfig.modelId,
         messages: [
-          { role: 'system', content: ATTACKER_SYSTEM },
+          { role: 'system', content: effectiveAttackerSystem },
           { role: 'user', content: userMessage },
         ],
         max_tokens: 256,

@@ -51,7 +51,7 @@ function parseClassification(text: string): ResponseType {
   return 'Direct response'
 }
 
-async function callJudge(judge: JudgeModel, prompt: string, response: string, reasoningTrace?: string): Promise<ResponseType> {
+async function callJudge(judge: JudgeModel, prompt: string, response: string, reasoningTrace?: string, systemPrompt?: string): Promise<ResponseType> {
   const ENDPOINTS: Record<string, string> = {
     openrouter: 'https://openrouter.ai/api/v1/chat/completions',
     groq:       'https://api.groq.com/openai/v1/chat/completions',
@@ -78,7 +78,7 @@ async function callJudge(judge: JudgeModel, prompt: string, response: string, re
     body: JSON.stringify({
       model: judge.modelId,
       messages: [
-        { role: 'system', content: JUDGE_SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt ?? JUDGE_SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ],
       max_tokens: 50,
@@ -99,12 +99,14 @@ async function callJudge(judge: JudgeModel, prompt: string, response: string, re
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { prompt, response, judgeConfig, reasoningTrace } = body as {
+    const { prompt, response, judgeConfig, reasoningTrace, judgeSystemPrompt } = body as {
       prompt: string
       response: string
       judgeConfig: JudgeConfig
       reasoningTrace?: string
+      judgeSystemPrompt?: string
     }
+    const effectiveJudgePrompt = judgeSystemPrompt ?? JUDGE_SYSTEM_PROMPT
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     // ── Single mode ─────────────────────────────────────────────────────────────
     if (mode === 'single') {
-      const classification = await callJudge(judges[0], prompt, response, reasoningTrace)
+      const classification = await callJudge(judges[0], prompt, response, reasoningTrace, effectiveJudgePrompt)
       return NextResponse.json({ classification, confidence: 1.0 })
     }
 
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
     const voteResults = await Promise.all(
       judges.map(async (judge) => {
         try {
-          const vote = await callJudge(judge, prompt, response, reasoningTrace)
+          const vote = await callJudge(judge, prompt, response, reasoningTrace, effectiveJudgePrompt)
           return { model: judge.modelId, vote } as { model: string; vote: ResponseType }
         } catch (e) {
           console.warn(`Judge ${judge.modelId} failed:`, e)
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     if (validVotes.length === 0) {
       // All judges failed — attempt single call as last resort
-      const classification = await callJudge(judges[0], prompt, response, reasoningTrace)
+      const classification = await callJudge(judges[0], prompt, response, reasoningTrace, effectiveJudgePrompt)
       return NextResponse.json({ classification, votes: [], confidence: 1.0 })
     }
 
