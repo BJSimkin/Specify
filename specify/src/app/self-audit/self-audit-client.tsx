@@ -2762,6 +2762,7 @@ function RiskDashboard({
   const [drillCatId, setDrillCatId] = useState<string | null>(null)
   const [drillGroupName, setDrillGroupName] = useState<string | null>(null)
   const [mainChartId, setMainChartId] = useState<'sst' | 'smt' | 'ddm' | 'he'>('sst')
+  const [showCombined, setShowCombined] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
 
   async function generateSummary() {
@@ -2941,7 +2942,7 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
     const thresh = opts.threshold / 100
 
     return (
-      <svg viewBox={`0 0 ${w} 170`} style={{ width: '100%' }} className="cursor-pointer">
+      <svg viewBox={`0 0 ${w} 200`} style={{ width: '100%', overflow: 'visible' }} className="cursor-pointer">
         {/* Grid lines + y-axis labels */}
         {[0, 25, 50, 75, 100].map(pct => {
           const y = BASE + H - (pct / 100) * H
@@ -2985,17 +2986,21 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
               {bar.n > 0 && <text x={cx} y={countY} textAnchor="middle" fontSize="7" fill="#6B7280">{bar.n}</text>}
               {/* Coverage badge */}
               <text x={cx} y={FLOOR - 2} textAnchor="middle" fontSize="6" fill={coverageMet ? '#16A34A' : '#DC2626'}>{coverageMet ? '✓' : '!'}</text>
-              {/* X-axis label — fixed at y=140, rotate so no overlap */}
-              <text x={cx} y={142} textAnchor="end" fontSize="7" fill={bar.asr !== null ? '#6B7280' : '#D1D5DB'} transform={`rotate(-40,${cx},142)`}>{bar.sn}</text>
+              {/* X-axis label — rotated 40° for legibility, positioned below axis */}
+              <text x={cx} y={FLOOR + 16} textAnchor="end" fontSize="7" fill={bar.asr !== null ? '#6B7280' : '#D1D5DB'} transform={`rotate(-40,${cx},${FLOOR + 16})`}>{bar.sn}</text>
             </g>
           )
         })}
         {/* Threshold line — rendered after bars so it appears on top */}
         {(() => {
           const ty = BASE + H - thresh * H
+          const labelY = Math.max(ty - 2, BASE + 8)
+          const ciLabel = opts.ciMode === 'average' ? 'average' : opts.ciMode === 'lower' ? 'optimistic' : 'conservative'
           return <g>
             <line x1="30" y1={ty} x2={w - 4} y2={ty} stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="4,2" />
-            <text x={w - 4} y={ty - 2} textAnchor="end" fontSize="6" fill="#D97706">threshold {opts.threshold}% ({opts.ciMode === 'average' ? 'average' : opts.ciMode === 'lower' ? 'optimistic' : 'conservative'})</text>
+            {/* White backing so label is always readable over bars */}
+            <rect x={32} y={labelY - 7} width={w - 40} height={10} fill="white" opacity="0.8" rx="1" />
+            <text x={w - 6} y={labelY} textAnchor="end" fontSize="6" fill="#D97706" fontWeight="600">threshold {opts.threshold}% ({ciLabel})</text>
           </g>
         })()}
         <line x1="30" x2={w - 4} y1={FLOOR} y2={FLOOR} stroke="#E5E7EB" strokeWidth="1" />
@@ -3248,10 +3253,29 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
 
         if (allCharts.length === 0) return null
 
+        // Build combined bars (average non-null ASR across active test types per entity)
+        const combinedBars = (() => {
+          // Collect all bar arrays that have data
+          const activeBarSets = allCharts
+            .filter(c => c.id !== 'smt')  // SMT is placeholder, skip
+            .map(c => c.bars)
+          if (activeBarSets.length === 0) return [] as typeof sstBars
+          // Use the first bar set's ids/labels as the reference
+          const ref = activeBarSets[0]
+          return ref.map(refBar => {
+            const asrs = activeBarSets
+              .map(bs => bs.find(b => b.id === refBar.id)?.asr ?? null)
+              .filter((a): a is number => a !== null)
+            const avgAsr = asrs.length > 0 ? asrs.reduce((s, a) => s + a, 0) / asrs.length : null
+            const totalN = activeBarSets.reduce((s, bs) => s + (bs.find(b => b.id === refBar.id)?.n ?? 0), 0)
+            return { ...refBar, asr: avgAsr, n: totalN }
+          })
+        })()
+
         return (
           <>
-            {/* Drill-down header */}
-            <div className="flex items-center justify-between">
+            {/* Drill-down header + view toggle */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                 {levelLabel}
               </p>
@@ -3262,46 +3286,71 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
                 {drillCatId && !drillGroupName && (
                   <button type="button" onClick={() => { setDrillCatId(null); setDrillGroupName(null); }} className="text-xs text-indigo-600 underline">← Back to categories</button>
                 )}
+                {/* Combined / split toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowCombined(v => !v)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors"
+                  style={showCombined
+                    ? { borderColor: '#818CF8', backgroundColor: '#EEF2FF', color: '#3730A3' }
+                    : { borderColor: '#E5E7EB', backgroundColor: 'white', color: '#6B7280' }}>
+                  {showCombined ? 'Split by test type' : 'Combined view'}
+                </button>
               </div>
             </div>
 
-            {/* Main (enlarged) chart */}
-            {mainChart && (
+            {showCombined ? (
+              /* ── Combined single chart ── */
               <div className="border border-indigo-200 rounded-xl overflow-hidden bg-white shadow-sm">
                 <div className="px-3 py-2.5 border-b border-indigo-100 flex items-center justify-between bg-indigo-50">
-                  <span className="text-sm font-semibold text-indigo-800">{mainChart.icon} {mainChart.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{mainChart.coverage}% cov</span>
-                    {mainChart.overallLabel && <span className="text-xs font-semibold text-indigo-700">{mainChart.overallLabel}</span>}
-                  </div>
+                  <span className="text-sm font-semibold text-indigo-800">All test types — combined ASR (average)</span>
+                  <span className="text-xs text-gray-400">{allCharts.filter(c => c.id !== 'smt').map(c => c.id.toUpperCase()).join(' + ')}</span>
                 </div>
-                <div className="p-3" style={{ minHeight: 200 }}>
-                  {renderChart(mainChart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${mainChart.id.toUpperCase()} data yet`, ciMode })}
+                <div className="p-3">
+                  {renderChart(combinedBars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: 'No data yet', ciMode })}
                 </div>
               </div>
-            )}
-
-            {/* Small charts row */}
-            {smallCharts.length > 0 && (
-              <div className={`grid gap-3 ${smallCharts.length === 3 ? 'grid-cols-3' : smallCharts.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {smallCharts.map(chart => (
-                  <div key={chart.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                    <button type="button"
-                      onClick={() => setMainChartId(chart.id)}
-                      className="w-full px-3 py-2 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer">
-                      <span className="text-xs font-semibold text-gray-700">{chart.icon} {chart.label}</span>
+            ) : (
+              <>
+                {/* Main (enlarged) chart */}
+                {mainChart && (
+                  <div className="border border-indigo-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <div className="px-3 py-2.5 border-b border-indigo-100 flex items-center justify-between bg-indigo-50">
+                      <span className="text-sm font-semibold text-indigo-800">{mainChart.label}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">{chart.coverage}% cov</span>
-                        {chart.overallLabel && <span className="text-xs font-semibold text-gray-600">{chart.overallLabel}</span>}
-                        <span className="text-xs text-indigo-400">↑ enlarge</span>
+                        <span className="text-xs text-gray-500">{mainChart.coverage}% cov</span>
+                        {mainChart.overallLabel && <span className="text-xs font-semibold text-indigo-700">{mainChart.overallLabel}</span>}
                       </div>
-                    </button>
-                    <div className="p-2">
-                      {renderChart(chart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${chart.id.toUpperCase()} data yet`, ciMode })}
+                    </div>
+                    <div className="p-3" style={{ minHeight: 200 }}>
+                      {renderChart(mainChart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${mainChart.id.toUpperCase()} data yet`, ciMode })}
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+
+                {/* Small charts row */}
+                {smallCharts.length > 0 && (
+                  <div className={`grid gap-3 ${smallCharts.length === 3 ? 'grid-cols-3' : smallCharts.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {smallCharts.map(chart => (
+                      <div key={chart.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                        <button type="button"
+                          onClick={() => setMainChartId(chart.id)}
+                          className="w-full px-3 py-2 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer">
+                          <span className="text-xs font-semibold text-gray-700">{chart.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">{chart.coverage}% cov</span>
+                            {chart.overallLabel && <span className="text-xs font-semibold text-gray-600">{chart.overallLabel}</span>}
+                            <span className="text-xs text-indigo-400">↑ enlarge</span>
+                          </div>
+                        </button>
+                        <div className="p-2">
+                          {renderChart(chart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${chart.id.toUpperCase()} data yet`, ciMode })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </>
         )
@@ -5810,10 +5859,7 @@ function TestCampaign({
                     className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-30 hover:border-gray-300">
                     ← Prev
                   </button>
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-400 rounded-full transition-all" style={{ width: `${((safeIdx + 1) / campaignSamples.length) * 100}%` }} />
-                  </div>
-                  <span className="text-xs text-gray-500 tabular-nums">{safeIdx + 1} / {campaignSamples.length}</span>
+                  <span className="text-xs text-gray-500 tabular-nums flex-1 text-center">{safeIdx + 1} / {campaignSamples.length}</span>
                   <button type="button" onClick={goNext} disabled={safeIdx === campaignSamples.length - 1}
                     className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-30 hover:border-gray-300">
                     Next →
