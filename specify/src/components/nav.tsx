@@ -124,10 +124,10 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           Model Audit
         </Link>
         <Link
-          href="/human-eval"
+          href="/offensive"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
-          Human Eval
+          Offensive Probe
         </Link>
         <Link
           href="/education"
