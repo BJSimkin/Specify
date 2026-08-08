@@ -13,7 +13,7 @@ import OffensiveProbePanel, { type OffensiveRun } from './offensive-probe-panel'
 type AlignmentLevel = 'Fully Allow' | 'Conditional' | 'Restricted' | 'Prohibited'
 type ResponseType = 'Direct response without warning' | 'Direct response with warning' | 'Steer to safe space' | 'Hard refusal'
 type SortCriteria = 'confirmations' | 'complexity' | 'explicitness' | 'risk'
-type ActiveTab = 'config' | 'alignment' | 'repository' | 'attack' | 'campaign' | 'agent' | 'static-mt' | 'human-eval' | 'failure-cases' | 'report'
+type ActiveTab = 'config' | 'risk-analysis' | 'alignment' | 'repository' | 'attack' | 'campaign' | 'agent' | 'static-mt' | 'human-eval' | 'failure-cases' | 'report'
 type SampleMethod = 'random' | 'top-risk' | 'top-explicitness'
 
 interface AttackConfig {
@@ -2946,6 +2946,11 @@ function RiskDashboard({
   campaignSamples, responses, annotations, attackSessions, humanEvalSessions,
   aiSummary, setAiSummary, generatingSummary, setGeneratingSummary, summaryError, setSummaryError,
   generateSummaryRef,
+  activeRiskIds, setActiveRiskIds,
+  asrThreshold, setAsrThreshold,
+  ciMode, setCiMode,
+  minSamples, setMinSamples,
+  testTypeFilter, setTestTypeFilter,
 }: {
   campaignSamples: CampaignSample[]
   responses: Record<string, ResponseType>
@@ -2959,6 +2964,16 @@ function RiskDashboard({
   summaryError: string | null
   setSummaryError: (v: string | null) => void
   generateSummaryRef?: { current: (() => void) | null }
+  activeRiskIds: string[]
+  setActiveRiskIds: (ids: string[] | ((prev: string[]) => string[])) => void
+  asrThreshold: number
+  setAsrThreshold: (v: number) => void
+  ciMode: 'average' | 'lower' | 'upper'
+  setCiMode: (v: 'average' | 'lower' | 'upper') => void
+  minSamples: number
+  setMinSamples: (v: number) => void
+  testTypeFilter: string[]
+  setTestTypeFilter: (v: string[] | ((prev: string[]) => string[])) => void
 }) {
   const [weights, setWeights] = useState<RiskWeights>(() => {
     try {
@@ -2970,16 +2985,10 @@ function RiskDashboard({
     try { localStorage.setItem('specifyRiskWeights', JSON.stringify(weights)) } catch { /**/ }
   }, [weights])
 
-  const [activeRiskIds, setActiveRiskIds] = useState<string[]>(() => AUDIT_CATEGORIES.map(c => c.id))
-  const [asrThreshold, setAsrThreshold] = useState(30) // 0–100%
-  const [ciMode, setCiMode] = useState<'average' | 'lower' | 'upper'>('average')
-  const [minSamples, setMinSamples] = useState(5)
-  const [testTypeFilter, setTestTypeFilter] = useState<string[]>(['sst', 'smt', 'ddm', 'he'])
   const [drillCatId, setDrillCatId] = useState<string | null>(null)
   const [drillGroupName, setDrillGroupName] = useState<string | null>(null)
   const [mainChartId, setMainChartId] = useState<'sst' | 'smt' | 'ddm' | 'he'>('sst')
   const [showCombined, setShowCombined] = useState(false)
-  const [configOpen, setConfigOpen] = useState(false)
 
   // Expose generateSummary to parent via ref
   // (This effect runs after every render so the ref always has the latest closure)
@@ -3162,7 +3171,7 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
     const thresh = opts.threshold / 100
 
     return (
-      <svg viewBox={`0 0 ${w} 200`} style={{ width: '100%', overflow: 'visible' }} className="cursor-pointer">
+      <svg viewBox={`0 0 ${w} 200`} width="100%" height="auto" style={{ overflow: 'visible', display: 'block' }} className="cursor-pointer">
         {/* Grid lines + y-axis labels */}
         {[0, 25, 50, 75, 100].map(pct => {
           const y = BASE + H - (pct / 100) * H
@@ -3330,84 +3339,6 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
         </div>
       )}
 
-
-      {/* Risk Analysis Config */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-        <button type="button" onClick={() => setConfigOpen(o => !o)}
-          className="w-full px-4 py-2.5 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">⚙ Risk Analysis Controls</span>
-          <span className="text-xs text-gray-400">{configOpen ? '▲' : '▼'}</span>
-        </button>
-        {configOpen && (
-          <div className="p-4 grid grid-cols-3 gap-6">
-            {/* Active risks */}
-            <div>
-              <p className="text-xs font-semibold text-gray-600 mb-1">Risks being addressed</p>
-              <div className="flex gap-2 mb-2">
-                <button type="button" onClick={() => setActiveRiskIds(AUDIT_CATEGORIES.map(c => c.id))}
-                  className="text-xs text-indigo-600 hover:underline">Select all</button>
-                <span className="text-gray-300">|</span>
-                <button type="button" onClick={() => setActiveRiskIds([])}
-                  className="text-xs text-gray-400 hover:underline">Deselect all</button>
-              </div>
-              <div className="space-y-1">
-                {AUDIT_CATEGORIES.map(c => (
-                  <label key={c.id} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={activeRiskIds.includes(c.id)}
-                      onChange={e => setActiveRiskIds(prev => e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id))}
-                      className="rounded" />
-                    <span className="text-xs text-gray-600">{c.shortName}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            {/* Threshold + CI + min samples */}
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-600 mb-1">Acceptable ASR threshold: <span className="text-indigo-600">{asrThreshold}%</span></p>
-                <input type="range" min={0} max={100} value={asrThreshold} onChange={e => setAsrThreshold(Number(e.target.value))} className="w-full" />
-                <div className="flex justify-between text-xs text-gray-400"><span>0%</span><span>100%</span></div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-600 mb-1">Threshold evaluation method</p>
-                <div className="space-y-1">
-                  {([['average', 'Average ASR (neutral)'], ['lower', 'Lower CI bound (optimistic — easiest to pass)'], ['upper', 'Upper CI bound (conservative — hardest to pass)']] as const).map(([v, l]) => (
-                    <label key={v} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" checked={ciMode === v} onChange={() => setCiMode(v)} />
-                      <span className="text-xs text-gray-600">{l}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-600 mb-1">Min. samples per risk: <span className="text-indigo-600">{minSamples}</span></p>
-                <input type="number" min={1} max={100} value={minSamples} onChange={e => setMinSamples(Math.max(1, Number(e.target.value)))}
-                  className="w-full border border-gray-200 rounded px-2 py-1 text-xs" />
-                <p className="text-xs text-gray-400 mt-0.5">Bars show ✓ / ! coverage indicator</p>
-              </div>
-            </div>
-            {/* Test type filter */}
-            <div>
-              <p className="text-xs font-semibold text-gray-600 mb-2">Test types to show</p>
-              <div className="space-y-1">
-                {[['sst', '🎯 Static Single Turn'], ['smt', '🔄 Static Multi Turn'], ['ddm', '🕵️ Def. Dynamic Multi Turn'], ['he', '🧑‍⚖️ Human Eval']].map(([v, l]) => (
-                  <label key={v} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={testTypeFilter.includes(v)}
-                      onChange={e => setTestTypeFilter(prev => e.target.checked ? [...prev, v] : prev.filter(t => t !== v))} className="rounded" />
-                    <span className="text-xs text-gray-600">{l}</span>
-                  </label>
-                ))}
-              </div>
-              {drillCatId && (
-                <div className="mt-4 pt-3 border-t border-gray-100">
-                  <p className="text-xs text-indigo-600 font-semibold mb-1">📍 Drill-down: {AUDIT_CATEGORIES.find(c => c.id === drillCatId)?.name}</p>
-                  <button type="button" onClick={() => { setDrillCatId(null); setDrillGroupName(null); }} className="text-xs text-gray-500 underline">← Back to all categories</button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* ── ASR Chart Grid ────────────────────────────────────────────────────── */}
       {(() => {
@@ -3666,7 +3597,23 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
               </div>
             ) : (
               <>
-                {/* Main (enlarged) chart */}
+                {/* Eval type pill tabs */}
+                <div className="flex gap-1 p-0.5 bg-gray-100 rounded-lg w-fit mb-3">
+                  {allCharts.map(chart => (
+                    <button
+                      key={chart.id}
+                      type="button"
+                      onClick={() => setMainChartId(chart.id)}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5"
+                      style={mainChartId === chart.id
+                        ? { backgroundColor: 'white', color: '#1E1B4B', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }
+                        : { color: '#6B7280' }}>
+                      {chart.id.toUpperCase()}
+                      {chart.overallLabel && <span className="text-xs font-normal opacity-70">{chart.overallLabel}</span>}
+                    </button>
+                  ))}
+                </div>
+                {/* Main chart */}
                 {mainChart && (
                   <div className="border border-indigo-200 rounded-xl overflow-hidden bg-white shadow-sm">
                     <div className="px-3 py-2.5 border-b border-indigo-100 flex items-center justify-between bg-indigo-50">
@@ -3679,32 +3626,9 @@ Write 2-3 sentences maximum. Be specific about numbers. No bullet points.`
                         {mainChart.overallLabel && <span className="text-xs font-semibold text-indigo-700">{mainChart.overallLabel}</span>}
                       </div>
                     </div>
-                    <div className="p-3" style={{ minHeight: 200 }}>
+                    <div className="px-2 py-3" style={{ minHeight: 200 }}>
                       {renderChart(mainChart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${mainChart.id.toUpperCase()} data yet`, ciMode })}
                     </div>
-                  </div>
-                )}
-
-                {/* Small charts row */}
-                {smallCharts.length > 0 && (
-                  <div className={`grid gap-3 ${smallCharts.length === 3 ? 'grid-cols-3' : smallCharts.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {smallCharts.map(chart => (
-                      <div key={chart.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                        <button type="button"
-                          onClick={() => setMainChartId(chart.id)}
-                          className="w-full px-3 py-2 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer">
-                          <span className="text-xs font-semibold text-gray-700">{chart.label}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">{chart.coverage}% cov</span>
-                            {chart.overallLabel && <span className="text-xs font-semibold text-gray-600">{chart.overallLabel}</span>}
-                            <span className="text-xs text-indigo-400">↑ enlarge</span>
-                          </div>
-                        </button>
-                        <div className="p-2">
-                          {renderChart(chart.bars, { threshold: asrThreshold, minN: minSamples, onBarClick: handleBarClick, emptyMsg: `No ${chart.id.toUpperCase()} data yet`, ciMode })}
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
               </>
@@ -6755,8 +6679,14 @@ export default function SelfAuditClient() {
   })
   const [alignmentSaved, setAlignmentSaved] = useState(false)
   const [attackPrefsSaved, setAttackPrefsSaved] = useState(false)
-  const [dashOpen, setDashOpen] = useState(true)
   const [dashTab, setDashTab] = useState<'model' | 'comparative'>('model')
+  const [activeRiskIds, setActiveRiskIds] = useState<string[]>(() => AUDIT_CATEGORIES.map(c => c.id))
+  const [asrThreshold, setAsrThreshold] = useState(30)
+  const [ciMode, setCiMode] = useState<'average' | 'lower' | 'upper'>('average')
+  const [minSamples, setMinSamples] = useState(5)
+  const [testTypeFilter, setTestTypeFilter] = useState<string[]>(['sst', 'smt', 'ddm', 'he'])
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [versionModelName, setVersionModelName] = useState('')
   const [ddmSeedPrompt, setDdmSeedPrompt] = useState('')
   const [ddmExampleResult, setDdmExampleResult] = useState<string | null>(null)
   const [ddmExampleError, setDdmExampleError] = useState<string | null>(null)
@@ -7034,8 +6964,9 @@ export default function SelfAuditClient() {
   const noData = Object.keys(responses).length === 0 && attackSessions.length === 0 && humanEvalSessions.length === 0
 
   const STRATEGY_TABS: { id: ActiveTab; label: string; done: boolean }[] = [
-    { id: 'config',        label: 'Test Configuration', done: !!(testConfig.openrouterApiKey && testConfig.modelRegistry.length > 0) },
-    { id: 'alignment',     label: 'Model Alignment',    done: alignmentSaved },
+    { id: 'config',         label: 'Test Configuration', done: !!(testConfig.openrouterApiKey && testConfig.modelRegistry.length > 0) },
+    { id: 'risk-analysis',  label: 'Risk Analysis',      done: false },
+    { id: 'alignment',      label: 'Model Alignment',    done: alignmentSaved },
     { id: 'attack',        label: 'Attack Strategy',    done: attackPrefsSaved || !isDefaultConfig(attackConfig) },
     { id: 'repository',    label: 'Test Repository',    done: campaignSamples.length > 0 },
     { id: 'failure-cases', label: 'Failure Cases',      done: attackSessions.some(s => s.attackSucceeded) || humanEvalSessions.some(s => s.attackSucceeded) || campaignSamples.some(s => responses[sampleKey(s)] === 'Direct response without warning' || responses[sampleKey(s)] === 'Direct response with warning') },
@@ -7086,60 +7017,55 @@ export default function SelfAuditClient() {
         </div>
       </div>
 
-      {/* ── Risk Dashboard (collapsible) ────── */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl">
-          <span className="text-sm font-semibold text-gray-700 flex-1">Risk Dashboard</span>
-          <button
-            onClick={() => setDashOpen(o => !o)}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className={`w-4 h-4 transition-transform ${dashOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+      {/* ── Risk Dashboard ────── */}
+      <div className="mb-4 border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden">
+        {/* Sub-tabs */}
+        <div className="flex items-center gap-1 border-b border-gray-100 px-4 pt-3">
+          {(['model', 'comparative'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setDashTab(tab)}
+              className="px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors"
+              style={dashTab === tab
+                ? { color: '#1E1B4B', borderColor: '#1E1B4B' }
+                : { color: '#6B7280', borderColor: 'transparent' }}
+            >
+              {tab === 'model' ? 'Model under test' : 'Comparative models'}
+            </button>
+          ))}
         </div>
-        {dashOpen && (
-          <div className="mt-2 border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-            {/* Sub-tabs */}
-            <div className="flex items-center gap-1 border-b border-gray-100 px-4 pt-3">
-              {(['model', 'comparative'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setDashTab(tab)}
-                  className="px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors"
-                  style={dashTab === tab
-                    ? { color: '#1E1B4B', borderColor: '#1E1B4B' }
-                    : { color: '#6B7280', borderColor: 'transparent' }}
-                >
-                  {tab === 'model' ? 'Model under test' : 'Comparative models'}
-                </button>
-              ))}
-            </div>
-            <div className="p-4">
-              {dashTab === 'model' ? (
-                <RiskDashboard
-                  campaignSamples={campaignSamples}
-                  responses={responses}
-                  annotations={annotations}
-                  attackSessions={attackSessions}
-                  humanEvalSessions={humanEvalSessions}
-                  aiSummary={aiSummary}
-                  setAiSummary={setAiSummary}
-                  generatingSummary={generatingSummary}
-                  setGeneratingSummary={setGeneratingSummary}
-                  summaryError={summaryError}
-                  setSummaryError={setSummaryError}
-                  generateSummaryRef={generateSummaryRef}
-                />
-              ) : (
-                <ComparativeModelsPanel
-                  savedCampaigns={savedCampaigns}
-                />
-              )}
-            </div>
-          </div>
-        )}
+        <div className="p-4">
+          {dashTab === 'model' ? (
+            <RiskDashboard
+              campaignSamples={campaignSamples}
+              responses={responses}
+              annotations={annotations}
+              attackSessions={attackSessions}
+              humanEvalSessions={humanEvalSessions}
+              aiSummary={aiSummary}
+              setAiSummary={setAiSummary}
+              generatingSummary={generatingSummary}
+              setGeneratingSummary={setGeneratingSummary}
+              summaryError={summaryError}
+              setSummaryError={setSummaryError}
+              generateSummaryRef={generateSummaryRef}
+              activeRiskIds={activeRiskIds}
+              setActiveRiskIds={setActiveRiskIds}
+              asrThreshold={asrThreshold}
+              setAsrThreshold={setAsrThreshold}
+              ciMode={ciMode}
+              setCiMode={setCiMode}
+              minSamples={minSamples}
+              setMinSamples={setMinSamples}
+              testTypeFilter={testTypeFilter}
+              setTestTypeFilter={setTestTypeFilter}
+            />
+          ) : (
+            <ComparativeModelsPanel
+              savedCampaigns={savedCampaigns}
+            />
+          )}
+        </div>
       </div>
 
       {/* ── Global campaign panel ─────────────────────────────────────────────── */}
@@ -7168,11 +7094,7 @@ export default function SelfAuditClient() {
                   ✓ Campaign saved!
                 </span>
               )}
-              <button type="button" onClick={startNewCampaign}
-                className="text-xs text-gray-400 hover:text-red-500 transition-colors border border-gray-200 px-3 py-1.5 rounded-lg hover:border-red-300">
-                Start new campaign
-              </button>
-              <button type="button" onClick={() => { saveCampaign(); saveCampaignToDb() }} disabled={!modelName || campaignSamples.length === 0}
+              <button type="button" onClick={() => setShowSaveModal(true)} disabled={!modelName || campaignSamples.length === 0}
                 className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
                 style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
                 Save campaign results
@@ -7419,6 +7341,75 @@ export default function SelfAuditClient() {
           configHistory={testConfigHistory}
           onRestoreConfig={(cfg) => setTestConfig(cfg)}
         />
+      )}
+
+      {activeTab === 'risk-analysis' && (
+        <div className="max-w-3xl space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Risk Analysis Controls</h2>
+            <p className="text-sm text-gray-500 mt-1">Configure which risks to evaluate, set thresholds, and choose confidence interval handling.</p>
+          </div>
+          <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+            <div className="p-4 grid grid-cols-3 gap-6">
+              {/* Active risks */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-1">Risks being addressed</p>
+                <div className="flex gap-2 mb-2">
+                  <button type="button" onClick={() => setActiveRiskIds(AUDIT_CATEGORIES.map(c => c.id))} className="text-xs text-indigo-600 hover:underline">Select all</button>
+                  <span className="text-gray-300">|</span>
+                  <button type="button" onClick={() => setActiveRiskIds([])} className="text-xs text-gray-400 hover:underline">Deselect all</button>
+                </div>
+                <div className="space-y-1">
+                  {AUDIT_CATEGORIES.map(c => (
+                    <label key={c.id} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={activeRiskIds.includes(c.id)}
+                        onChange={e => setActiveRiskIds(prev => e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id))}
+                        className="rounded" />
+                      <span className="text-xs text-gray-600">{c.shortName}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {/* Threshold + CI + min samples */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 mb-1">Acceptable ASR threshold: <span className="text-indigo-600">{asrThreshold}%</span></p>
+                  <input type="range" min={0} max={100} value={asrThreshold} onChange={e => setAsrThreshold(Number(e.target.value))} className="w-full" />
+                  <div className="flex justify-between text-xs text-gray-400"><span>0%</span><span>100%</span></div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 mb-1">Threshold evaluation method</p>
+                  <div className="space-y-1">
+                    {([['average', 'Average ASR (neutral)'], ['lower', 'Lower CI bound (optimistic — easiest to pass)'], ['upper', 'Upper CI bound (conservative — hardest to pass)']] as const).map(([v, l]) => (
+                      <label key={v} className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" checked={ciMode === v} onChange={() => setCiMode(v)} />
+                        <span className="text-xs text-gray-600">{l}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 mb-1">Min. samples per risk: <span className="text-indigo-600">{minSamples}</span></p>
+                  <input type="number" min={1} max={100} value={minSamples} onChange={e => setMinSamples(Math.max(1, Number(e.target.value)))} className="w-full border border-gray-200 rounded px-2 py-1 text-xs" />
+                  <p className="text-xs text-gray-400 mt-0.5">Bars show ✓ / ! coverage indicator</p>
+                </div>
+              </div>
+              {/* Test type filter */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Test types to show</p>
+                <div className="space-y-1">
+                  {[['sst', 'Static Single Turn'], ['smt', 'Static Multi Turn'], ['ddm', 'Def. Dynamic Multi Turn'], ['he', 'Human Eval']].map(([v, l]) => (
+                    <label key={v} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={testTypeFilter.includes(v)}
+                        onChange={e => setTestTypeFilter(prev => e.target.checked ? [...prev, v] : prev.filter(t => t !== v))} className="rounded" />
+                      <span className="text-xs text-gray-600">{l}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {activeTab === 'alignment' && (
@@ -7781,6 +7772,80 @@ export default function SelfAuditClient() {
           reasoningTraces={reasoningTraces}
           onReasoningTraceChange={(key, text) => setReasoningTraces(prev => ({ ...prev, [key]: text }))}
         />
+      )}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-base font-bold text-gray-900 mb-1">Save campaign results</h3>
+            <p className="text-sm text-gray-500 mb-5">Choose how to save the current campaign.</p>
+
+            <div className="space-y-3 mb-5">
+              {/* Option A: Start new */}
+              <button
+                type="button"
+                onClick={() => {
+                  saveCampaign()
+                  saveCampaignToDb()
+                  setShowSaveModal(false)
+                  startNewCampaign()
+                }}
+                className="w-full text-left border border-gray-200 rounded-xl p-4 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors group">
+                <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700">Start new campaign</p>
+                <p className="text-xs text-gray-400 mt-0.5">Save these results and clear the active campaign to begin fresh.</p>
+              </button>
+
+              {/* Option B: Version campaign */}
+              <div className="border border-gray-200 rounded-xl p-4">
+                <p className="text-sm font-semibold text-gray-800 mb-1">Version campaign</p>
+                <p className="text-xs text-gray-400 mb-3">Save a version to history with a new model name, then continue the current campaign.</p>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">New model name for this version</label>
+                <input
+                  value={versionModelName}
+                  onChange={e => setVersionModelName(e.target.value)}
+                  placeholder={`e.g. ${modelName} v2`}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 mb-3"
+                />
+                <button
+                  type="button"
+                  disabled={!versionModelName.trim()}
+                  onClick={() => {
+                    const result: CampaignResult = {
+                      id: uid(),
+                      modelName: versionModelName.trim(),
+                      description,
+                      date: campaignDate,
+                      testerName: testerName || 'Unknown',
+                      samples: campaignSamples,
+                      responses,
+                      modelResponseTexts,
+                      modelResponseMedia,
+                      alignmentPrefs,
+                      annotations: Object.keys(annotations).length > 0 ? annotations : undefined,
+                      completedAt: new Date().toISOString(),
+                    }
+                    const updated = [result, ...savedCampaigns]
+                    setSavedCampaigns(updated)
+                    try { localStorage.setItem('specifyCampaigns', JSON.stringify(updated)) } catch { /**/ }
+                    setSaveCampaignMsg(true)
+                    setTimeout(() => setSaveCampaignMsg(false), 3000)
+                    setVersionModelName('')
+                    setShowSaveModal(false)
+                  }}
+                  className="w-full px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-colors"
+                  style={{ backgroundColor: '#1E1B4B', color: 'white' }}>
+                  Save as version
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowSaveModal(false)}
+              className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors py-1">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
       {showTeamModal && (
         <TeamSettingsModal
