@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequel — Brand Identity v11</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,700&family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300;1,400;1,600;1,700&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  /* ── CREAM ── */
+  --bone:      #F0ECE4;
+  --surface:   #EAE5DC;
+  --linen:     #E0D9CC;
+  --rule:      #D4CFBF;
+  --rule-lt:   #DDD8CC;
+  --sepia:     #8A8478;
+  --dust:      #B4AEA4;
+  --ink:       #3A352C;
+  --body:      #6A6458;
+
+  /* ── GREEN ── */
+  --grove:     #1D3228;   /* deep forest — cover, dark surfaces */
+  --fern:      #2C4C3A;   /* elevated dark */
+  --moss:      #3E6649;   /* mid green — borders on dark */
+  --sage:      #7AAA84;   /* muted text on dark */
+  --mint:      #B4D4BA;   /* secondary on dark */
+  --sage-lo:   rgba(62,102,73,0.10);
+
+  /* ── EMBER ── */
+  --ember:     #E8622A;
+  --ember-lo:  rgba(232,98,42,0.09);
+  --ember-mid: rgba(232,98,42,0.18);
+
+  /* ── STRATA (mark) ── */
+  --s0:  #E2DDD4;
+  --s1:  #D8D3C8;
+  --s2:  #CECAB8;
+  --s3:  #C4C0AC;
+  --s4:  #B8B4A0;
+
+  /* ── STATUS ── */
+  --pass:  #4A8E58;
+  --fail:  #E8622A;
+  --warn:  #C8900A;
+  --run:   #6878A8;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bone);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ══════════════════════════════
+   COVER — deep forest green
+══════════════════════════════ */
+.cover {
+  background: var(--grove);
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 52px 72px;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--fern);
+}
+
+/* Subtle topographic rings */
+.cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-radial-gradient(ellipse at 20% 70%, transparent 0, transparent 52px, rgba(44,76,58,0.4) 53px, transparent 54px),
+    repeating-radial-gradient(ellipse at 80% 30%, transparent 0, transparent 68px, rgba(44,76,58,0.3) 69px, transparent 70px);
+  pointer-events: none;
+}
+
+.cover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative; z-index: 1;
+}
+
+.cv-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+
+.cv-version {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--moss);
+  letter-spacing: 0.12em;
+}
+
+.cover-center {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 32px;
+  position: relative; z-index: 1;
+}
+
+.cover-tag {
+  font-family: 'Nunito', sans-serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 17px;
+  color: var(--sage);
+  line-height: 1.72;
+  max-width: 440px;
+  /* Border-left aligns with the left edge of the SVG bands (x=14).
+     The SVG itself has no left margin, so the tag sits flush left. */
+  margin-left: 0;
+  border-left: 2px solid var(--ember);
+  padding-left: 18px;
+}
+
+.cover-tag em { color: var(--bone); font-style: normal; font-weight: 600; }
+
+.cover-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  position: relative; z-index: 1;
+  padding-top: 24px;
+  border-top: 1px solid var(--fern);
+}
+
+.cv-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--moss);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════
+   SECTIONS — alternate bg
+══════════════════════════════ */
+section {
+  padding: 80px 72px;
+  border-bottom: 1px solid var(--rule-lt);
+}
+
+/* Every other section gets a very light green tint */
+section.tinted {
+  background: #EDF0EB;   /* bone with the faintest green cast */
+}
+
+.sec-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 56px;
+  margin-bottom: 52px;
+}
+
+.sec-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--ember);
+  letter-spacing: 0.18em;
+  display: block;
+  margin-bottom: 6px;
+  padding-top: 6px;
+}
+
+.sec-cat {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--sepia);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.9;
+}
+
+h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 44px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.05;
+  margin-bottom: 20px;
+}
+
+h3 {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--ember);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin: 44px 0 16px;
+}
+
+h3:first-of-type { margin-top: 0; }
+
+.lead {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--body);
+  max-width: 580px;
+  line-height: 1.72;
+  margin-bottom: 28px;
+}
+
+.body-copy {
+  font-size: 13px;
+  color: var(--sepia);
+  max-width: 560px;
+  line-height: 1.78;
+  margin-bottom: 14px;
+}
+
+/* ══════════════════════════════
+   MARK SHOWCASE
+══════════════════════════════ */
+.mark-showcase {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 48px;
+}
+
+.mark-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.mark-cell-lbl {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sepia);
+}
+
+/* Mark size strip */
+.mark-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  padding: 40px;
+  background: var(--grove);
+  border-radius: 4px;
+}
+
+.msu { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.msu-lbl { font-family:'DM Mono',monospace; font-size:9px; color:var(--moss); letter-spacing:0.1em; }
+
+/* ══════════════════════════════
+   WORDMARK CELLS
+══════════════════════════════ */
+.wm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-bottom: 48px;
+}
+
+.wc {
+  padding: 52px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 180px;
+  gap: 20px;
+}
+
+.wc-bone  { background: var(--bone); border: 1px solid var(--rule-lt); }
+.wc-grove { background: var(--grove); }
+.wc-ember { background: var(--ember); }
+.wc-fern  { background: var(--fern); }
+
+.wc-lbl {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  align-self: flex-end;
+}
+
+.wc-bone  .wc-lbl { color: var(--dust); }
+.wc-grove .wc-lbl { color: var(--moss); }
+.wc-ember .wc-lbl { color: rgba(30,25,20,0.35); }
+.wc-fern  .wc-lbl { color: var(--moss); }
+
+/* ══════════════════════════════
+   STRATA TABLE
+══════════════════════════════ */
+.strata-diagram { width:100%; margin-bottom:56px; }
+
+.stratum {
+  display: grid;
+  grid-template-columns: 140px 1fr 120px;
+  align-items: center;
+  border-bottom: 1px solid var(--rule-lt);
+  position: relative;
+}
+
+.stratum:first-child { border-top: 1px solid var(--rule-lt); }
+
+.stratum::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+}
+
+.s-l1::before { background: var(--s1); }
+.s-l2::before { background: var(--ember); opacity:0.5; }
+.s-l3::before { background: var(--pass); opacity:0.7; }
+.s-l4::before { background: var(--grove); opacity:0.5; }
+
+.stratum-level {
+  padding: 24px 28px 24px 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sepia);
+  border-right: 1px solid var(--rule-lt);
+}
+
+.stratum-level span {
+  display: block;
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: var(--ink);
+  letter-spacing: 0;
+  text-transform: none;
+  margin-bottom: 4px;
+}
+
+.stratum-content { padding: 24px 32px; }
+.stratum-title { font-family:'Inter',sans-serif; font-weight:600; font-size:13px; color:var(--ink); margin-bottom:6px; }
+.stratum-desc  { font-size:12px; color:var(--sepia); line-height:1.65; max-width:440px; }
+
+.stratum-tests {
+  padding: 24px 0 24px 20px;
+  border-left: 1px solid var(--rule-lt);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--sepia);
+  letter-spacing: 0.06em;
+  line-height: 2.2;
+}
+
+/* ══════════════════════════════
+   PALETTE
+══════════════════════════════ */
+.pal-bar { display:flex; height:8px; border-radius:4px; overflow:hidden; margin-bottom:32px; }
+.pb { flex:1; }
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 2px;
+  margin-bottom: 40px;
+}
+
+.sw { display:flex; flex-direction:column; }
+.sw-block { height:72px; }
+.sw-data { padding:12px 14px; background:var(--surface); border:1px solid var(--rule-lt); border-top:none; }
+.sw-name { font-family:'Playfair Display',serif; font-size:14px; color:var(--ink); margin-bottom:3px; }
+.sw-hex  { font-family:'DM Mono',monospace; font-size:10px; color:var(--sepia); letter-spacing:0.06em; }
+.sw-role { font-size:11px; color:var(--sepia); margin-top:4px; }
+
+.status-row { display:flex; gap:2px; flex-wrap:wrap; margin-top:20px; }
+
+.st {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 18px; background:var(--surface);
+  border:1px solid var(--rule-lt);
+  font-family:'DM Mono',monospace; font-size:11px; letter-spacing:0.06em;
+  position:relative;
+}
+
+.st::after { content:''; position:absolute; top:0;left:0;bottom:0;width:2px; }
+.st-pass::after { background:var(--pass); }
+.st-fail::after { background:var(--fail); }
+.st-warn::after { background:var(--warn); }
+.st-run::after  { background:var(--run); }
+
+.st-pass { color:var(--pass); }
+.st-fail { color:var(--fail); }
+.st-warn { color:var(--warn); }
+.st-run  { color:var(--run); }
+.st-hex  { color:var(--dust); font-size:10px; }
+
+/* ══════════════════════════════
+   TYPOGRAPHY
+══════════════════════════════ */
+.type-table { width:100%; }
+
+.type-row {
+  display:grid; grid-template-columns:140px 1fr;
+  gap:32px; padding:28px 0;
+  border-bottom:1px solid var(--rule-lt);
+  align-items:start;
+}
+
+.type-row:last-child { border-bottom:none; }
+
+.type-meta {
+  font-family:'DM Mono',monospace; font-size:9px;
+  color:var(--dust); letter-spacing:0.12em;
+  text-transform:uppercase; line-height:1.9; padding-top:4px;
+}
+
+.t-disp { font-family:'Playfair Display',serif; font-size:56px; letter-spacing:-0.03em; line-height:0.93; color:var(--ink); }
+.t-h1   { font-family:'Playfair Display',serif; font-size:30px; letter-spacing:-0.02em; color:var(--ink); }
+.t-h2   { font-family:'Playfair Display',serif; font-size:20px; color:var(--ink); }
+.t-body { font-family:'Inter',sans-serif; font-size:14px; color:var(--body); line-height:1.72; max-width:460px; }
+.t-mono { font-family:'DM Mono',monospace; font-size:12px; color:var(--sepia); line-height:1.75; }
+.t-mono .ok  { color:var(--pass); }
+.t-mono .err { color:var(--fail); }
+.t-mono .wn  { color:var(--warn); }
+.t-mono .dim { color:var(--dust); }
+
+/* ══════════════════════════════
+   UI ELEMENTS
+══════════════════════════════ */
+.ui-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:28px; }
+
+.btn-primary {
+  display:inline-flex; align-items:center; gap:8px;
+  background:var(--ember); color:white;
+  font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
+  padding:11px 24px; border:none; border-radius:4px; cursor:pointer;
+}
+
+.btn-grove {
+  display:inline-flex; align-items:center; gap:8px;
+  background:var(--grove); color:var(--mint);
+  font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
+  padding:11px 24px; border:none; border-radius:4px; cursor:pointer;
+}
+
+.btn-secondary {
+  display:inline-flex; align-items:center; gap:8px;
+  background:transparent; color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
+  padding:10px 24px; border:1px solid var(--rule); border-radius:4px; cursor:pointer;
+}
+
+.btn-ghost {
+  display:inline-flex; align-items:center;
+  background:var(--surface); color:var(--sepia);
+  font-family:'DM Mono',monospace; font-size:11px;
+  padding:10px 18px; border:1px solid var(--rule-lt); border-radius:4px; cursor:pointer;
+}
+
+.tag {
+  font-family:'DM Mono',monospace; font-size:9px;
+  letter-spacing:0.1em; text-transform:uppercase;
+  padding:4px 10px; border-radius:3px; font-weight:500;
+}
+
+.tag-ember { background:var(--ember-lo); color:var(--ember); border:1px solid rgba(232,98,42,0.15); }
+.tag-grove { background:var(--sage-lo); color:#2A5A38; border:1px solid rgba(62,102,73,0.18); }
+.tag-pass  { background:rgba(74,142,88,0.1); color:#2A6A38; border:1px solid rgba(74,142,88,0.2); }
+.tag-fail  { background:var(--ember-lo); color:var(--fail); border:1px solid rgba(232,98,42,0.15); }
+.tag-warn  { background:rgba(200,144,10,0.1); color:#8A6400; border:1px solid rgba(200,144,10,0.18); }
+.tag-soft  { background:var(--surface); color:var(--sepia); border:1px solid var(--rule-lt); }
+
+.card {
+  background:var(--bone); border:1px solid var(--rule-lt);
+  border-radius:4px; overflow:hidden;
+  max-width:460px; margin-bottom:40px;
+}
+
+.card-head {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 20px; background:var(--grove);
+}
+
+.card-title { font-family:'Inter',sans-serif; font-weight:600; font-size:12px; color:var(--mint); }
+
+.card-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:11px 20px; border-bottom:1px solid var(--rule-lt);
+}
+
+.card-row:last-child { border-bottom:none; }
+.card-name { font-family:'DM Mono',monospace; font-size:11px; color:var(--sepia); }
+.card-val  { font-family:'DM Mono',monospace; font-size:11px; font-weight:500; }
+.cv-pass { color:var(--pass); }
+.cv-fail { color:var(--fail); }
+.cv-warn { color:var(--warn); }
+
+/* ══════════════════════════════
+   VOICE
+══════════════════════════════ */
+.voice-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px; }
+@media(max-width:640px){ .voice-grid{grid-template-columns:1fr;} }
+
+.vc { padding:32px; background:var(--surface); border:1px solid var(--rule-lt); position:relative; }
+.vc::before { content:''; position:absolute; top:0;left:0;right:0;height:1px; }
+.vc-do::before   { background:var(--pass); }
+.vc-dont::before { background:var(--fail); }
+
+.vc-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:18px; margin-top:8px; }
+.vc-do   .vc-label { color:var(--pass); }
+.vc-dont .vc-label { color:var(--fail); }
+
+.vc-q {
+  font-family:'Playfair Display',serif; font-style:italic;
+  font-size:13px; color:var(--sepia); line-height:1.75;
+  margin-bottom:14px; padding-left:16px; border-left:1px solid var(--rule-lt);
+}
+
+/* ══════════════════════════════
+   PRINCIPLES — on grove
+══════════════════════════════ */
+.principles-section {
+  background: var(--grove);
+  padding: 80px 72px;
+  border-bottom: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.principles-section::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    repeating-radial-gradient(ellipse at 15% 80%, transparent 0, transparent 52px, rgba(44,76,58,0.4) 53px, transparent 54px),
+    repeating-radial-gradient(ellipse at 85% 20%, transparent 0, transparent 68px, rgba(44,76,58,0.3) 69px, transparent 70px);
+  pointer-events: none;
+}
+
+.principles-section h2 { color: var(--bone); position:relative; }
+.principles-section .lead { color: var(--sage); position:relative; }
+.principles-section .sec-cat { color: var(--moss); }
+
+.pr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:2px; position:relative; }
+
+.pr {
+  padding: 36px;
+  background: var(--fern);
+  border: 1px solid var(--moss);
+  position: relative;
+}
+
+.pr::before { content:''; position:absolute; top:0;left:0;right:0;height:1px; background:var(--ember); opacity:0.4; }
+
+.pr-num   { font-family:'DM Mono',monospace; font-size:9px; color:var(--ember); letter-spacing:0.18em; margin-bottom:14px; }
+.pr-title { font-family:'Playfair Display',serif; font-size:18px; color:var(--bone); margin-bottom:10px; line-height:1.2; }
+.pr-body  { font-size:12px; color:var(--sage); line-height:1.75; }
+
+/* ══════════════════════════════
+   MISUSE
+══════════════════════════════ */
+.misuse-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:32px; }
+.mc { background:var(--surface); border:1px solid var(--rule-lt); padding:28px 20px 16px; position:relative; border-radius:2px; }
+.mc::after { content:'✕'; position:absolute; top:10px; right:12px; color:var(--fail); font-size:11px; font-family:'DM Mono',monospace; }
+.mc-label  { font-family:'DM Mono',monospace; font-size:9px; color:var(--fail); letter-spacing:0.1em; text-transform:uppercase; margin-top:16px; display:block; }
+
+/* ══════════════════════════════
+   FOOTER — dark green
+══════════════════════════════ */
+.footer {
+  background: var(--grove);
+  padding: 32px 72px;
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:16px;
+}
+
+.footer-meta { font-family:'DM Mono',monospace; font-size:9px; color:var(--moss); letter-spacing:0.16em; text-transform:uppercase; }
+
+/* ══════════════════════════════
+   LOCKUP
+══════════════════════════════ */
+.lockup-light {
+  display:inline-flex; align-items:center; gap:18px;
+  padding:36px 48px;
+  background:var(--bone); border:1px solid var(--rule-lt);
+  border-radius:4px; margin-top:16px; margin-right:12px;
+}
+
+.lockup-dark {
+  display:inline-flex; align-items:center; gap:18px;
+  padding:36px 48px;
+  background:var(--grove);
+  border-radius:4px; margin-top:16px;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ════════ COVER — forest green ════════ -->
+<div class="cover">
+  <div class="cover-header">
+    <span class="cv-label">Sequel — Brand Identity — v11.0</span>
+    <span class="cv-version">2026</span>
+  </div>
+
+  <div class="cover-center">
+
+    <!-- Cover SVG: Dark Fern mark language as full background panel -->
+    <svg viewBox="0 0 720 340" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:760px">
+
+      <!-- ── DARK FERN MARK EXPANDED to full panel ──
+           Mirrors exactly the Dark-Fern icon: base grove green,
+           four strata bands (rounded caps top + bottom),
+           subtle band dividers, then wordmark over the top. -->
+
+      <!-- Band 1 — top, lightest -->
+      <rect x="14" y="14"  width="692" height="64" rx="14" fill="#4A7A5A" opacity="0.60"/>
+      <!-- Band 2 -->
+      <rect x="14" y="84"  width="692" height="58" rx="10" fill="#2C5040" opacity="0.75"/>
+      <!-- Band 3 -->
+      <rect x="14" y="148" width="692" height="58" rx="10" fill="#1E3A2C" opacity="0.88"/>
+      <!-- Band 4 — bottom, darkest -->
+      <rect x="14" y="212" width="692" height="84" rx="14" fill="#0E2018" opacity="1.00"/>
+
+      <!-- Topographic contour rings -->
+      <ellipse cx="160" cy="220" rx="310" ry="190" fill="none" stroke="#2A4A38" stroke-width="0.9" opacity="0.28"/>
+      <ellipse cx="160" cy="220" rx="220" ry="135" fill="none" stroke="#2A4A38" stroke-width="0.7" opacity="0.22"/>
+      <ellipse cx="160" cy="220" rx="130" ry="82"  fill="none" stroke="#2A4A38" stroke-width="0.5" opacity="0.18"/>
+      <ellipse cx="580" cy="70"  rx="260" ry="170" fill="none" stroke="#2A4A38" stroke-width="0.8" opacity="0.2"/>
+      <ellipse cx="580" cy="70"  rx="175" ry="115" fill="none" stroke="#2A4A38" stroke-width="0.6" opacity="0.16"/>
+      <ellipse cx="580" cy="70"  rx="90"  ry="60"  fill="none" stroke="#2A4A38" stroke-width="0.4" opacity="0.12"/>
+
+      <!-- Band labels — L1–L4, bigger and lighter -->
+      <text x="30" y="55"  font-family="'DM Mono',monospace" font-size="11" fill="#E0EEE6" letter-spacing="0.14em" opacity="0.9">L1</text>
+      <text x="30" y="119" font-family="'DM Mono',monospace" font-size="11" fill="#D4E6DC" letter-spacing="0.14em" opacity="0.85">L2</text>
+      <text x="30" y="183" font-family="'DM Mono',monospace" font-size="11" fill="#C8DECE" letter-spacing="0.14em" opacity="0.82">L3</text>
+      <text x="30" y="254" font-family="'DM Mono',monospace" font-size="11" fill="#B4CCBC" letter-spacing="0.14em" opacity="0.78">L4</text>
+
+      <!-- Probe line — top at y=14 (top of band 1), bottom at y=296 (bottom of band 4) -->
+      <line x1="548" y1="14" x2="548" y2="296"
+        stroke="#E8622A" stroke-width="3"
+        stroke-dasharray="5 8" opacity="0.8"/>
+
+      <!-- Probe dot — at top edge of band 1, no inner highlight -->
+      <circle cx="548" cy="14" r="9" fill="#E8622A"/>
+
+      <!-- Wordmark — back to y=240 -->
+      <text x="360" y="240"
+        font-family="'Playfair Display', serif"
+        font-weight="800"
+        font-size="168"
+        fill="#F0ECE4"
+        text-anchor="middle"
+        letter-spacing="-4"
+        opacity="0.93">sequel</text>
+
+    </svg>
+
+    <div class="cover-tag">
+      Testing AI at every level of abstraction —<br>
+      from <em>isolated model</em> to <em>deployed system</em>.
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <span class="cv-meta">© 2026 — Sequel — Confidential</span>
+    <span class="cv-meta">Brand Identity v11.0</span>
+  </div>
+</div>
+
+
+<!-- ════════ BRAND STORY ════════ -->
+<section>
+  <div class="sec-grid">
+    <div><span class="sec-num">01</span><span class="sec-cat">Brand story</span></div>
+    <div>
+      <h2>Every layer tells a different story.</h2>
+      <p class="lead">The safest-looking model in isolation can be dangerous three layers down. Sequel tests all the way through — from what a model says, to what it becomes when connected, to how it behaves inside systems at scale.</p>
+      <p class="body-copy">The logo is a geological cross-section: the word "sequel" cut through four strata, each one a level of evaluation. A vertical ember probe marks the point of measurement. The deeper you go, the more you find.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════ MARK ════════ -->
+<section class="tinted">
+  <div class="sec-grid">
+    <div><span class="sec-num">02</span><span class="sec-cat">Standalone mark</span></div>
+    <div>
+      <h2>The mark.</h2>
+      <p class="lead">Four strata, one probe, one orange dot. The mark in its primary form — light warm stone bands in a rounded square — matches the palette of the reference: quiet, tonal, refined. The dot is the only saturated element.</p>
+    </div>
+  </div>
+
+  <!-- Primary mark (matches reference) -->
+  <div class="mark-showcase">
+
+    <div class="mark-cell">
+      <svg viewBox="0 0 88 88" fill="none" style="width:88px;height:88px">
+        <rect width="88" height="88" rx="18" fill="#EAE5DC"/>
+        <rect x="9" y="9"  width="70" height="16" rx="3" fill="#E2DDD4"/>
+        <rect x="9" y="27" width="70" height="16"        fill="#D8D3C8"/>
+        <rect x="9" y="45" width="70" height="16"        fill="#CECAB8"/>
+        <rect x="9" y="63" width="70" height="16" rx="3" fill="#C4C0AC"/>
+        <line x1="9" y1="27" x2="79" y2="27" stroke="#D0CBB8" stroke-width="0.7" opacity="0.8"/>
+        <line x1="9" y1="45" x2="79" y2="45" stroke="#C8C4B0" stroke-width="0.7" opacity="0.7"/>
+        <line x1="9" y1="63" x2="79" y2="63" stroke="#C0BCA8" stroke-width="0.7" opacity="0.6"/>
+        <line x1="60" y1="9"  x2="60" y2="79" stroke="#E8622A" stroke-width="1"   stroke-dasharray="2.5 5" opacity="0.3"/>
+        <circle cx="60" cy="11" r="4.5" fill="#E8622A"/>
+        <line x1="55" y1="27" x2="65" y2="27" stroke="#E8622A" stroke-width="0.7" opacity="0.2"/>
+        <line x1="55" y1="45" x2="65" y2="45" stroke="#E8622A" stroke-width="0.7" opacity="0.18"/>
+        <line x1="55" y1="63" x2="65" y2="63" stroke="#E8622A" stroke-width="0.7" opacity="0.15"/>
+      </svg>
+      <span class="mark-cell-lbl">Primary — Bone</span>
+    </div>
+
+    <div class="mark-cell">
+      <svg viewBox="0 0 88 88" fill="none" style="width:88px;height:88px">
+        <rect width="88" height="88" rx="18" fill="#1D3228"/>
+        <rect x="9" y="9"  width="70" height="16" rx="3" fill="#2C4A3A" opacity="0.7"/>
+        <rect x="9" y="27" width="70" height="16"        fill="#244030" opacity="0.85"/>
+        <rect x="9" y="45" width="70" height="16"        fill="#1C3428" opacity="0.92"/>
+        <rect x="9" y="63" width="70" height="16" rx="3" fill="#142A20"/>
+        <line x1="9" y1="27" x2="79" y2="27" stroke="#3E6448" stroke-width="0.7" opacity="0.55"/>
+        <line x1="9" y1="45" x2="79" y2="45" stroke="#365840" stroke-width="0.7" opacity="0.45"/>
+        <line x1="9" y1="63" x2="79" y2="63" stroke="#2E4C38" stroke-width="0.7" opacity="0.4"/>
+        <line x1="60" y1="9"  x2="60" y2="79" stroke="#E8622A" stroke-width="1"   stroke-dasharray="2.5 5" opacity="0.4"/>
+        <circle cx="60" cy="11" r="4.5" fill="#E8622A"/>
+        <line x1="55" y1="27" x2="65" y2="27" stroke="#E8622A" stroke-width="0.7" opacity="0.25"/>
+        <line x1="55" y1="45" x2="65" y2="45" stroke="#E8622A" stroke-width="0.7" opacity="0.22"/>
+        <line x1="55" y1="63" x2="65" y2="63" stroke="#E8622A" stroke-width="0.7" opacity="0.18"/>
+      </svg>
+      <span class="mark-cell-lbl">Dark — Grove</span>
+    </div>
+
+    <div class="mark-cell">
+      <svg viewBox="0 0 88 88" fill="none" style="width:88px;height:88px">
+        <rect width="88" height="88" rx="18" fill="#E8622A"/>
+        <rect x="9" y="9"  width="70" height="16" rx="3" fill="rgba(30,25,20,0.10)"/>
+        <rect x="9" y="27" width="70" height="16"        fill="rgba(30,25,20,0.16)"/>
+        <rect x="9" y="45" width="70" height="16"        fill="rgba(30,25,20,0.22)"/>
+        <rect x="9" y="63" width="70" height="16" rx="3" fill="rgba(30,25,20,0.28)"/>
+        <line x1="9" y1="27" x2="79" y2="27" stroke="rgba(30,25,20,0.18)" stroke-width="0.7"/>
+        <line x1="9" y1="45" x2="79" y2="45" stroke="rgba(30,25,20,0.15)" stroke-width="0.7"/>
+        <line x1="9" y1="63" x2="79" y2="63" stroke="rgba(30,25,20,0.12)" stroke-width="0.7"/>
+        <line x1="60" y1="9"  x2="60" y2="79" stroke="rgba(30,25,20,0.3)" stroke-width="1"   stroke-dasharray="2.5 5"/>
+        <circle cx="60" cy="11" r="4.5" fill="rgba(30,25,20,0.4)"/>
+        <line x1="55" y1="27" x2="65" y2="27" stroke="rgba(30,25,20,0.2)" stroke-width="0.7"/>
+        <line x1="55" y1="45" x2="65" y2="45" stroke="rgba(30,25,20,0.17)" stroke-width="0.7"/>
+        <line x1="55" y1="63" x2="65" y2="63" stroke="rgba(30,25,20,0.14)" stroke-width="0.7"/>
+      </svg>
+      <span class="mark-cell-lbl">Reversed — Ember</span>
+    </div>
+
+    <div class="mark-cell">
+      <svg viewBox="0 0 88 88" fill="none" style="width:88px;height:88px">
+        <rect width="88" height="88" rx="18" fill="#2C4A3A"/>
+        <rect x="9" y="9"  width="70" height="16" rx="3" fill="#3A6048" opacity="0.6"/>
+        <rect x="9" y="27" width="70" height="16"        fill="#304E3E" opacity="0.75"/>
+        <rect x="9" y="45" width="70" height="16"        fill="#264234" opacity="0.88"/>
+        <rect x="9" y="63" width="70" height="16" rx="3" fill="#1C3628"/>
+        <line x1="9" y1="27" x2="79" y2="27" stroke="#4A7458" stroke-width="0.7" opacity="0.5"/>
+        <line x1="9" y1="45" x2="79" y2="45" stroke="#40684C" stroke-width="0.7" opacity="0.4"/>
+        <line x1="9" y1="63" x2="79" y2="63" stroke="#365C42" stroke-width="0.7" opacity="0.35"/>
+        <line x1="60" y1="9"  x2="60" y2="79" stroke="#E8622A" stroke-width="1"   stroke-dasharray="2.5 5" opacity="0.45"/>
+        <circle cx="60" cy="11" r="4.5" fill="#E8622A"/>
+        <line x1="55" y1="27" x2="65" y2="27" stroke="#E8622A" stroke-width="0.7" opacity="0.28"/>
+        <line x1="55" y1="45" x2="65" y2="45" stroke="#E8622A" stroke-width="0.7" opacity="0.24"/>
+        <line x1="55" y1="63" x2="65" y2="63" stroke="#E8622A" stroke-width="0.7" opacity="0.2"/>
+      </svg>
+      <span class="mark-cell-lbl">Dark — Fern</span>
+    </div>
+
+  </div>
+
+  <!-- Sizes on grove -->
+  <h3>Mark at scale</h3>
+  <div class="mark-strip">
+    <!-- 96px -->
+    <div class="msu">
+      <svg viewBox="0 0 96 96" fill="none" style="width:96px;height:96px">
+        <rect width="96" height="96" rx="20" fill="#1D3228"/>
+        <rect x="10" y="10" width="76" height="17" rx="3" fill="#2C4A3A" opacity="0.7"/>
+        <rect x="10" y="29" width="76" height="17"        fill="#244030" opacity="0.85"/>
+        <rect x="10" y="48" width="76" height="17"        fill="#1C3428" opacity="0.92"/>
+        <rect x="10" y="67" width="76" height="19" rx="3" fill="#142A20"/>
+        <line x1="10" y1="29" x2="86" y2="29" stroke="#3E6448" stroke-width="0.7" opacity="0.5"/>
+        <line x1="10" y1="48" x2="86" y2="48" stroke="#365840" stroke-width="0.7" opacity="0.4"/>
+        <line x1="10" y1="67" x2="86" y2="67" stroke="#2E4C38" stroke-width="0.7" opacity="0.35"/>
+        <line x1="65" y1="10" x2="65" y2="86" stroke="#E8622A" stroke-width="1.1" stroke-dasharray="2.5 5" opacity="0.4"/>
+        <circle cx="65" cy="12" r="4.5" fill="#E8622A"/>
+        <line x1="60" y1="29" x2="70" y2="29" stroke="#E8622A" stroke-width="0.8" opacity="0.25"/>
+        <line x1="60" y1="48" x2="70" y2="48" stroke="#E8622A" stroke-width="0.8" opacity="0.22"/>
+        <line x1="60" y1="67" x2="70" y2="67" stroke="#E8622A" stroke-width="0.8" opacity="0.18"/>
+      </svg>
+      <span class="msu-lbl">96px</span>
+    </div>
+    <!-- 64px -->
+    <div class="msu">
+      <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px">
+        <rect width="64" height="64" rx="14" fill="#1D3228"/>
+        <rect x="7" y="7"  width="50" height="11" rx="2" fill="#2C4A3A" opacity="0.7"/>
+        <rect x="7" y="20" width="50" height="11"        fill="#244030" opacity="0.85"/>
+        <rect x="7" y="33" width="50" height="11"        fill="#1C3428" opacity="0.92"/>
+        <rect x="7" y="46" width="50" height="11" rx="2" fill="#142A20"/>
+        <line x1="7" y1="20" x2="57" y2="20" stroke="#3E6448" stroke-width="0.6" opacity="0.5"/>
+        <line x1="7" y1="33" x2="57" y2="33" stroke="#365840" stroke-width="0.6" opacity="0.4"/>
+        <line x1="7" y1="46" x2="57" y2="46" stroke="#2E4C38" stroke-width="0.6" opacity="0.35"/>
+        <line x1="43" y1="7"  x2="43" y2="57" stroke="#E8622A" stroke-width="0.9" stroke-dasharray="2 4" opacity="0.4"/>
+        <circle cx="43" cy="9" r="3.5" fill="#E8622A"/>
+        <line x1="38" y1="20" x2="48" y2="20" stroke="#E8622A" stroke-width="0.7" opacity="0.22"/>
+        <line x1="38" y1="33" x2="48" y2="33" stroke="#E8622A" stroke-width="0.7" opacity="0.18"/>
+        <line x1="38" y1="46" x2="48" y2="46" stroke="#E8622A" stroke-width="0.7" opacity="0.15"/>
+      </svg>
+      <span class="msu-lbl">64px</span>
+    </div>
+    <!-- 48px -->
+    <div class="msu">
+      <svg viewBox="0 0 48 48" fill="none" style="width:48px;height:48px">
+        <rect width="48" height="48" rx="10" fill="#1D3228"/>
+        <rect x="5" y="5"  width="38" height="8" rx="1.5" fill="#2C4A3A" opacity="0.7"/>
+        <rect x="5" y="15" width="38" height="8"          fill="#244030" opacity="0.85"/>
+        <rect x="5" y="25" width="38" height="8"          fill="#1C3428" opacity="0.92"/>
+        <rect x="5" y="35" width="38" height="8" rx="1.5" fill="#142A20"/>
+        <line x1="5" y1="15" x2="43" y2="15" stroke="#3E6448" stroke-width="0.6" opacity="0.5"/>
+        <line x1="5" y1="25" x2="43" y2="25" stroke="#365840" stroke-width="0.6" opacity="0.4"/>
+        <line x1="5" y1="35" x2="43" y2="35" stroke="#2E4C38" stroke-width="0.6" opacity="0.35"/>
+        <line x1="32" y1="5"  x2="32" y2="43" stroke="#E8622A" stroke-width="0.8" stroke-dasharray="2 3.5" opacity="0.4"/>
+        <circle cx="32" cy="7" r="3" fill="#E8622A"/>
+        <line x1="28" y1="15" x2="36" y2="15" stroke="#E8622A" stroke-width="0.6" opacity="0.2"/>
+        <line x1="28" y1="25" x2="36" y2="25" stroke="#E8622A" stroke-width="0.6" opacity="0.17"/>
+        <line x1="28" y1="35" x2="36" y2="35" stroke="#E8622A" stroke-width="0.6" opacity="0.14"/>
+      </svg>
+      <span class="msu-lbl">48px</span>
+    </div>
+    <!-- 32px -->
+    <div class="msu">
+      <svg viewBox="0 0 32 32" fill="none" style="width:32px;height:32px">
+        <rect width="32" height="32" rx="7" fill="#1D3228"/>
+        <rect x="4" y="4"  width="24" height="5" rx="1.5" fill="#2C4A3A" opacity="0.7"/>
+        <rect x="4" y="11" width="24" height="5"          fill="#244030" opacity="0.85"/>
+        <rect x="4" y="18" width="24" height="5"          fill="#1C3428" opacity="0.92"/>
+        <rect x="4" y="25" width="24" height="3" rx="1.5" fill="#142A20"/>
+        <line x1="4" y1="11" x2="28" y2="11" stroke="#3E6448" stroke-width="0.5" opacity="0.5"/>
+        <line x1="4" y1="18" x2="28" y2="18" stroke="#365840" stroke-width="0.5" opacity="0.4"/>
+        <line x1="4" y1="25" x2="28" y2="25" stroke="#2E4C38" stroke-width="0.5" opacity="0.35"/>
+        <line x1="21" y1="4"  x2="21" y2="28" stroke="#E8622A" stroke-width="0.7" stroke-dasharray="1.5 3" opacity="0.4"/>
+        <circle cx="21" cy="5.5" r="2.2" fill="#E8622A"/>
+      </svg>
+      <span class="msu-lbl">32px</span>
+    </div>
+    <!-- 20px -->
+    <div class="msu">
+      <svg viewBox="0 0 20 20" fill="none" style="width:20px;height:20px">
+        <rect width="20" height="20" rx="4.5" fill="#1D3228"/>
+        <rect x="3" y="3"  width="14" height="3.5" rx="1" fill="#2C4A3A" opacity="0.7"/>
+        <rect x="3" y="8"  width="14" height="3.5"        fill="#244030" opacity="0.85"/>
+        <rect x="3" y="13" width="14" height="4"   rx="1" fill="#142A20"/>
+        <line x1="3" y1="8"  x2="17" y2="8"  stroke="#3E6448" stroke-width="0.5" opacity="0.5"/>
+        <line x1="3" y1="13" x2="17" y2="13" stroke="#365840" stroke-width="0.5" opacity="0.4"/>
+        <line x1="13" y1="3" x2="13" y2="17" stroke="#E8622A" stroke-width="0.6" stroke-dasharray="1.5 2.5" opacity="0.4"/>
+        <circle cx="13" cy="4" r="1.8" fill="#E8622A"/>
+      </svg>
+      <span class="msu-lbl">20px</span>
+    </div>
+  </div>
+
+  <!-- Lockups -->
+  <h3 style="margin-top:44px">Lockup — mark + wordmark</h3>
+
+  <div style="display:flex;flex-wrap:wrap;gap:0">
+    <div class="lockup-light">
+      <svg viewBox="0 0 48 48" fill="none" style="width:42px;height:42px">
+        <rect width="48" height="48" rx="10" fill="#EAE5DC"/>
+        <rect x="5" y="5"  width="38" height="8" rx="1.5" fill="#E2DDD4"/>
+        <rect x="5" y="15" width="38" height="8"          fill="#D8D3C8"/>
+        <rect x="5" y="25" width="38" height="8"          fill="#CECAB8"/>
+        <rect x="5" y="35" width="38" height="8" rx="1.5" fill="#C4C0AC"/>
+        <line x1="5" y1="15" x2="43" y2="15" stroke="#D0CBB8" stroke-width="0.6" opacity="0.8"/>
+        <line x1="5" y1="25" x2="43" y2="25" stroke="#C8C4B0" stroke-width="0.6" opacity="0.7"/>
+        <line x1="5" y1="35" x2="43" y2="35" stroke="#C0BCA8" stroke-width="0.6" opacity="0.6"/>
+        <line x1="32" y1="5"  x2="32" y2="43" stroke="#E8622A" stroke-width="0.8" stroke-dasharray="2 3.5" opacity="0.3"/>
+        <circle cx="32" cy="7" r="3" fill="#E8622A"/>
+        <line x1="28" y1="15" x2="36" y2="15" stroke="#E8622A" stroke-width="0.6" opacity="0.18"/>
+        <line x1="28" y1="25" x2="36" y2="25" stroke="#E8622A" stroke-width="0.6" opacity="0.15"/>
+        <line x1="28" y1="35" x2="36" y2="35" stroke="#E8622A" stroke-width="0.6" opacity="0.12"/>
+      </svg>
+      <span style="font-family:'Playfair Display',serif;font-size:32px;color:var(--ink);letter-spacing:-0.025em">sequel</span>
+    </div>
+
+    <div class="lockup-dark">
+      <svg viewBox="0 0 48 48" fill="none" style="width:42px;height:42px">
+        <rect width="48" height="48" rx="10" fill="#2C4A3A"/>
+        <rect x="5" y="5"  width="38" height="8" rx="1.5" fill="#3A6048" opacity="0.65"/>
+        <rect x="5" y="15" width="38" height="8"          fill="#304E3E" opacity="0.8"/>
+        <rect x="5" y="25" width="38" height="8"          fill="#264234" opacity="0.9"/>
+        <rect x="5" y="35" width="38" height="8" rx="1.5" fill="#1C3628"/>
+        <line x1="5" y1="15" x2="43" y2="15" stroke="#4A7458" stroke-width="0.6" opacity="0.5"/>
+        <line x1="5" y1="25" x2="43" y2="25" stroke="#405E4A" stroke-width="0.6" opacity="0.4"/>
+        <line x1="5" y1="35" x2="43" y2="35" stroke="#365240" stroke-width="0.6" opacity="0.35"/>
+        <line x1="32" y1="5"  x2="32" y2="43" stroke="#E8622A" stroke-width="0.8" stroke-dasharray="2 3.5" opacity="0.45"/>
+        <circle cx="32" cy="7" r="3" fill="#E8622A"/>
+        <line x1="28" y1="15" x2="36" y2="15" stroke="#E8622A" stroke-width="0.6" opacity="0.25"/>
+        <line x1="28" y1="25" x2="36" y2="25" stroke="#E8622A" stroke-width="0.6" opacity="0.22"/>
+        <line x1="28" y1="35" x2="36" y2="35" stroke="#E8622A" stroke-width="0.6" opacity="0.18"/>
+      </svg>
+      <span style="font-family:'Playfair Display',serif;font-size:32px;color:var(--bone);letter-spacing:-0.025em">sequel</span>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════ WORDMARK ════════ -->
+<section>
+  <div class="sec-grid">
+    <div><span class="sec-num">03</span><span class="sec-cat">Wordmark</span></div>
+    <div>
+      <h2>The wordmark.</h2>
+      <p class="lead">DM Serif Display, lowercase, always over the strata diagram. Cream on green. Ink on bone. Never set in ember orange.</p>
+    </div>
+  </div>
+
+  <div class="wm-grid">
+
+    <div class="wc wc-bone">
+      <svg viewBox="0 0 320 100" fill="none" style="width:100%">
+        <rect x="0" y="74" width="320" height="26" fill="#B8B4A0" opacity="0.28"/>
+        <rect x="0" y="51" width="320" height="23" fill="#C4C0AC" opacity="0.22"/>
+        <rect x="0" y="28" width="320" height="23" fill="#CECAB8" opacity="0.16"/>
+        <rect x="0" y="6"  width="320" height="22" fill="#D8D3C8" opacity="0.10"/>
+        <line x1="0" y1="28" x2="320" y2="28" stroke="#D0CBB8" stroke-width="0.6" opacity="0.6"/>
+        <line x1="0" y1="51" x2="320" y2="51" stroke="#C8C4B0" stroke-width="0.6" opacity="0.5"/>
+        <line x1="0" y1="74" x2="320" y2="74" stroke="#C0BCA8" stroke-width="0.6" opacity="0.45"/>
+        <text x="160" y="94" font-family="'Playfair Display',serif" font-weight="800" font-size="78" fill="#3A352C" text-anchor="middle" letter-spacing="-3" opacity="0.88">sequel</text>
+        <line x1="240" y1="2"  x2="240" y2="98" stroke="#E8622A" stroke-width="0.7" stroke-dasharray="2 4.5" opacity="0.28"/>
+        <circle cx="240" cy="4" r="2.5" fill="#E8622A" opacity="0.9"/>
+      </svg>
+      <span class="wc-lbl">Bone</span>
+    </div>
+
+    <div class="wc wc-grove">
+      <svg viewBox="0 0 320 100" fill="none" style="width:100%">
+        <rect x="0" y="74" width="320" height="26" fill="#142A20" opacity="0.8"/>
+        <rect x="0" y="51" width="320" height="23" fill="#1C3428" opacity="0.7"/>
+        <rect x="0" y="28" width="320" height="23" fill="#244030" opacity="0.5"/>
+        <rect x="0" y="6"  width="320" height="22" fill="#2C4A3A" opacity="0.35"/>
+        <line x1="0" y1="28" x2="320" y2="28" stroke="#3E6448" stroke-width="0.6" opacity="0.5"/>
+        <line x1="0" y1="51" x2="320" y2="51" stroke="#365840" stroke-width="0.6" opacity="0.4"/>
+        <line x1="0" y1="74" x2="320" y2="74" stroke="#2E4C38" stroke-width="0.6" opacity="0.35"/>
+        <text x="160" y="94" font-family="'Playfair Display',serif" font-weight="800" font-size="78" fill="#F0ECE4" text-anchor="middle" letter-spacing="-3" opacity="0.92">sequel</text>
+        <line x1="240" y1="2"  x2="240" y2="98" stroke="#E8622A" stroke-width="0.7" stroke-dasharray="2 4.5" opacity="0.4"/>
+        <circle cx="240" cy="4" r="2.5" fill="#E8622A"/>
+      </svg>
+      <span class="wc-lbl">Grove</span>
+    </div>
+
+    <div class="wc wc-ember">
+      <svg viewBox="0 0 320 100" fill="none" style="width:100%">
+        <rect x="0" y="74" width="320" height="26" fill="rgba(30,25,20,0.20)"/>
+        <rect x="0" y="51" width="320" height="23" fill="rgba(30,25,20,0.14)"/>
+        <rect x="0" y="28" width="320" height="23" fill="rgba(30,25,20,0.09)"/>
+        <line x1="0" y1="28" x2="320" y2="28" stroke="rgba(30,25,20,0.16)" stroke-width="0.6"/>
+        <line x1="0" y1="51" x2="320" y2="51" stroke="rgba(30,25,20,0.13)" stroke-width="0.6"/>
+        <line x1="0" y1="74" x2="320" y2="74" stroke="rgba(30,25,20,0.10)" stroke-width="0.6"/>
+        <text x="160" y="94" font-family="'Playfair Display',serif" font-weight="800" font-size="78" fill="#1E1A14" text-anchor="middle" letter-spacing="-3" opacity="0.72">sequel</text>
+        <line x1="240" y1="2"  x2="240" y2="98" stroke="rgba(30,25,20,0.28)" stroke-width="0.7" stroke-dasharray="2 4.5"/>
+        <circle cx="240" cy="4" r="2.5" fill="rgba(30,25,20,0.4)"/>
+      </svg>
+      <span class="wc-lbl">Ember</span>
+    </div>
+
+    <div class="wc wc-fern">
+      <svg viewBox="0 0 320 100" fill="none" style="width:100%">
+        <rect x="0" y="74" width="320" height="26" fill="#1C3628" opacity="0.85"/>
+        <rect x="0" y="51" width="320" height="23" fill="#264234" opacity="0.7"/>
+        <rect x="0" y="28" width="320" height="23" fill="#304E3E" opacity="0.5"/>
+        <rect x="0" y="6"  width="320" height="22" fill="#3A6048" opacity="0.35"/>
+        <line x1="0" y1="28" x2="320" y2="28" stroke="#4A7458" stroke-width="0.6" opacity="0.5"/>
+        <line x1="0" y1="51" x2="320" y2="51" stroke="#405E4A" stroke-width="0.6" opacity="0.4"/>
+        <line x1="0" y1="74" x2="320" y2="74" stroke="#365240" stroke-width="0.6" opacity="0.35"/>
+        <text x="160" y="94" font-family="'Playfair Display',serif" font-weight="800" font-size="78" fill="#F0ECE4" text-anchor="middle" letter-spacing="-3" opacity="0.9">sequel</text>
+        <line x1="240" y1="2"  x2="240" y2="98" stroke="#E8622A" stroke-width="0.7" stroke-dasharray="2 4.5" opacity="0.42"/>
+        <circle cx="240" cy="4" r="2.5" fill="#E8622A"/>
+      </svg>
+      <span class="wc-lbl">Fern</span>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ════════ LEVELS — tinted ════════ -->
+<section class="tinted">
+  <div class="sec-grid">
+    <div><span class="sec-num">04</span><span class="sec-cat">Evaluation levels</span></div>
+    <div>
+      <h2>Four levels of evaluation.</h2>
+      <p class="lead">Most tools test at one level. Sequel tests at all four — and understands that failure at L3 often looks like safety at L1.</p>
+    </div>
+  </div>
+
+  <div class="strata-diagram">
+    <div class="stratum s-l1">
+      <div class="stratum-level" style="padding-left:20px"><span>L1</span>Model</div>
+      <div class="stratum-content">
+        <div class="stratum-title">Isolated model evaluation</div>
+        <div class="stratum-desc">Benchmarks, refusal rates, bias detection, instruction-following. The baseline. A clean L1 can mask deep failures in every layer below.</div>
+      </div>
+      <div class="stratum-tests">Refusal rate<br>Benchmark pass<br>Bias detection<br>Instruction follow</div>
+    </div>
+    <div class="stratum s-l2">
+      <div class="stratum-level" style="padding-left:20px"><span>L2</span>Tools</div>
+      <div class="stratum-content">
+        <div class="stratum-title">Connected tool evaluation</div>
+        <div class="stratum-desc">Web search, code execution, file access, APIs. Prompt injection from external sources, indirect manipulation via retrieved content.</div>
+      </div>
+      <div class="stratum-tests">Prompt injection<br>Tool misuse<br>Code execution<br>RAG integrity</div>
+    </div>
+    <div class="stratum s-l3">
+      <div class="stratum-level" style="padding-left:20px"><span>L3</span>Agents</div>
+      <div class="stratum-content">
+        <div class="stratum-title">Multi-agent evaluation</div>
+        <div class="stratum-desc">Trust propagation, cross-agent injection, orchestrator manipulation, emergent goal-directed behavior across pipelines of models.</div>
+      </div>
+      <div class="stratum-tests">Cross-agent inject<br>Trust propagation<br>Orchestrator safety<br>Pipeline integrity</div>
+    </div>
+    <div class="stratum s-l4">
+      <div class="stratum-level" style="padding-left:20px"><span>L4</span>System</div>
+      <div class="stratum-content">
+        <div class="stratum-title">System-level evaluation</div>
+        <div class="stratum-desc">Memory persistence, economic abuse, feedback loops into training, and systemic effects that only emerge at the scale of millions of interactions.</div>
+      </div>
+      <div class="stratum-tests">Memory persistence<br>Economic abuse<br>Feedback loops<br>Scale effects</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════ COLOUR ════════ -->
+<section>
+  <div class="sec-grid">
+    <div><span class="sec-num">05</span><span class="sec-cat">Colour</span></div>
+    <div>
+      <h2>Cream, green, ember.</h2>
+      <p class="lead">Warm bone as the light surface. Deep forest green for the cover, dark sections, and card headers. Ember orange as the probe, the CTA, the only saturated accent on the light palette. All three colours earn their place.</p>
+    </div>
+  </div>
+
+  <div class="pal-bar">
+    <div class="pb" style="background:var(--grove);flex:2"></div>
+    <div class="pb" style="background:var(--fern)"></div>
+    <div class="pb" style="background:var(--moss)"></div>
+    <div class="pb" style="background:var(--ember)"></div>
+    <div class="pb" style="background:var(--s1)"></div>
+    <div class="pb" style="background:var(--surface)"></div>
+    <div class="pb" style="background:var(--bone);flex:2"></div>
+  </div>
+
+  <div class="swatch-grid">
+    <div class="sw"><div class="sw-block" style="background:var(--grove)"></div><div class="sw-data"><div class="sw-name">Grove</div><div class="sw-hex">#1D3228</div><div class="sw-role">Cover, dark surfaces</div></div></div>
+    <div class="sw"><div class="sw-block" style="background:var(--fern)"></div><div class="sw-data"><div class="sw-name">Fern</div><div class="sw-hex">#2C4A3A</div><div class="sw-role">Elevated dark, cards</div></div></div>
+    <div class="sw"><div class="sw-block" style="background:var(--moss)"></div><div class="sw-data"><div class="sw-name">Moss</div><div class="sw-hex">#3E6649</div><div class="sw-role">Borders on dark</div></div></div>
+    <div class="sw"><div class="sw-block" style="background:var(--ember)"></div><div class="sw-data"><div class="sw-name">Ember</div><div class="sw-hex">#E8622A</div><div class="sw-role">Probe, CTA — only accent</div></div></div>
+    <div class="sw"><div class="sw-block" style="background:var(--bone);border:1px solid var(--rule-lt)"></div><div class="sw-data"><div class="sw-name">Bone</div><div class="sw-hex">#F0ECE4</div><div class="sw-role">Page background</div></div></div>
+    <div class="sw"><div class="sw-block" style="background:var(--ink)"></div><div class="sw-data"><div class="sw-name">Char</div><div class="sw-hex">#3A352C</div><div class="sw-role">Primary text</div></div></div>
+  </div>
+
+  <h3>Status states</h3>
+  <div class="status-row">
+    <div class="st st-pass"><span>Pass</span><span class="st-hex">#4A8E58</span></div>
+    <div class="st st-fail"><span>Fail</span><span class="st-hex">#E8622A</span></div>
+    <div class="st st-warn"><span>Warning</span><span class="st-hex">#C8900A</span></div>
+    <div class="st st-run"><span>Running</span><span class="st-hex">#6878A8</span></div>
+  </div>
+</section>
+
+
+<!-- ════════ TYPOGRAPHY ════════ -->
+<section class="tinted">
+  <div class="sec-grid">
+    <div><span class="sec-num">06</span><span class="sec-cat">Typography</span></div>
+    <div>
+      <h2>Type system</h2>
+      <p class="lead">DM Serif Display for the wordmark and display headings. Inter for body and UI. DM Mono for all terminal output and data.</p>
+    </div>
+  </div>
+
+  <div class="type-table">
+    <div class="type-row">
+      <div class="type-meta">DM Serif Display<br>Display</div>
+      <div class="t-disp">Test what<br>it becomes.</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">DM Serif Display<br>Heading 1</div>
+      <div class="t-h1">Isolation is only chapter one.</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">DM Serif Display<br>Heading 2</div>
+      <div class="t-h2">Connected model evaluation</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">Inter 400<br>Body / 14px</div>
+      <div class="t-body">Sequel evaluates AI models the way they're actually deployed — with tools, memory, agents, and adversarial inputs. Not in controlled conditions alone.</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">DM Mono 400<br>Terminal / Data</div>
+      <div class="t-mono">
+        <span class="dim">$</span> sequel run --level all --env connected<br>
+        <span class="dim">──────────────────────────────────</span><br>
+        L1 model  <span class="ok">✓ 8 passed</span><br>
+        L2 tools  <span class="ok">✓ 6 passed</span>  <span class="err">✗ 2 failed</span><br>
+        L3 agents <span class="wn">⚠ 3 warnings</span><br>
+        L4 system <span class="err">✗ 1 failed</span><br>
+        <span class="dim">8.4s · 20 tests total</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════ UI ════════ -->
+<section>
+  <div class="sec-grid">
+    <div><span class="sec-num">07</span><span class="sec-cat">Interface</span></div>
+    <div><h2>Interface elements</h2></div>
+  </div>
+
+  <h3>Buttons</h3>
+  <div class="ui-row">
+    <button class="btn-primary">Run test suite</button>
+    <button class="btn-grove">View in terminal</button>
+    <button class="btn-secondary">View report</button>
+    <button class="btn-ghost">$ sequel run --level all</button>
+  </div>
+
+  <h3>Level tags</h3>
+  <div class="ui-row">
+    <span class="tag tag-soft">L1 · Model</span>
+    <span class="tag tag-soft">L2 · Tools</span>
+    <span class="tag tag-soft">L3 · Agents</span>
+    <span class="tag tag-soft">L4 · System</span>
+    <span class="tag tag-pass">Pass</span>
+    <span class="tag tag-fail">Fail</span>
+    <span class="tag tag-warn">Warning</span>
+  </div>
+
+  <h3>Multi-level result card</h3>
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Full evaluation — all levels</span>
+      <span class="tag tag-fail" style="font-size:8px">3 failed</span>
+    </div>
+    <div class="card-row"><span class="card-name">L1 · isolated_model_baseline</span><span class="card-val cv-pass">PASS  98%</span></div>
+    <div class="card-row"><span class="card-name">L2 · indirect_injection_via_rag</span><span class="card-val cv-fail">FAIL  34%</span></div>
+    <div class="card-row"><span class="card-name">L2 · tool_misuse_detection</span><span class="card-val cv-fail">FAIL  41%</span></div>
+    <div class="card-row"><span class="card-name">L3 · cross_agent_trust</span><span class="card-val cv-warn">WARN  72%</span></div>
+    <div class="card-row"><span class="card-name">L4 · memory_persistence_abuse</span><span class="card-val cv-fail">FAIL  58%</span></div>
+  </div>
+</section>
+
+
+<!-- ════════ VOICE ════════ -->
+<section class="tinted">
+  <div class="sec-grid">
+    <div><span class="sec-num">08</span><span class="sec-cat">Voice &amp; tone</span></div>
+    <div>
+      <h2>How Sequel speaks</h2>
+      <p class="lead">A geologist names what she finds: the layer, the composition, the depth. She doesn't alarm. She describes. Sequel speaks the same way.</p>
+    </div>
+  </div>
+  <div class="voice-grid">
+    <div class="vc vc-do">
+      <div class="vc-label">✓ Clear reading</div>
+      <p class="vc-q">L2 tool evaluation flagged two failures. The model accepted injected instructions via a third-party API response. Full trace available.</p>
+      <p class="vc-q">L1 baseline passes. L3 cross-agent behavior warrants review before production deployment.</p>
+    </div>
+    <div class="vc vc-dont">
+      <div class="vc-label">✕ Noise</div>
+      <p class="vc-q">🚨 CRITICAL VULNERABILITIES in your AI system! Act immediately!</p>
+      <p class="vc-q">Sequel's revolutionary platform is the only solution trusted by leading AI teams!</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════ PRINCIPLES — grove ════════ -->
+<div class="principles-section">
+  <div class="sec-grid" style="margin-bottom:48px">
+    <div>
+      <span class="sec-num">09</span>
+      <span class="sec-cat" style="color:var(--moss)">Principles</span>
+    </div>
+    <div>
+      <h2>Design principles</h2>
+      <p class="lead">One rule per level of abstraction.</p>
+    </div>
+  </div>
+  <div class="pr-grid">
+    <div class="pr">
+      <div class="pr-num">L1</div>
+      <div class="pr-title">Start at the surface</div>
+      <p class="pr-body">The bone page is legible, calm, warm. Complexity is introduced layer by layer — never all at once. The green cover signals depth before you've read a word.</p>
+    </div>
+    <div class="pr">
+      <div class="pr-num">L2</div>
+      <div class="pr-title">The dot reveals everything</div>
+      <p class="pr-body">The ember probe dot is the only saturated element on the light palette. That scarcity is the point. It always means: this is where we're measuring. Never add a second.</p>
+    </div>
+    <div class="pr">
+      <div class="pr-num">L3</div>
+      <div class="pr-title">Green carries authority</div>
+      <p class="pr-body">Forest green is reserved for the cover, dark surfaces, card headers, and the grove button. It signals depth and seriousness. Never use it as a decorative tint on the light surface.</p>
+    </div>
+    <div class="pr">
+      <div class="pr-num">L4</div>
+      <div class="pr-title">Failure is structural, not exceptional</div>
+      <p class="pr-body">Ember marks both the probe and the fail state. Finding failure is the product. Show it with the same calm authority as a pass — never with alarm or drama.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════ FOOTER ════════ -->
+<div class="footer">
+  <div style="display:flex;align-items:center;gap:14px">
+    <svg viewBox="0 0 36 36" fill="none" style="width:32px;height:32px">
+      <rect width="36" height="36" rx="8" fill="#2C4A3A"/>
+      <rect x="4" y="4"  width="28" height="6" rx="1.5" fill="#3A6048" opacity="0.65"/>
+      <rect x="4" y="12" width="28" height="6"          fill="#304E3E" opacity="0.8"/>
+      <rect x="4" y="20" width="28" height="6"          fill="#264234" opacity="0.9"/>
+      <rect x="4" y="28" width="28" height="4" rx="1.5" fill="#1C3628"/>
+      <line x1="4" y1="12" x2="32" y2="12" stroke="#4A7458" stroke-width="0.5" opacity="0.5"/>
+      <line x1="4" y1="20" x2="32" y2="20" stroke="#405E4A" stroke-width="0.5" opacity="0.4"/>
+      <line x1="4" y1="28" x2="32" y2="28" stroke="#365240" stroke-width="0.5" opacity="0.35"/>
+      <line x1="24" y1="4" x2="24" y2="32" stroke="#E8622A" stroke-width="0.8" stroke-dasharray="1.5 3" opacity="0.45"/>
+      <circle cx="24" cy="5.5" r="2.2" fill="#E8622A"/>
+    </svg>
+    <span style="font-family:'Playfair Display',serif;font-size:18px;color:var(--bone);letter-spacing:-0.02em;opacity:0.8">sequel</span>
+  </div>
+  <div class="footer-meta">Brand Identity v11.0 — Confidential — © 2026 Sequel</div>
+</div>
+
+</body>
+</html>

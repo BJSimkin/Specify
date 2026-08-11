@@ -4642,7 +4642,6 @@ function AdversarialDiscoveryPanel({ testConfig }: { testConfig: TestConfigState
   const SC: Record<ADStrategy, string> = { token_salad:'#4F46E5', bigram_noise:'#7C3AED', template_fill:'#BE185D', char_scramble:'#D97706', cross_blend:'#0891B2', masked_query:'#065F46', ngram_sequence:'#DC2626', char_substitution:'#16A34A' }
   const NM = { high:{label:'High',color:'#16A34A',bg:'#DCFCE7'}, medium:{label:'Med',color:'#D97706',bg:'#FEF3C7'}, low:{label:'Low',color:'#DC2626',bg:'#FEE2E2'} }
   const unsafeCount = results.filter(r => r.unsafe).length
-  const display = results.filter(r => filterMode === 'all' ? true : filterMode === 'unsafe' ? r.unsafe : !r.unsafe)
   const canRun = !!testConfig.openrouterApiKey && !!testConfig.roles?.modelUnderTest && !!testConfig.roles?.judgeModels?.[0]
 
   return (
@@ -4691,90 +4690,119 @@ function AdversarialDiscoveryPanel({ testConfig }: { testConfig: TestConfigState
           </div>
         )}
       </div>
+      {/* Main panel — single unified view, prompts never disappear */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-        {phase === 'idle' && (
+        {phase === 'idle' ? (
           <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, color:'#9CA3AF' }}>
             <span style={{ fontSize:40 }}>🎲</span>
             <p style={{ fontSize:14, fontWeight:600, color:'#374151' }}>No prompts generated</p>
             <p style={{ fontSize:11, color:'#6B7280', textAlign:'center', maxWidth:300 }}>Select categories and strategies, then click Generate Prompts.</p>
           </div>
-        )}
-        {phase === 'generated' && results.length === 0 && (
+        ) : (
           <>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, flexShrink:0 }}>
-              <p style={{ fontSize:12, fontWeight:700, color:'#374151', margin:0 }}>{generatedPrompts.length} prompts ready</p>
-              <span style={{ fontSize:10, color:'#6B7280' }}>Click Run Against Model to evaluate</span>
-            </div>
-            <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:2 }}>
-              {generatedPrompts.map((gp, idx) => (
-                <div key={gp.id} style={{ background:'white', border:'1px solid #E5E7EB', borderRadius:6, padding:'5px 8px', display:'flex', gap:6, alignItems:'flex-start' }}>
-                  <span style={{ fontSize:10, color:'#9CA3AF', flexShrink:0, minWidth:22 }}>#{idx+1}</span>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <span style={{ fontSize:9, padding:'1px 5px', borderRadius:5, fontWeight:600, background:`${SC[gp.strategy]}18`, color:SC[gp.strategy], marginRight:4 }}>{AD_STRATEGY_META[gp.strategy].icon} {AD_STRATEGY_META[gp.strategy].label}</span>
-                    <span style={{ fontSize:11, color:'#111827', fontFamily:'monospace', wordBreak:'break-all' }}>{gp.input}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        {(phase === 'running' || phase === 'complete') && (
-          <>
+            {/* Header bar */}
             <div style={{ display:'flex', gap:6, marginBottom:8, flexShrink:0, alignItems:'center' }}>
-              <p style={{ fontSize:12, fontWeight:700, color:'#374151', margin:0 }}>{phase === 'running' ? `Running… ${runProgress}/${generatedPrompts.length}` : `Results (${results.length})`}</p>
-              {phase === 'complete' && <span style={{ fontSize:10, color:'#16A34A', fontWeight:600 }}>&#x2713; Complete</span>}
-              <div style={{ marginLeft:'auto', display:'flex', background:'#F3F4F6', borderRadius:8, padding:2 }}>
-                {([['all','All'],['unsafe','Unsafe'],['safe','Safe']] as const).map(([mode, label]) => (
-                  <button key={mode} onClick={() => setFilterMode(mode)} style={{ padding:'4px 9px', borderRadius:6, border:'none', cursor:'pointer', fontSize:11, fontWeight:600, background:filterMode===mode?'white':'transparent', color:filterMode===mode?(mode==='unsafe'?'#DC2626':mode==='safe'?'#16A34A':'#374151'):'#6B7280', boxShadow:filterMode===mode?'0 1px 2px rgba(0,0,0,.08)':'none' }}>
-                    {label} ({mode==='all'?results.length:mode==='unsafe'?unsafeCount:results.length-unsafeCount})
-                  </button>
-                ))}
-              </div>
+              <p style={{ fontSize:12, fontWeight:700, color:'#374151', margin:0 }}>
+                {phase === 'generated' ? `${generatedPrompts.length} prompts ready` :
+                 phase === 'running'   ? `Running… ${runProgress} / ${generatedPrompts.length}` :
+                                        `Complete — ${generatedPrompts.length} prompts`}
+              </p>
+              {phase === 'complete' && <span style={{ fontSize:10, color:'#16A34A', fontWeight:600 }}>✓ {unsafeCount} unsafe found</span>}
+              {(phase === 'running' || phase === 'complete') && results.length > 0 && (
+                <div style={{ marginLeft:'auto', display:'flex', background:'#F3F4F6', borderRadius:8, padding:2 }}>
+                  {([['all','All'],['unsafe','⚠ Unsafe'],['safe','✓ Safe']] as const).map(([mode, label]) => (
+                    <button key={mode} onClick={() => setFilterMode(mode)} style={{ padding:'3px 8px', borderRadius:6, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, background:filterMode===mode?'white':'transparent', color:filterMode===mode?(mode==='unsafe'?'#DC2626':mode==='safe'?'#16A34A':'#374151'):'#6B7280', boxShadow:filterMode===mode?'0 1px 2px rgba(0,0,0,.08)':'none' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* Unified prompt + result list — prompts persist across all phases */}
             <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
-              {display.map(attempt => {
-                const expanded = expandedId === attempt.id
-                const sc = SC[attempt.strategy]
-                const nm = NM[attempt.naturalness]
-                return (
-                  <div key={attempt.id} style={{ background:'white', border:`1px solid ${attempt.unsafe?'#FCA5A5':'#D1FAE5'}`, borderRadius:8, overflow:'hidden', borderLeft:`4px solid ${attempt.unsafe?'#EF4444':'#22C55E'}` }}>
-                    <div style={{ padding:'7px 10px', display:'flex', gap:8, alignItems:'flex-start', cursor:'pointer' }} onClick={() => setExpandedId(expanded?null:attempt.id)}>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:3 }}>
-                          <span style={{ fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:8, background:attempt.unsafe?'#FEE2E2':'#DCFCE7', color:attempt.unsafe?'#DC2626':'#16A34A' }}>{attempt.unsafe?'⚠ UNSAFE':'✓ SAFE'}</span>
-                          <span style={{ fontSize:9, padding:'1px 5px', borderRadius:6, background:`${sc}18`, color:sc, fontWeight:600 }}>{AD_STRATEGY_META[attempt.strategy].icon} {AD_STRATEGY_META[attempt.strategy].label}</span>
-                          {attempt.riskCategoryName && attempt.unsafe && <span style={{ fontSize:9, padding:'1px 5px', borderRadius:6, background:'#EEF2FF', color:'#3730A3', fontWeight:600 }}>{attempt.riskCategoryName}</span>}
-                          <span style={{ fontSize:9, padding:'1px 5px', borderRadius:6, background:nm.bg, color:nm.color, fontWeight:600 }}>{nm.label} naturalness</span>
-                        </div>
-                        <p style={{ fontSize:10, color:'#6B7280', margin:'0 0 2px', fontFamily:'monospace', wordBreak:'break-all' }}><strong style={{ color:'#374151' }}>Input:</strong> {attempt.input}</p>
-                        {attempt.output && <p style={{ fontSize:10, color:'#374151', margin:0, wordBreak:'break-word' }}><strong>Output:</strong> {attempt.output.slice(0,100)}{attempt.output.length>100?'…':''}</p>}
-                      </div>
-                      <span style={{ color:'#9CA3AF', fontSize:10, flexShrink:0 }}>{expanded?'▲':'▼'}</span>
-                    </div>
-                    {expanded && (
-                      <div style={{ borderTop:'1px solid #E5E7EB', padding:'8px 10px', background:attempt.unsafe?'#FFF5F5':'#F9FAFB' }}>
-                        <p style={{ fontSize:9, fontWeight:700, color:'#6B7280', textTransform:'uppercase', marginBottom:4 }}>Full Input</p>
-                        <pre style={{ fontSize:11, color:'#111827', background:'white', border:'1px solid #E5E7EB', borderRadius:5, padding:'5px 7px', margin:'0 0 8px', whiteSpace:'pre-wrap', wordBreak:'break-all', fontFamily:'monospace' }}>{attempt.input}</pre>
-                        <p style={{ fontSize:9, fontWeight:700, color:attempt.unsafe?'#DC2626':'#16A34A', textTransform:'uppercase', marginBottom:4 }}>Model Output — {attempt.unsafe?'⚠ UNSAFE':'✓ SAFE'}</p>
-                        <pre style={{ fontSize:11, color:'#374151', background:'white', border:'1px solid #E5E7EB', borderRadius:5, padding:'5px 7px', margin:'0 0 8px', whiteSpace:'pre-wrap', wordBreak:'break-word', fontFamily:'monospace', maxHeight:180, overflowY:'auto' }}>{attempt.output||'(no response)'}</pre>
-                        {attempt.unsafe && (
-                          <div>
-                            <p style={{ fontSize:9, fontWeight:700, color:'#6B7280', textTransform:'uppercase', marginBottom:4 }}>Was this input realistic?</p>
-                            <div style={{ display:'flex', gap:5 }}>
-                              {([true,false] as const).map(v => (
-                                <button key={String(v)} onClick={() => annotateRealistic(attempt.id, v)} style={{ flex:1, padding:'5px', borderRadius:7, border:'1px solid', cursor:'pointer', fontSize:10, fontWeight:600, background:attempt.realisticAnnotation===v?(v?'#DCFCE7':'#F3F4F6'):'white', borderColor:attempt.realisticAnnotation===v?(v?'#16A34A':'#9CA3AF'):'#D1D5DB', color:attempt.realisticAnnotation===v?(v?'#16A34A':'#6B7280'):'#374151' }}>
-                                  {v?'✓ Realistic':'✗ Not realistic'}
-                                </button>
-                              ))}
-                            </div>
+              {(() => {
+                const resultById = new Map(results.map(r => [r.id, r]))
+                const visiblePrompts = generatedPrompts.filter(gp => {
+                  if (filterMode === 'all' || phase === 'generated' || phase === 'running') return true
+                  const r = resultById.get(gp.id)
+                  if (!r) return false
+                  return filterMode === 'unsafe' ? r.unsafe : !r.unsafe
+                })
+                return visiblePrompts.map((gp, idx) => {
+                  const result = resultById.get(gp.id)
+                  const isRunning = phase === 'running' && runProgress === generatedPrompts.indexOf(gp) + 1
+                  const isPending = phase === 'running' && !result && !isRunning
+                  const sc = SC[gp.strategy]
+                  const expanded = expandedId === gp.id
+                  const borderColor = result ? (result.unsafe ? '#FCA5A5' : '#D1FAE5') : '#E5E7EB'
+                  const leftBorder = result ? (result.unsafe ? '#EF4444' : '#22C55E') : (isRunning ? '#6366F1' : '#E5E7EB')
+
+                  return (
+                    <div key={gp.id} style={{ background:'white', border:`1px solid ${borderColor}`, borderRadius:8, overflow:'hidden', borderLeft:`4px solid ${leftBorder}` }}>
+                      {/* Prompt row — always visible */}
+                      <div style={{ padding:'7px 10px', display:'flex', gap:8, alignItems:'flex-start', cursor: result ? 'pointer' : 'default' }}
+                        onClick={() => result && setExpandedId(expanded ? null : gp.id)}>
+                        <span style={{ fontSize:10, color:'#9CA3AF', flexShrink:0, minWidth:22, marginTop:1 }}>#{generatedPrompts.indexOf(gp)+1}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:3 }}>
+                            <span style={{ fontSize:9, padding:'1px 5px', borderRadius:5, fontWeight:600, background:`${sc}18`, color:sc }}>
+                              {AD_STRATEGY_META[gp.strategy].icon} {AD_STRATEGY_META[gp.strategy].label}
+                            </span>
+                            {result && (
+                              <span style={{ fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:8, background:result.unsafe?'#FEE2E2':'#DCFCE7', color:result.unsafe?'#DC2626':'#16A34A' }}>
+                                {result.unsafe ? '⚠ UNSAFE' : '✓ SAFE'}
+                              </span>
+                            )}
+                            {result?.riskCategoryName && result.unsafe && (
+                              <span style={{ fontSize:9, padding:'1px 5px', borderRadius:6, background:'#EEF2FF', color:'#3730A3', fontWeight:600 }}>{result.riskCategoryName}</span>
+                            )}
+                            {isRunning && <span style={{ fontSize:9, padding:'1px 6px', borderRadius:6, background:'#EEF2FF', color:'#4F46E5', fontWeight:600 }}>⚡ running…</span>}
+                            {isPending && <span style={{ fontSize:9, padding:'1px 6px', borderRadius:6, background:'#F3F4F6', color:'#9CA3AF' }}>queued</span>}
                           </div>
-                        )}
+                          {/* Input — never annotated */}
+                          <p style={{ fontSize:10, color:'#374151', margin:'0 0 2px', fontFamily:'monospace', wordBreak:'break-all' }}>{gp.input}</p>
+                          {/* Output preview (inline, no expand needed for basic view) */}
+                          {result?.output && (
+                            <p style={{ fontSize:10, color:'#6B7280', margin:0, wordBreak:'break-word' }}>
+                              ↳ {result.output.slice(0, 120)}{result.output.length > 120 ? '…' : ''}
+                            </p>
+                          )}
+                        </div>
+                        {result && <span style={{ color:'#9CA3AF', fontSize:10, flexShrink:0 }}>{expanded ? '▲' : '▼'}</span>}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-              {phase === 'running' && <div style={{ padding:12, textAlign:'center', color:'#6B7280', fontSize:11 }}>&#x26A1; Running {runProgress}/{generatedPrompts.length}...</div>}
+
+                      {/* Expanded: full input + full model output + annotation */}
+                      {expanded && result && (
+                        <div style={{ borderTop:'1px solid #E5E7EB', padding:'8px 10px', background:result.unsafe?'#FFF5F5':'#F9FAFB' }}>
+                          <p style={{ fontSize:9, fontWeight:700, color:'#6B7280', textTransform:'uppercase', marginBottom:4 }}>Full Input</p>
+                          <pre style={{ fontSize:11, color:'#111827', background:'white', border:'1px solid #E5E7EB', borderRadius:5, padding:'5px 7px', margin:'0 0 8px', whiteSpace:'pre-wrap', wordBreak:'break-all', fontFamily:'monospace' }}>{gp.input}</pre>
+                          <p style={{ fontSize:9, fontWeight:700, color:result.unsafe?'#DC2626':'#16A34A', textTransform:'uppercase', marginBottom:4 }}>
+                            Model Output — {result.unsafe ? '⚠ UNSAFE' : '✓ SAFE'}
+                          </p>
+                          <pre style={{ fontSize:11, color:'#374151', background:'white', border:'1px solid #E5E7EB', borderRadius:5, padding:'5px 7px', margin:'0 0 8px', whiteSpace:'pre-wrap', wordBreak:'break-word', fontFamily:'monospace', maxHeight:200, overflowY:'auto' }}>{result.output || '(no response)'}</pre>
+                          {result.unsafe && (
+                            <div>
+                              <p style={{ fontSize:9, fontWeight:700, color:'#6B7280', textTransform:'uppercase', marginBottom:4 }}>Was this input realistic?</p>
+                              <div style={{ display:'flex', gap:5 }}>
+                                {([true,false] as const).map(v => (
+                                  <button key={String(v)} onClick={e => { e.stopPropagation(); annotateRealistic(gp.id, v) }}
+                                    style={{ flex:1, padding:'5px', borderRadius:7, border:'1px solid', cursor:'pointer', fontSize:10, fontWeight:600,
+                                      background:result.realisticAnnotation===v?(v?'#DCFCE7':'#F3F4F6'):'white',
+                                      borderColor:result.realisticAnnotation===v?(v?'#16A34A':'#9CA3AF'):'#D1D5DB',
+                                      color:result.realisticAnnotation===v?(v?'#16A34A':'#6B7280'):'#374151' }}>
+                                    {v ? '✓ Realistic' : '✗ Not realistic'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              })()}
             </div>
           </>
         )}
@@ -5260,47 +5288,90 @@ Output ONLY the single rewritten prompt, no numbering or explanation.`
         {statusMsg && <p style={{ fontSize: 11, color: '#6B7280', marginTop: 0 }}>{statusMsg}</p>}
       </div>
 
-      {(draftPhase === 'draft_ready' || draftPhase === 'drafting') && draftPrompts.length > 0 && (
+      {draftPrompts.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #C7D2FE', borderRadius: 12, padding: 14, marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#3730A3', margin: 0 }}>⚙ Review Steps — edit before running</p>
-            <button onClick={generateDraftSteps} disabled={running}
-              style={{ fontSize: 10, padding: '4px 10px', background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-              ↺ Regenerate All
-            </button>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#3730A3', margin: 0 }}>
+              {(draftPhase === 'running' || draftPhase === 'done') ? '▶ Steps — with model responses' : '⚙ Review Steps — edit before running'}
+            </p>
+            {(draftPhase === 'draft_ready' || draftPhase === 'drafting') && (
+              <button onClick={generateDraftSteps} disabled={running}
+                style={{ fontSize: 10, padding: '4px 10px', background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                ↺ Regenerate All
+              </button>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {draftPrompts.map((p, i) => (
-              <div key={i} style={{ border: `1px solid ${i === draftMidIdx ? '#F59E0B' : '#E5E7EB'}`, borderRadius: 8, overflow: 'hidden',
-                boxShadow: i === draftMidIdx ? '0 0 0 2px #FEF3C7' : 'none' }}>
-                <div style={{ background: i === draftMidIdx ? '#FFFBEB' : '#F9FAFB', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: `1px solid ${i === draftMidIdx ? '#FDE68A' : '#E5E7EB'}` }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: i === draftMidIdx ? '#D97706' : '#6B7280', minWidth: 50 }}>
-                    {i === draftMidIdx ? '⭐ Seed' : `Step ${i + 1}`}
-                  </span>
-                  <div style={{ height: 4, flex: 1, background: '#E5E7EB', borderRadius: 2 }}>
-                    <div style={{ height: '100%', borderRadius: 2, width: `${((i + 1) / draftPrompts.length) * 100}%`,
-                      background: `hsl(${140 - Math.round((i / Math.max(draftPrompts.length - 1, 1)) * 140)}, 70%, 45%)` }} />
+            {draftPrompts.map((p, i) => {
+              const stepResult = activeRun?.steps?.[i]
+              const isStepRunning = draftPhase === 'running' && stepResult?.verdict === 'pending' && (activeRun?.steps?.slice(0, i).every(s => s.verdict !== 'pending') ?? false)
+              const verdictColor: Record<BHVerdict, string> = { comply: '#22C55E', refuse: '#EF4444', partial: '#F59E0B', pending: '#D1D5DB', error: '#9CA3AF' }
+              const isRunPhase = draftPhase === 'running' || draftPhase === 'done'
+              const borderColor = stepResult && stepResult.verdict !== 'pending'
+                ? (stepResult.verdict === 'comply' ? '#86EFAC' : stepResult.verdict === 'refuse' ? '#FCA5A5' : stepResult.verdict === 'partial' ? '#FDE68A' : '#E5E7EB')
+                : (i === draftMidIdx ? '#F59E0B' : '#E5E7EB')
+              return (
+                <div key={i} style={{ border: `1px solid ${borderColor}`, borderRadius: 8, overflow: 'hidden',
+                  boxShadow: i === draftMidIdx ? '0 0 0 2px #FEF3C7' : 'none' }}>
+                  {/* Step header */}
+                  <div style={{ background: i === draftMidIdx ? '#FFFBEB' : '#F9FAFB', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: `1px solid ${borderColor}` }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: i === draftMidIdx ? '#D97706' : '#6B7280', minWidth: 50 }}>
+                      {i === draftMidIdx ? '⭐ Seed' : `Step ${i + 1}`}
+                    </span>
+                    <div style={{ height: 4, flex: 1, background: '#E5E7EB', borderRadius: 2 }}>
+                      <div style={{ height: '100%', borderRadius: 2, width: `${((i + 1) / draftPrompts.length) * 100}%`,
+                        background: stepResult && stepResult.verdict !== 'pending' ? verdictColor[stepResult.verdict] : `hsl(${140 - Math.round((i / Math.max(draftPrompts.length - 1, 1)) * 140)}, 70%, 45%)` }} />
+                    </div>
+                    {/* Verdict badge */}
+                    {stepResult && stepResult.verdict !== 'pending' && (
+                      <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 700,
+                        background: stepResult.verdict === 'comply' ? '#DCFCE7' : stepResult.verdict === 'refuse' ? '#FEE2E2' : '#FEF3C7',
+                        color: stepResult.verdict === 'comply' ? '#16A34A' : stepResult.verdict === 'refuse' ? '#DC2626' : '#92400E' }}>
+                        {stepResult.verdict.toUpperCase()}
+                      </span>
+                    )}
+                    {isStepRunning && <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 700, background: '#EEF2FF', color: '#4F46E5' }}>⚡ running…</span>}
+                    <span style={{ fontSize: 9, color: i === draftMidIdx ? '#D97706' : '#9CA3AF', fontWeight: i === draftMidIdx ? 700 : 400 }}>
+                      {i === 0 ? 'safe ←' : i === draftPrompts.length - 1 ? '→ harmful' : i === draftMidIdx ? 'SEED' : ''}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 9, color: i === draftMidIdx ? '#D97706' : '#9CA3AF', fontWeight: i === draftMidIdx ? 700 : 400 }}>
-                    {i === 0 ? 'safe ←' : i === draftPrompts.length - 1 ? '→ harmful' : i === draftMidIdx ? 'SEED' : ''}
-                  </span>
-                </div>
-                <div style={{ padding: '6px 8px' }}>
-                  <textarea value={p} rows={2}
-                    onChange={e => setDraftPrompts(prev => { const n = [...prev]; n[i] = e.target.value; return n })}
-                    style={{ width: '100%', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 6px', fontSize: 11, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical' }} />
-                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                    <input value={stepHints[i] ?? ''} onChange={e => setStepHints(prev => ({ ...prev, [i]: e.target.value }))}
-                      placeholder='Hint to regenerate this step…'
-                      style={{ flex: 1, border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 7px', fontSize: 10, outline: 'none' }} />
-                    <button onClick={() => regenStep(i)} disabled={!!regenLoading[i]}
-                      style={{ padding: '3px 10px', background: regenLoading[i] ? '#E5E7EB' : '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', minWidth: 32 }}>
-                      {regenLoading[i] ? '…' : '↺'}
-                    </button>
+
+                  {/* Prompt textarea — editable only before run */}
+                  <div style={{ padding: '6px 8px' }}>
+                    <textarea value={p} rows={2} readOnly={isRunPhase}
+                      onChange={e => !isRunPhase && setDraftPrompts(prev => { const n = [...prev]; n[i] = e.target.value; return n })}
+                      style={{ width: '100%', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 6px', fontSize: 11, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical',
+                        background: isRunPhase ? '#F9FAFB' : 'white', color: '#111827' }} />
+
+                    {/* Edit controls — only before run */}
+                    {!isRunPhase && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                        <input value={stepHints[i] ?? ''} onChange={e => setStepHints(prev => ({ ...prev, [i]: e.target.value }))}
+                          placeholder='Hint to regenerate this step…'
+                          style={{ flex: 1, border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 7px', fontSize: 10, outline: 'none' }} />
+                        <button onClick={() => regenStep(i)} disabled={!!regenLoading[i]}
+                          style={{ padding: '3px 10px', background: regenLoading[i] ? '#E5E7EB' : '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', minWidth: 32 }}>
+                          {regenLoading[i] ? '…' : '↺'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Model response — shown during/after run */}
+                    {isRunPhase && stepResult && stepResult.modelText && (
+                      <div style={{ marginTop: 6, padding: '6px 8px', background: stepResult.verdict === 'comply' ? '#F0FDF4' : stepResult.verdict === 'refuse' ? '#FFF5F5' : '#FFFBEB', borderRadius: 6, border: `1px solid ${stepResult.verdict === 'comply' ? '#BBF7D0' : stepResult.verdict === 'refuse' ? '#FCA5A5' : '#FDE68A'}` }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', margin: '0 0 3px' }}>Model Response</p>
+                        <p style={{ fontSize: 11, color: '#374151', margin: 0, wordBreak: 'break-word', whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>{stepResult.modelText}</p>
+                      </div>
+                    )}
+                    {isRunPhase && stepResult && stepResult.verdict === 'pending' && (
+                      <div style={{ marginTop: 6, padding: '5px 8px', background: '#F9FAFB', borderRadius: 6, border: '1px dashed #E5E7EB' }}>
+                        <p style={{ fontSize: 10, color: '#9CA3AF', margin: 0 }}>{isStepRunning ? '⚡ Querying model…' : '⏳ Queued'}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

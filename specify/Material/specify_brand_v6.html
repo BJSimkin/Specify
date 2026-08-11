@@ -1,0 +1,2639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Specify — Brand Identity</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,200;1,300;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Fira+Code:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DESIGN TOKENS
+   Palette: cool near-black + chartreuse + deep blue + cool white
+   Completely distinct from all previous attempts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+:root {
+  /* Darks — cool-cast, not warm */
+  --void:     #0C0E12;
+  --carbon:   #13161C;
+  --lift:     #1C2028;
+  --border:   #252A34;
+  --wire:     #333A48;
+  --muted:    #4A5468;
+  --dim:      #6B7A96;
+  --soft:     #9AAABB;
+
+  /* The accent — electric chartreuse */
+  /* Not acid green, not lime: this specific shade reads as
+     "highlight marker on a dark document" */
+  --chart:    #D4FF00;
+  --chart-lo: rgba(212,255,0,0.08);
+  --chart-mid:rgba(212,255,0,0.18);
+  --chart-dim:rgba(212,255,0,0.04);
+
+  /* Deep ink blue — secondary surface */
+  --navy:     #0A1628;
+  --navy-2:   #0F2040;
+  --navy-3:   #162B54;
+  --navy-dim: rgba(10,22,40,0.6);
+
+  /* Light surface */
+  --white:    #F4F6FA;
+  --paper:    #ECEEF4;
+  --cool:     #E2E5EE;
+  --rule-lt:  #D4D8E4;
+  --ink:      #0C0E12;
+
+  /* Status palette */
+  --adopted:  #00C98C;
+  --proposed: #5B8CFF;
+  --review:   #FFB020;
+  --rejected: #FF3D57;
+}
+
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:16px; scroll-behavior:smooth; }
+body {
+  background: var(--void);
+  color: var(--white);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CURSOR ANIMATION
+   The blinking cursor is the brand mark.
+   It appears after "specify" as a chartreuse block.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@keyframes blink {
+  0%,45%  { opacity: 1; }
+  55%,100%{ opacity: 0; }
+}
+
+@keyframes typeIn {
+  from { width: 0; opacity: 0; }
+  to   { width: 100%; opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scanLine {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(800%); }
+}
+
+@keyframes gridPulse {
+  0%,100% { opacity: 0.4; }
+  50%     { opacity: 0.7; }
+}
+
+.cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.88em;
+  background: var(--chart);
+  margin-left: 0.04em;
+  vertical-align: baseline;
+  position: relative;
+  top: 0.04em;
+  animation: blink 1.1s step-end infinite;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   COVER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.cover {
+  min-height: 100vh;
+  background: var(--void);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grid overlay — engineering blueprint feel */
+.cover-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.25;
+  pointer-events: none;
+  animation: gridPulse 8s ease-in-out infinite;
+}
+
+/* Scan line effect — the mark of a document being read */
+.cover-scan {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--chart), transparent);
+  opacity: 0.15;
+  pointer-events: none;
+  animation: scanLine 12s linear infinite;
+}
+
+/* Chartreuse glow blob */
+.cover-glow {
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(212,255,0,0.06) 0%, transparent 65%);
+  top: -200px; left: -100px;
+  pointer-events: none;
+}
+
+/* Navy glow right */
+.cover-glow-2 {
+  position: absolute;
+  width: 800px; height: 800px;
+  background: radial-gradient(circle, rgba(22,43,84,0.8) 0%, transparent 65%);
+  bottom: -300px; right: -200px;
+  pointer-events: none;
+}
+
+.cover-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 64px;
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 10;
+  animation: fadeUp 0.8s ease both;
+}
+
+.nav-logo {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--soft);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.nav-logo .nl-word { color: var(--white); }
+.nav-logo .nl-cursor {
+  display: inline-block;
+  width: 7px; height: 14px;
+  background: var(--chart);
+  margin-left: 2px;
+  animation: blink 1.1s step-end infinite;
+  position: relative; top: 1px;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.nav-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  padding: 6px 16px;
+  border-left: 1px solid var(--border);
+}
+
+.nav-tag:first-child { border-left: none; }
+
+.nav-tag.live {
+  color: var(--chart);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-live-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--chart);
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+/* Hero */
+.cover-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px 64px 48px;
+  position: relative; z-index: 5;
+}
+
+/* The huge wordmark */
+.hero-wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 52px;
+  animation: fadeUp 0.9s 0.15s ease both;
+}
+
+/* Version annotation — floats above-left of wordmark */
+.hero-annotation {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--chart);
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0.7;
+}
+
+.hero-annotation::before {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 1px;
+  background: var(--chart);
+  opacity: 0.5;
+}
+
+/* The word "specify" in massive Plus Jakarta Sans ExtraBold */
+.hero-word {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: clamp(80px, 14vw, 168px);
+  letter-spacing: -0.05em;
+  line-height: 0.88;
+  color: var(--white);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  position: relative;
+}
+
+/* The chartreuse cursor after the word */
+.hero-cursor {
+  display: inline-block;
+  width: clamp(40px, 6.5vw, 76px);
+  height: clamp(66px, 11.5vw, 136px);
+  background: var(--chart);
+  margin-left: clamp(6px, 1vw, 14px);
+  position: relative;
+  top: clamp(4px, 0.7vw, 8px);
+  animation: blink 1.1s step-end infinite;
+  flex-shrink: 0;
+}
+
+/* Below the wordmark — two column layout */
+.hero-sub {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid var(--border);
+  animation: fadeUp 1s 0.3s ease both;
+}
+
+.hs-left {
+  padding: 28px 0 0;
+  border-right: 1px solid var(--border);
+  padding-right: 48px;
+}
+
+.hs-desc {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 20px;
+  line-height: 1.55;
+  color: var(--dim);
+  max-width: 480px;
+}
+
+.hs-desc em { color: var(--soft); font-style: normal; }
+
+.hs-right {
+  padding: 28px 0 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hs-stat-row {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.hs-stat-row:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+
+.hs-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hss-num {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: -0.04em;
+  color: var(--white);
+  line-height: 1;
+}
+
+.hss-num .chart-accent { color: var(--chart); }
+
+.hss-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Cover bottom — meta strip */
+.cover-bottom {
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  position: relative; z-index: 10;
+  animation: fadeUp 1s 0.4s ease both;
+}
+
+.cb-cell {
+  padding: 18px 28px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cb-cell:last-child { border-right: none; }
+
+.cbc-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cbc-val {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  color: var(--soft);
+}
+
+.cbc-val.chart { color: var(--chart); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SECTION STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Tab navigation between sections */
+.section-nav {
+  background: var(--carbon);
+  border-bottom: 1px solid var(--border);
+  padding: 0 64px;
+  display: flex;
+  align-items: stretch;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.sn-tab {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 16px 24px;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sn-tab:hover { color: var(--soft); background: var(--lift); }
+.sn-tab.active { color: var(--chart); border-bottom-color: var(--chart); }
+
+.sn-spacer { flex: 1; }
+
+.sn-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 16px;
+}
+
+/* Sections — hidden by default, shown when active */
+.section-body {
+  display: none;
+}
+
+.section-body.active {
+  display: block;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MARK SECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.mark-section {
+  background: var(--void);
+}
+
+/* Full-width concept statement */
+.concept-banner {
+  background: var(--navy);
+  padding: 80px 64px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.concept-banner::before {
+  content: 'specify_';
+  position: absolute;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 260px;
+  letter-spacing: -0.06em;
+  color: rgba(255,255,255,0.02);
+  right: -60px;
+  bottom: -40px;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.cb-headline {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 64px;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  color: var(--white);
+}
+
+.cb-headline span { color: var(--chart); }
+
+.cb-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cb-lede {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.45);
+}
+
+.cb-lede em { color: rgba(255,255,255,0.7); font-style: normal; }
+
+/* The wordmark anatomy — full bleed dark panel */
+.anatomy-full {
+  background: var(--carbon);
+  border-bottom: 1px solid var(--border);
+}
+
+.af-top {
+  padding: 64px 64px 48px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* The actual wordmark, enormous, with cursor */
+.wm-giant {
+  display: flex;
+  align-items: baseline;
+  position: relative;
+}
+
+.wm-giant-text {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 120px;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  color: var(--white);
+}
+
+.wm-giant-cursor {
+  display: inline-block;
+  width: 56px;
+  height: 110px;
+  background: var(--chart);
+  margin-left: 8px;
+  position: relative;
+  top: 5px;
+  animation: blink 1.1s step-end infinite;
+}
+
+/* Annotation callouts on the wordmark */
+.wm-annotations {
+  display: flex;
+  gap: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.wma {
+  flex: 1;
+  padding: 20px 24px 20px 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wma:last-child { border-right: none; }
+
+.wma-key {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--chart);
+  margin-bottom: 2px;
+  opacity: 0.8;
+}
+
+.wma-val {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--soft);
+  line-height: 1.65;
+}
+
+/* Bottom: logo on surfaces + icon grid side by side */
+.af-bottom {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+}
+
+.logo-surfaces {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.ls {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 36px 28px;
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ls-wm {
+  display: flex;
+  align-items: baseline;
+  position: relative; z-index: 1;
+}
+
+.ls-wm-text {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 40px;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.ls-cursor {
+  display: inline-block;
+  margin-left: 4px;
+  position: relative;
+  top: 2px;
+  animation: blink 1.1s step-end infinite;
+}
+
+.ls-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  align-self: flex-end;
+  position: relative; z-index: 1;
+}
+
+/* Icon grid */
+.icon-grid {
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ig-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.ig-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.ig-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.ig-unit-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+/* Scale strip */
+.scale-strip {
+  background: var(--navy);
+  padding: 48px 64px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.scale-item {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+}
+
+.si-wm {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  color: var(--white);
+}
+
+.si-cursor {
+  display: inline-block;
+  background: var(--chart);
+  margin-left: 3px;
+  position: relative;
+  top: 0.08em;
+  animation: blink 1.1s step-end infinite;
+}
+
+.si-meta {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   COLOUR SECTION — very different approach
+   The palette is shown as a full-bleed
+   architectural colour study
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.colour-study {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Big statement colour block — chartreuse on void */
+.cs-hero {
+  background: var(--chart);
+  padding: 72px 64px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+}
+
+.csh-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.csh-colour-name {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 80px;
+  letter-spacing: -0.06em;
+  line-height: 0.88;
+  color: var(--void);
+}
+
+.csh-hex {
+  font-family: 'Fira Code', monospace;
+  font-size: 14px;
+  color: rgba(12,14,18,0.45);
+  letter-spacing: 0.1em;
+}
+
+.csh-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.csh-role {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(12,14,18,0.4);
+  margin-bottom: 4px;
+}
+
+.csh-desc {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.6;
+  color: rgba(12,14,18,0.55);
+}
+
+/* Colour matrix — the rest of the palette as a grid */
+.cs-matrix {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.csm-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 36px 28px;
+  min-height: 160px;
+  border-right: 1px solid var(--border);
+  transition: transform 0.2s;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+
+.csm-cell:last-child { border-right: none; }
+
+.csm-cell:hover { transform: scaleY(1.05); transform-origin: bottom; z-index: 1; }
+
+.csm-name {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.csm-hex {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  margin-bottom: 8px;
+}
+
+.csm-use {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  line-height: 1.7;
+}
+
+/* Status palette — shown as a live requirement status bar */
+.cs-status {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.css-cell {
+  flex: 1;
+  padding: 24px 32px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: background 0.2s;
+  cursor: default;
+}
+
+.css-cell:last-child { border-right: none; }
+.css-cell:hover { background: var(--lift); }
+
+.css-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+}
+
+.css-name {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--white);
+}
+
+.css-hex {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.css-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TYPE SECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.type-section {
+  background: var(--void);
+}
+
+.type-header {
+  padding: 72px 64px 48px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: end;
+}
+
+.th-display {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 64px;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
+  color: var(--white);
+}
+
+.th-display .chart { color: var(--chart); }
+
+.th-right {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.6;
+  color: var(--dim);
+  padding-bottom: 4px;
+}
+
+/* Type specimen cards — each one a different scale */
+.type-specimens {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ts {
+  background: var(--carbon);
+  padding: 40px 44px;
+}
+
+.ts-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ts-label-role {
+  color: var(--chart);
+  opacity: 0.7;
+}
+
+.t-display {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 56px;
+  letter-spacing: -0.05em;
+  line-height: 0.88;
+  color: var(--white);
+}
+
+.t-lora {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 26px;
+  line-height: 1.48;
+  color: rgba(255,255,255,0.5);
+}
+
+.t-jakartasans {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  color: var(--white);
+}
+
+.t-body {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--dim);
+}
+
+.t-fira {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--soft);
+}
+
+.t-fira .ok     { color: var(--adopted); }
+.t-fira .prop   { color: var(--proposed); }
+.t-fira .warn   { color: var(--review); }
+.t-fira .fail   { color: var(--rejected); }
+.t-fira .chart  { color: var(--chart); }
+.t-fira .dimmed { color: var(--muted); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PRODUCT SECTION — the most sophisticated
+   Shows actual Specify UI: a split screen
+   with a requirement list + detail view
+   with a discussion panel
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.product-section {
+  background: var(--void);
+  padding: 0;
+}
+
+.product-intro {
+  padding: 72px 64px 64px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: end;
+}
+
+.pi-left {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 56px;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  color: var(--white);
+}
+
+.pi-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pi-lead {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--dim);
+}
+
+/* The mock Specify UI — full product simulation */
+.specify-ui {
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 280px 1fr 340px;
+  height: 680px;
+  overflow: hidden;
+}
+
+/* Left panel — requirements list */
+.sui-list {
+  background: var(--carbon);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sui-list-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.suh-title {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.suh-count {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--chart);
+}
+
+.sui-search {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.search-input {
+  width: 100%;
+  background: var(--lift);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 7px 12px;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--soft);
+  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-input::placeholder { color: var(--muted); }
+
+.sui-filters {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sf-chip {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.sf-all    { background: var(--chart-mid); color: var(--chart); }
+.sf-adopt  { background: rgba(0,201,140,0.12); color: var(--adopted); }
+.sf-prop   { background: rgba(91,140,255,0.12); color: var(--proposed); }
+.sf-review { background: rgba(255,176,32,0.12); color: var(--review); }
+
+.sui-items {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sui-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.sui-item:hover { background: var(--lift); }
+.sui-item.active { background: var(--lift); border-left: 2px solid var(--chart); padding-left: 14px; }
+
+.sui-item-id {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.si-status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+
+.sui-item-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: var(--soft);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.sui-item.active .sui-item-title { color: var(--white); }
+
+.sui-item-meta {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* Middle panel — requirement detail */
+.sui-detail {
+  background: var(--void);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sud-header {
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sud-breadcrumb {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sud-bc-sep { opacity: 0.3; }
+
+.sud-id-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.sud-id {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.06em;
+}
+
+.sud-version {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--chart);
+  letter-spacing: 0.06em;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sb-adopted  { background: rgba(0,201,140,0.12); color: var(--adopted); border: 1px solid rgba(0,201,140,0.25); }
+.sb-proposed { background: rgba(91,140,255,0.12); color: var(--proposed); border: 1px solid rgba(91,140,255,0.25); }
+.sb-review   { background: rgba(255,176,32,0.12); color: var(--review); border: 1px solid rgba(255,176,32,0.25); }
+.sb-rejected { background: rgba(255,61,87,0.12); color: var(--rejected); border: 1px solid rgba(255,61,87,0.25); }
+
+.sb-dot { width:5px; height:5px; border-radius:50%; background: currentColor; }
+
+.sud-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  color: var(--white);
+}
+
+.sud-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sud-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chart);
+  opacity: 0.7;
+  margin-bottom: 10px;
+}
+
+.sud-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.72;
+  color: var(--dim);
+  margin-bottom: 24px;
+}
+
+.sud-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.req-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 3px;
+  background: var(--lift);
+  color: var(--dim);
+  border: 1px solid var(--border);
+}
+
+/* Metrics row */
+.sud-metrics {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.sud-metric {
+  flex: 1;
+  padding: 14px 16px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sud-metric:last-child { border-right: none; }
+
+.sm-num {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: var(--white);
+  line-height: 1;
+}
+
+.sm-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Forks tree */
+.fork-tree {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ft-header {
+  padding: 10px 14px;
+  background: var(--carbon);
+  border-bottom: 1px solid var(--border);
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ft-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ft-item:last-child { border-bottom: none; }
+.ft-item:hover { background: var(--lift); }
+
+.ft-indent { color: var(--border); }
+.ft-id { color: var(--dim); flex: 1; }
+.ft-status { font-size: 9px; }
+.ft-forks { color: var(--muted); }
+
+/* Right panel — discussion */
+.sui-discussion {
+  background: var(--carbon);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sdisc-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sdisc-title {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sdisc-count {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.sdisc-feed {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.disc-comment {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dc-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.av-chart { background: var(--chart-lo); color: var(--chart); border: 1px solid var(--chart-mid); }
+.av-blue  { background: rgba(91,140,255,0.12); color: var(--proposed); border: 1px solid rgba(91,140,255,0.25); }
+.av-green { background: rgba(0,201,140,0.12); color: var(--adopted); border: 1px solid rgba(0,201,140,0.25); }
+.av-amber { background: rgba(255,176,32,0.12); color: var(--review); border: 1px solid rgba(255,176,32,0.25); }
+
+.dc-name {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--soft);
+  letter-spacing: 0.04em;
+}
+
+.dc-time {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.dc-body {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.6;
+}
+
+.dc-body code {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  background: var(--lift);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--chart);
+}
+
+.dc-body .mention {
+  color: var(--proposed);
+}
+
+.dc-vote {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dcv-btn {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--lift);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.dcv-btn:hover { color: var(--chart); border-color: var(--chart-mid); }
+.dcv-btn.voted { color: var(--adopted); border-color: rgba(0,201,140,0.3); background: rgba(0,201,140,0.08); }
+
+.dc-proposal {
+  background: var(--lift);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--chart);
+  padding: 10px 12px;
+  border-radius: 0 3px 3px 0;
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--soft);
+  line-height: 1.65;
+}
+
+.dc-proposal .prop-key { color: var(--chart); }
+
+/* Discussion compose box */
+.sdisc-compose {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compose-box {
+  background: var(--lift);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 60px;
+  line-height: 1.5;
+}
+
+.compose-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.compose-btn {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 7px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: none;
+}
+
+.compose-btn-primary { background: var(--chart); color: var(--void); font-weight: 600; }
+.compose-btn-secondary { background: var(--border); color: var(--dim); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   VOICE SECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.voice-section {
+  background: var(--navy);
+}
+
+.voice-hero {
+  padding: 80px 64px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.vh-headline {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 72px;
+  letter-spacing: -0.06em;
+  line-height: 0.88;
+  color: var(--white);
+}
+
+.vh-headline .chart { color: var(--chart); }
+
+.voice-examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
+.ve-panel {
+  background: var(--carbon);
+  padding: 36px 40px;
+  position: relative;
+}
+
+.ve-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.ve-do::before   { background: var(--adopted); }
+.ve-dont::before { background: var(--rejected); }
+
+.ve-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  margin-top: 8px;
+}
+
+.ve-do   .ve-label { color: var(--adopted); }
+.ve-dont .ve-label { color: var(--rejected); }
+
+.ve-q {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--dim);
+  line-height: 1.7;
+  margin-bottom: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PRINCIPLES SECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.principles-section {
+  background: var(--void);
+  border-top: 1px solid var(--border);
+}
+
+.pr-header {
+  padding: 80px 64px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 60px;
+}
+
+.prh-left {
+  position: relative;
+}
+
+.prh-ghost {
+  position: absolute;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 200px;
+  letter-spacing: -0.06em;
+  color: rgba(255,255,255,0.02);
+  top: -60px;
+  left: -20px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.prh-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 52px;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  color: var(--white);
+  position: relative;
+}
+
+.prh-right {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--dim);
+  padding-bottom: 4px;
+}
+
+.pr-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
+.pr-cell {
+  background: var(--carbon);
+  padding: 52px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pr-cell::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--chart), transparent);
+  opacity: 0.4;
+}
+
+.pr-num {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--chart);
+  opacity: 0.6;
+}
+
+.pr-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: var(--white);
+  line-height: 1.2;
+}
+
+.pr-body {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.pr-big-num {
+  position: absolute;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 140px;
+  letter-spacing: -0.05em;
+  color: rgba(255,255,255,0.025);
+  bottom: -20px;
+  right: 16px;
+  line-height: 1;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FOOTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.footer {
+  background: var(--carbon);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 0;
+}
+
+.fc {
+  padding: 48px 44px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.fc:last-child { border-right: none; }
+
+.fc-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fc-wm {
+  display: flex;
+  align-items: baseline;
+}
+
+.fc-wm-text {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: -0.055em;
+  color: var(--soft);
+}
+
+.fc-wm-cursor {
+  display: inline-block;
+  width: 14px;
+  height: 28px;
+  background: var(--chart);
+  margin-left: 3px;
+  position: relative;
+  top: 2px;
+  animation: blink 1.1s step-end infinite;
+}
+
+.fc-val {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 2;
+}
+
+.fc-val .chart { color: var(--chart); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BUTTONS / TAGS / MISC UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 3px;
+}
+
+.tag-adopted  { background:rgba(0,201,140,0.12);  color:var(--adopted);  border:1px solid rgba(0,201,140,0.25); }
+.tag-proposed { background:rgba(91,140,255,0.12); color:var(--proposed); border:1px solid rgba(91,140,255,0.25); }
+.tag-review   { background:rgba(255,176,32,0.12); color:var(--review);   border:1px solid rgba(255,176,32,0.25); }
+.tag-rejected { background:rgba(255,61,87,0.12);  color:var(--rejected); border:1px solid rgba(255,61,87,0.25); }
+
+.ui-btn-primary   { display:inline-flex;align-items:center;gap:8px;background:var(--chart);color:var(--void);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;padding:11px 24px;border:none;border-radius:4px;cursor:pointer;letter-spacing:-0.01em; }
+.ui-btn-secondary { display:inline-flex;align-items:center;gap:8px;background:var(--lift);color:var(--soft);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;padding:11px 24px;border:1px solid var(--border);border-radius:4px;cursor:pointer; }
+.ui-btn-ghost     { display:inline-flex;align-items:center;background:transparent;color:var(--dim);font-family:'Fira Code',monospace;font-size:11px;padding:10px 18px;border:1px solid var(--border);border-radius:4px;cursor:pointer; }
+
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════
+     COVER
+═══════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-grid"></div>
+  <div class="cover-scan"></div>
+  <div class="cover-glow"></div>
+  <div class="cover-glow-2"></div>
+
+  <nav class="cover-nav">
+    <div class="nav-logo">
+      <span class="nl-word">specify</span><span class="nl-cursor"></span>
+    </div>
+    <div class="nav-right">
+      <span class="nav-tag">open source</span>
+      <span class="nav-tag">AI requirements</span>
+      <span class="nav-tag">community-governed</span>
+      <span class="nav-tag live"><span class="nav-live-dot"></span>v1.0 — 2026</span>
+    </div>
+  </nav>
+
+  <div class="cover-hero">
+    <div class="hero-wordmark">
+      <div class="hero-annotation">brand identity — REQ-BRAND-2026 — adopted</div>
+      <div class="hero-word">
+        specify<span class="hero-cursor"></span>
+      </div>
+    </div>
+
+    <div class="hero-sub">
+      <div class="hs-left">
+        <p class="hs-desc">
+          The open platform for <em>AI system requirements</em> — where researchers, engineers, and the public come together to write, debate, and adopt the rules that govern how AI should behave.
+        </p>
+      </div>
+      <div class="hs-right">
+        <div class="hs-stat-row">
+          <div class="hs-stat">
+            <div class="hss-num"><span class="chart-accent">847</span></div>
+            <div class="hss-label">Teams adopted REQ-0042</div>
+          </div>
+          <div class="hs-stat">
+            <div class="hss-num">62<span class="chart-accent">×</span></div>
+            <div class="hss-label">Times forked</div>
+          </div>
+        </div>
+        <div class="hs-stat-row">
+          <div class="hs-stat">
+            <div class="hss-num">14</div>
+            <div class="hss-label">Contributors this doc</div>
+          </div>
+          <div class="hs-stat">
+            <div class="hss-num">∞</div>
+            <div class="hss-label">Requirements possible</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-bottom">
+    <div class="cb-cell">
+      <div class="cbc-label">Category</div>
+      <div class="cbc-val">Open Source</div>
+    </div>
+    <div class="cb-cell">
+      <div class="cbc-label">Brand mark</div>
+      <div class="cbc-val chart">Cursor ▌</div>
+    </div>
+    <div class="cb-cell">
+      <div class="cbc-label">Accent</div>
+      <div class="cbc-val chart">#D4FF00</div>
+    </div>
+    <div class="cb-cell">
+      <div class="cbc-label">Display</div>
+      <div class="cbc-val">Plus Jakarta Sans</div>
+    </div>
+    <div class="cb-cell">
+      <div class="cbc-label">System</div>
+      <div class="cbc-val">Fira Code</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     SECTION NAV (sticky tabs)
+═══════════════════════════════════ -->
+<nav class="section-nav" id="section-nav">
+  <span class="sn-tab active" onclick="showSection('mark',this)">Mark &amp; Logo</span>
+  <span class="sn-tab" onclick="showSection('colour',this)">Colour</span>
+  <span class="sn-tab" onclick="showSection('type',this)">Typography</span>
+  <span class="sn-tab" onclick="showSection('product',this)">Product UI</span>
+  <span class="sn-tab" onclick="showSection('voice',this)">Voice</span>
+  <span class="sn-tab" onclick="showSection('principles',this)">Principles</span>
+  <div class="sn-spacer"></div>
+  <span class="sn-label">specify<span style="color:var(--chart);margin-left:2px">▌</span></span>
+</nav>
+
+<!-- ═══════════════════════════════════
+     §1 MARK & LOGO
+═══════════════════════════════════ -->
+<div class="section-body active" id="sec-mark">
+  <div class="mark-section">
+
+    <div class="concept-banner">
+      <div class="cb-headline">The cursor<br>is the<br><span>mark.</span></div>
+      <div class="cb-body">
+        <p class="cb-lede">Every specification begins with someone sitting down to write. The blinking cursor is that moment — the pause before precision, the breath before commitment. <em>specify_</em> is the brand in one glyph.</p>
+        <p style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.72;color:rgba(255,255,255,0.3)">In Specify's wordmark, the cursor is not metaphor — it is the literal mark of authorship. It says: someone is in the act of writing this. The community is always in the act of writing this. The cursor never disappears from the brand because the specification is never finished.</p>
+      </div>
+    </div>
+
+    <!-- Full anatomy panel -->
+    <div class="anatomy-full">
+      <div class="af-top">
+        <div class="wm-giant">
+          <span class="wm-giant-text">specify</span>
+          <span class="wm-giant-cursor"></span>
+        </div>
+        <div class="wm-annotations">
+          <div class="wma">
+            <div class="wma-key">Wordmark</div>
+            <div class="wma-val">Plus Jakarta Sans<br>ExtraBold 800<br>Letter-spacing −5.5%<br>Always lowercase</div>
+          </div>
+          <div class="wma">
+            <div class="wma-key">The cursor</div>
+            <div class="wma-val">Chartreuse #D4FF00<br>Width: 0.52× cap-height<br>Height: 1× cap-height<br>Blinks at 1.1s — always</div>
+          </div>
+          <div class="wma">
+            <div class="wma-key">Animation</div>
+            <div class="wma-val">step-end blink<br>45% on / 55% off<br>No ease — hard switch<br>Synced across all instances</div>
+          </div>
+          <div class="wma">
+            <div class="wma-key">Icon mark</div>
+            <div class="wma-val">Chartreuse block only<br>No letterform at small size<br>Rounded-square container<br>Min: 16px icon</div>
+          </div>
+          <div class="wma">
+            <div class="wma-key">Min wordmark</div>
+            <div class="wma-val">20px display height<br>Below: icon only<br>Cursor still blinks<br>Never static</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="af-bottom">
+        <!-- Logo on surfaces -->
+        <div class="logo-surfaces">
+
+          <div class="ls" style="background:var(--void)">
+            <div class="ls-wm">
+              <span class="ls-wm-text" style="color:var(--white)">specify</span>
+              <span class="ls-cursor" style="width:18px;height:38px;background:var(--chart)"></span>
+            </div>
+            <span class="ls-tag" style="color:var(--muted)">Primary — void</span>
+          </div>
+
+          <div class="ls" style="background:var(--white)">
+            <div class="ls-wm">
+              <span class="ls-wm-text" style="color:var(--ink)">specify</span>
+              <span class="ls-cursor" style="width:18px;height:38px;background:var(--chart)"></span>
+            </div>
+            <span class="ls-tag" style="color:var(--rule-lt)">Primary — light</span>
+          </div>
+
+          <div class="ls" style="background:var(--chart)">
+            <div class="ls-wm">
+              <span class="ls-wm-text" style="color:var(--void)">specify</span>
+              <span class="ls-cursor" style="width:18px;height:38px;background:var(--void);animation:blink 1.1s step-end infinite"></span>
+            </div>
+            <span class="ls-tag" style="color:rgba(12,14,18,0.3)">Reversed — chart</span>
+          </div>
+
+          <div class="ls" style="background:var(--navy)">
+            <div class="ls-wm">
+              <span class="ls-wm-text" style="color:var(--soft)">specify</span>
+              <span class="ls-cursor" style="width:18px;height:38px;background:var(--chart)"></span>
+            </div>
+            <span class="ls-tag" style="color:var(--wire)">Primary — navy</span>
+          </div>
+
+        </div>
+
+        <!-- Icon grid -->
+        <div class="icon-grid">
+          <div class="ig-label">Icon mark — cursor block on container</div>
+          <div class="ig-row">
+            <div class="ig-unit">
+              <svg viewBox="0 0 96 96" fill="none" style="width:96px;height:96px">
+                <rect width="96" height="96" rx="20" fill="#0C0E12"/>
+                <rect x="30" y="22" width="36" height="52" rx="2" fill="#D4FF00"/>
+              </svg>
+              <span class="ig-unit-label">96px</span>
+            </div>
+            <div class="ig-unit">
+              <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px">
+                <rect width="64" height="64" rx="14" fill="#0C0E12"/>
+                <rect x="20" y="15" width="24" height="34" rx="1.5" fill="#D4FF00"/>
+              </svg>
+              <span class="ig-unit-label">64px</span>
+            </div>
+            <div class="ig-unit">
+              <svg viewBox="0 0 48 48" fill="none" style="width:48px;height:48px">
+                <rect width="48" height="48" rx="10" fill="#0C0E12"/>
+                <rect x="15" y="11" width="18" height="26" rx="1" fill="#D4FF00"/>
+              </svg>
+              <span class="ig-unit-label">48px</span>
+            </div>
+            <div class="ig-unit">
+              <svg viewBox="0 0 32 32" fill="none" style="width:32px;height:32px">
+                <rect width="32" height="32" rx="7" fill="#0C0E12"/>
+                <rect x="10" y="7" width="12" height="18" rx="1" fill="#D4FF00"/>
+              </svg>
+              <span class="ig-unit-label">32px</span>
+            </div>
+          </div>
+          <div class="ig-row" style="margin-top:4px">
+            <div class="ig-unit">
+              <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px">
+                <rect width="64" height="64" rx="14" fill="#D4FF00"/>
+                <rect x="20" y="15" width="24" height="34" rx="1.5" fill="#0C0E12"/>
+              </svg>
+              <span class="ig-unit-label">Chart</span>
+            </div>
+            <div class="ig-unit">
+              <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px">
+                <rect width="64" height="64" rx="14" fill="#F4F6FA" stroke="#D4D8E4" stroke-width="1"/>
+                <rect x="20" y="15" width="24" height="34" rx="1.5" fill="#D4FF00"/>
+              </svg>
+              <span class="ig-unit-label">Light</span>
+            </div>
+            <div class="ig-unit">
+              <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px">
+                <rect width="64" height="64" rx="14" fill="#0A1628"/>
+                <rect x="20" y="15" width="24" height="34" rx="1.5" fill="#D4FF00"/>
+              </svg>
+              <span class="ig-unit-label">Navy</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scale strip -->
+      <div class="scale-strip">
+        <div style="font-family:'Fira Code',monospace;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Wordmark at scale</div>
+        <div class="scale-item">
+          <span class="si-wm" style="font-size:56px">specify</span>
+          <span class="si-cursor" style="width:26px;height:50px"></span>
+          <span class="si-meta">56px display</span>
+        </div>
+        <div class="scale-item">
+          <span class="si-wm" style="font-size:36px">specify</span>
+          <span class="si-cursor" style="width:17px;height:32px"></span>
+          <span class="si-meta">36px heading</span>
+        </div>
+        <div class="scale-item">
+          <span class="si-wm" style="font-size:24px">specify</span>
+          <span class="si-cursor" style="width:11px;height:22px"></span>
+          <span class="si-meta">24px subheading</span>
+        </div>
+        <div class="scale-item">
+          <span class="si-wm" style="font-size:16px">specify</span>
+          <span class="si-cursor" style="width:8px;height:15px"></span>
+          <span class="si-meta">16px nav / caption</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     §2 COLOUR
+═══════════════════════════════════ -->
+<div class="section-body" id="sec-colour">
+  <div class="colour-study">
+
+    <div class="cs-hero">
+      <div class="csh-left">
+        <div class="csh-colour-name">Chart&shy;reuse</div>
+        <div class="csh-hex">#D4FF00 — Primary accent</div>
+      </div>
+      <div class="csh-right">
+        <div class="csh-role">Why chartreuse?</div>
+        <p class="csh-desc">It reads as a highlighter on a dark document — the thing you reach for when something must not be missed. Against the cool near-black of Specify's interface, it has an almost physical presence. It is the cursor, the CTA, the dot of adoption. It appears sparingly because it earns its place every time.</p>
+      </div>
+    </div>
+
+    <div class="cs-matrix">
+      <div class="csm-cell" style="background:var(--void)">
+        <div class="csm-name" style="color:var(--soft)">Void</div>
+        <div class="csm-hex" style="color:var(--soft)">#0C0E12</div>
+        <div class="csm-use" style="color:var(--muted)">Page bg<br>Primary surface<br>Default dark</div>
+      </div>
+      <div class="csm-cell" style="background:var(--carbon)">
+        <div class="csm-name" style="color:var(--soft)">Carbon</div>
+        <div class="csm-hex" style="color:var(--soft)">#13161C</div>
+        <div class="csm-use" style="color:var(--muted)">Panels<br>Cards<br>Elevated dark</div>
+      </div>
+      <div class="csm-cell" style="background:var(--navy)">
+        <div class="csm-name" style="color:var(--soft)">Navy</div>
+        <div class="csm-hex" style="color:var(--soft)">#0A1628</div>
+        <div class="csm-use" style="color:var(--muted)">Feature sections<br>Hero variants<br>Quote bg</div>
+      </div>
+      <div class="csm-cell" style="background:var(--white)">
+        <div class="csm-name" style="color:var(--ink)">Cloud</div>
+        <div class="csm-hex" style="color:var(--ink)">#F4F6FA</div>
+        <div class="csm-use" style="color:rgba(12,14,18,0.4)">Light surface<br>Print<br>Reversed contexts</div>
+      </div>
+      <div class="csm-cell" style="background:var(--chart)">
+        <div class="csm-name" style="color:var(--void)">Chartreuse</div>
+        <div class="csm-hex" style="color:var(--void)">#D4FF00</div>
+        <div class="csm-use" style="color:rgba(12,14,18,0.5)">Cursor mark<br>CTAs<br>Adopted state</div>
+      </div>
+    </div>
+
+    <div class="cs-status">
+      <div class="css-cell">
+        <div class="css-dot" style="background:var(--adopted)"></div>
+        <div class="css-name">Adopted</div>
+        <div class="css-hex">#00C98C</div>
+        <div class="css-desc">Community voted to adopt. The requirement is live.</div>
+      </div>
+      <div class="css-cell">
+        <div class="css-dot" style="background:var(--proposed)"></div>
+        <div class="css-name">Proposed</div>
+        <div class="css-hex">#5B8CFF</div>
+        <div class="css-desc">Open for comment and debate. Cursor still blinking.</div>
+      </div>
+      <div class="css-cell">
+        <div class="css-dot" style="background:var(--review)"></div>
+        <div class="css-name">In review</div>
+        <div class="css-hex">#FFB020</div>
+        <div class="css-desc">Active objections. Vote pending resolution.</div>
+      </div>
+      <div class="css-cell">
+        <div class="css-dot" style="background:var(--rejected)"></div>
+        <div class="css-name">Rejected</div>
+        <div class="css-hex">#FF3D57</div>
+        <div class="css-desc">Community voted against. Can be forked and revised.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     §3 TYPOGRAPHY
+═══════════════════════════════════ -->
+<div class="section-body" id="sec-type">
+  <div class="type-section">
+    <div class="type-header">
+      <div class="th-display">Three fonts.<br><span class="chart">One job</span><br>each.</div>
+      <div class="th-right">Plus Jakarta Sans carries the brand's voice — bold, geometric, contemporary. Lora italic carries discourse — considered, editorial, human. Fira Code carries the machine — exact, monospaced, unambiguous. They never perform each other's roles.</div>
+    </div>
+
+    <div class="type-specimens">
+      <div class="ts">
+        <div class="ts-label">
+          <span>Plus Jakarta Sans ExtraBold 800</span>
+          <span class="ts-label-role">Display / Logo / Headings</span>
+        </div>
+        <div class="t-display">Open<br>require<br>ments.</div>
+      </div>
+
+      <div class="ts">
+        <div class="ts-label">
+          <span>Lora Italic 400</span>
+          <span class="ts-label-role">Discourse / Editorial / Quotes</span>
+        </div>
+        <div class="t-lora">Requirements are only as good as the community that writes them. Open them up and they get better. Lock them away and they stagnate into irrelevance.</div>
+      </div>
+
+      <div class="ts">
+        <div class="ts-label">
+          <span>Plus Jakarta Sans SemiBold 600</span>
+          <span class="ts-label-role">UI labels / Subheadings / Buttons</span>
+        </div>
+        <div class="t-jakartasans" style="margin-bottom:20px">AI system requirement — Safety v2.4</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.72;color:var(--dim)">Body copy: DM Sans Regular 400 — for all UI body text, tooltips, and descriptions. Neutral, readable, never competes with display type.</div>
+      </div>
+
+      <div class="ts">
+        <div class="ts-label">
+          <span>Fira Code — System / IDs / Terminal / Status</span>
+          <span class="ts-label-role">Machine layer</span>
+        </div>
+        <div class="t-fira">
+          <span class="dimmed">$</span> specify pull REQ-2024-0042<br>
+          <span class="dimmed">──────────────────────────────</span><br>
+          <span class="ok">✓ REQ-2024-0042</span>  v3.1<br>
+          <span class="chart">  status:</span> <span class="ok">adopted</span><br>
+          <span class="chart">  forks:</span>  62<br>
+          <span class="chart">  adoptions:</span> 847<br>
+          <span class="dimmed">──────────────────────────────</span><br>
+          <span class="prop">→ REQ-2024-0089</span>  v1.0<br>
+          <span class="chart">  status:</span> <span class="prop">proposed</span><br>
+          <span class="warn">⚠ REQ-2024-0103</span>  v2.0<br>
+          <span class="chart">  status:</span> <span class="warn">in review</span><br>
+          <span class="chart">  objections:</span> 3<br>
+          <span class="fail">✗ REQ-2024-0012</span>  v1.4<br>
+          <span class="chart">  status:</span> <span class="fail">rejected</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     §4 PRODUCT UI — the sophisticated one
+     Three-panel Specify interface mock
+═══════════════════════════════════ -->
+<div class="section-body" id="sec-product">
+  <div class="product-section">
+
+    <div class="product-intro">
+      <div class="pi-left">The product<br>is the<br>community.</div>
+      <div class="pi-right">
+        <p class="pi-lead">Every interface element either surfaces a requirement, enables discussion, or shows attribution. The design is the product concept made visible.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ui-btn-primary">Propose requirement</button>
+          <button class="ui-btn-secondary">Fork this spec</button>
+          <button class="ui-btn-ghost">$ specify pull REQ-0042</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <span class="tag tag-adopted">Adopted</span>
+          <span class="tag tag-proposed">Proposed</span>
+          <span class="tag tag-review">In review</span>
+          <span class="tag tag-rejected">Rejected</span>
+          <span class="tag" style="background:var(--lift);color:var(--dim);border:1px solid var(--border)">Safety</span>
+          <span class="tag" style="background:var(--lift);color:var(--dim);border:1px solid var(--border)">Agentic</span>
+          <span class="tag" style="background:var(--lift);color:var(--dim);border:1px solid var(--border)">Memory</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- The full three-panel Specify UI -->
+    <div class="specify-ui">
+
+      <!-- LEFT: Requirements list -->
+      <div class="sui-list">
+        <div class="sui-list-header">
+          <span class="suh-title">Requirements</span>
+          <span class="suh-count">2,847</span>
+        </div>
+
+        <div class="sui-search">
+          <div class="search-input" style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:'Fira Code',monospace;font-size:11px;color:var(--muted)">/ </span>
+            <span style="font-family:'Fira Code',monospace;font-size:11px;color:var(--muted)">search requirements</span>
+            <span style="margin-left:auto;font-family:'Fira Code',monospace;font-size:9px;color:var(--muted)">⌘K</span>
+          </div>
+        </div>
+
+        <div class="sui-filters">
+          <span class="sf-chip sf-all">All</span>
+          <span class="sf-chip sf-adopt">Adopted</span>
+          <span class="sf-chip sf-prop">Proposed</span>
+          <span class="sf-chip sf-review">Review</span>
+        </div>
+
+        <div class="sui-items">
+
+          <div class="sui-item active">
+            <div class="sui-item-id">
+              <span>REQ-2024-0042</span>
+              <span class="si-status-dot" style="background:var(--adopted)"></span>
+            </div>
+            <div class="sui-item-title">An AI system must not take irreversible actions without explicit human confirmation</div>
+            <div class="sui-item-meta">v3.1 · 847 adoptions · forked 62×</div>
+          </div>
+
+          <div class="sui-item">
+            <div class="sui-item-id">
+              <span>REQ-2024-0089</span>
+              <span class="si-status-dot" style="background:var(--proposed)"></span>
+            </div>
+            <div class="sui-item-title">AI agents must maintain a verifiable action log accessible to the deploying operator</div>
+            <div class="sui-item-meta">v1.0 · 34 comments · proposed by m.kovacs</div>
+          </div>
+
+          <div class="sui-item">
+            <div class="sui-item-id">
+              <span>REQ-2024-0103</span>
+              <span class="si-status-dot" style="background:var(--review)"></span>
+            </div>
+            <div class="sui-item-title">AI systems with memory persistence must expose a complete audit log to operators</div>
+            <div class="sui-item-meta">v2.0 · 3 objections open · in review</div>
+          </div>
+
+          <div class="sui-item">
+            <div class="sui-item-id">
+              <span>REQ-2024-0118</span>
+              <span class="si-status-dot" style="background:var(--adopted)"></span>
+            </div>
+            <div class="sui-item-title">AI systems must disclose their non-human status when directly asked by a user</div>
+            <div class="sui-item-meta">v2.3 · 1,204 adoptions · forked 28×</div>
+          </div>
+
+          <div class="sui-item">
+            <div class="sui-item-id">
+              <span>REQ-2024-0144</span>
+              <span class="si-status-dot" style="background:var(--rejected)"></span>
+            </div>
+            <div class="sui-item-title">All AI model weights above 1B parameters must be publicly disclosed</div>
+            <div class="sui-item-meta">v1.0 · 89 objections · rejected</div>
+          </div>
+
+          <div class="sui-item">
+            <div class="sui-item-id">
+              <span>REQ-2024-0157</span>
+              <span class="si-status-dot" style="background:var(--proposed)"></span>
+            </div>
+            <div class="sui-item-title">AI systems deployed in healthcare contexts must have a documented uncertainty quantification method</div>
+            <div class="sui-item-meta">v1.0 · 12 comments · proposed by a.lin</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- MIDDLE: Requirement detail -->
+      <div class="sui-detail">
+        <div class="sud-header">
+          <div class="sud-breadcrumb">
+            <span>specify</span>
+            <span class="sud-bc-sep">/</span>
+            <span>requirements</span>
+            <span class="sud-bc-sep">/</span>
+            <span style="color:var(--chart)">REQ-2024-0042</span>
+          </div>
+          <div class="sud-id-row">
+            <span class="sud-id">REQ-2024-0042</span>
+            <span class="sud-version">v3.1</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <span class="status-badge sb-adopted"><span class="sb-dot"></span>Adopted</span>
+            <span style="font-family:'Fira Code',monospace;font-size:9px;color:var(--muted)">847 adoptions · last updated 2d ago</span>
+          </div>
+          <div class="sud-title">An AI system must not take irreversible actions without explicit human confirmation</div>
+        </div>
+
+        <div class="sud-body">
+          <div class="sud-label">Requirement body</div>
+          <div class="sud-text">Before executing any action that cannot be undone — including deletion of data, financial transactions above a threshold defined by the operator, or deployment of code to production — the system must pause, present a clear summary of the proposed action and its consequences, and require explicit confirmation from an authorised human operator. The system must not proceed on the basis of inferred consent.</div>
+
+          <div class="sud-label">Tags</div>
+          <div class="sud-tags">
+            <span class="req-tag">Safety</span>
+            <span class="req-tag">Agentic</span>
+            <span class="req-tag">Human oversight</span>
+            <span class="req-tag">Irreversibility</span>
+            <span class="req-tag">Operator</span>
+          </div>
+
+          <div class="sud-label">Adoption metrics</div>
+          <div class="sud-metrics">
+            <div class="sud-metric">
+              <div class="sm-num" style="color:var(--chart)">847</div>
+              <div class="sm-label">Teams adopted</div>
+            </div>
+            <div class="sud-metric">
+              <div class="sm-num">62</div>
+              <div class="sm-label">Forks</div>
+            </div>
+            <div class="sud-metric">
+              <div class="sm-num">14</div>
+              <div class="sm-label">Versions</div>
+            </div>
+            <div class="sud-metric">
+              <div class="sm-num">3.1</div>
+              <div class="sm-label">Current ver</div>
+            </div>
+          </div>
+
+          <div class="sud-label">Active forks</div>
+          <div class="fork-tree">
+            <div class="ft-header">Fork tree — REQ-2024-0042</div>
+            <div class="ft-item">
+              <span class="ft-indent">●</span>
+              <span class="ft-id">REQ-2024-0042</span>
+              <span class="ft-status"><span class="status-badge sb-adopted" style="font-size:8px;padding:2px 6px"><span class="sb-dot"></span>adopted</span></span>
+              <span class="ft-forks">origin</span>
+            </div>
+            <div class="ft-item">
+              <span class="ft-indent" style="padding-left:12px">└─</span>
+              <span class="ft-id">REQ-2024-0042-b</span>
+              <span class="ft-status"><span class="status-badge sb-review" style="font-size:8px;padding:2px 6px"><span class="sb-dot"></span>review</span></span>
+              <span class="ft-forks">j.santos</span>
+            </div>
+            <div class="ft-item">
+              <span class="ft-indent" style="padding-left:12px">└─</span>
+              <span class="ft-id">REQ-2024-0042-c</span>
+              <span class="ft-status"><span class="status-badge sb-proposed" style="font-size:8px;padding:2px 6px"><span class="sb-dot"></span>proposed</span></span>
+              <span class="ft-forks">a.lin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Discussion panel -->
+      <div class="sui-discussion">
+        <div class="sdisc-header">
+          <span class="sdisc-title">Discussion</span>
+          <span class="sdisc-count">14 comments</span>
+        </div>
+
+        <div class="sdisc-feed">
+
+          <div class="disc-comment">
+            <div class="dc-header">
+              <div class="dc-avatar av-chart">MK</div>
+              <span class="dc-name">mira.kovacs</span>
+              <span class="dc-time">2d ago</span>
+            </div>
+            <div class="dc-body">Proposing we add a configurable <code>significance_threshold</code> so operators can define what counts as "irreversible" in their context. The current wording breaks most production agentic pipelines — every file write would require confirmation.</div>
+            <div class="dc-vote">
+              <button class="dcv-btn voted">▲ 24</button>
+              <button class="dcv-btn">↪ Reply</button>
+            </div>
+          </div>
+
+          <div class="disc-comment">
+            <div class="dc-header">
+              <div class="dc-avatar av-blue">JS</div>
+              <span class="dc-name">j.santos</span>
+              <span class="dc-time">1d ago</span>
+            </div>
+            <div class="dc-body">Forked as <code>REQ-2024-0042-b</code>. Added the threshold param with a conservative default. Key principle: operators must <em style="color:var(--soft)">opt up</em>, not opt down — secure-by-default. Ready for vote.</div>
+            <div class="dc-proposal">
+              <span class="prop-key">significance_threshold:</span> high  <span style="color:var(--muted)"># default</span><br>
+              <span style="color:var(--muted)"># options: low | medium | high | all</span><br>
+              <span class="prop-key">confirmation_timeout:</span> 30s
+            </div>
+            <div class="dc-vote">
+              <button class="dcv-btn voted">▲ 18</button>
+              <button class="dcv-btn">↪ Reply</button>
+            </div>
+          </div>
+
+          <div class="disc-comment">
+            <div class="dc-header">
+              <div class="dc-avatar av-green">RP</div>
+              <span class="dc-name">r.patel</span>
+              <span class="dc-time">18h ago</span>
+            </div>
+            <div class="dc-body">Fork looks solid. The key insight — operators define their own risk boundary, the platform enforces the <em style="color:var(--soft)">habit</em> of defining it. Voting to adopt <span class="mention">@j.santos</span>'s fork.</div>
+            <div class="dc-vote">
+              <button class="dcv-btn voted">▲ 11</button>
+              <button class="dcv-btn">↪ Reply</button>
+            </div>
+          </div>
+
+          <div class="disc-comment">
+            <div class="dc-header">
+              <div class="dc-avatar av-amber">AL</div>
+              <span class="dc-name">a.lin</span>
+              <span class="dc-time">4h ago</span>
+            </div>
+            <div class="dc-body">Counter-proposal: instead of a configurable threshold, what if we define a standard taxonomy of action types and let operators map each type to a confirmation policy? More explicit, harder to get wrong. Forked as <code>REQ-2024-0042-c</code>.</div>
+            <div class="dc-vote">
+              <button class="dcv-btn">▲ 7</button>
+              <button class="dcv-btn">↪ Reply</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="sdisc-compose">
+          <div class="compose-box">Add a comment or vote to adopt…</div>
+          <div class="compose-actions">
+            <button class="compose-btn compose-btn-secondary">Vote ▲</button>
+            <button class="compose-btn compose-btn-primary">Comment</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     §5 VOICE
+═══════════════════════════════════ -->
+<div class="section-body" id="sec-voice">
+  <div class="voice-section">
+    <div class="voice-hero">
+      <div class="vh-headline">We<br>propose.<br>Not<br><span class="chart">dictate.</span></div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <p style="font-family:'Lora',serif;font-style:italic;font-size:19px;line-height:1.6;color:rgba(255,255,255,0.45)">Specify surfaces what the community has decided. The platform is the referee. Never the judge. Every status is a community verdict, not an editorial decision.</p>
+        <p style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.75;color:var(--muted)">The cursor in the wordmark is a reminder: the specification is never finished. It is always being written. The community is always in the act of writing it. The voice matches that — collaborative, precise, and open to revision.</p>
+      </div>
+    </div>
+    <div class="voice-examples">
+      <div class="ve-panel ve-do">
+        <div class="ve-label">✓ On voice</div>
+        <p class="ve-q">REQ-0042 adopted by 847 teams. Fork it to adapt it to your context.</p>
+        <p class="ve-q">Three objections raised. Review them before this moves to adoption.</p>
+        <p class="ve-q">This requirement was proposed by the community. You can improve it.</p>
+        <p class="ve-q">34 teams already run this interpretation informally. The fork codifies it.</p>
+      </div>
+      <div class="ve-panel ve-dont">
+        <div class="ve-label">✕ Off voice</div>
+        <p class="ve-q">You MUST comply with these requirements or your AI system is unsafe.</p>
+        <p class="ve-q">Our experts have determined the correct requirements for your system.</p>
+        <p class="ve-q">This is too complex — here's a simplified version for non-technical users.</p>
+        <p class="ve-q">Specify is the only trusted source for AI safety requirements.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     §6 PRINCIPLES
+═══════════════════════════════════ -->
+<div class="section-body" id="sec-principles">
+  <div class="principles-section">
+    <div class="pr-header">
+      <div class="prh-left">
+        <div class="prh-ghost">04</div>
+        <div class="prh-title">What the<br>brand<br>stands for.</div>
+      </div>
+      <div class="prh-right">Four principles, each one earned by the brief. Not aspirational values — operational constraints on every design decision made in Specify's name.</div>
+    </div>
+
+    <div class="pr-grid">
+      <div class="pr-cell">
+        <div class="pr-big-num">01</div>
+        <div class="pr-num">Principle 01</div>
+        <div class="pr-title">The cursor is always blinking</div>
+        <p class="pr-body">The specification is never finished. Every requirement on Specify can be forked, revised, and superseded. The cursor in the brand mark is a literal reminder of that: someone is always in the act of writing this. The UI must reflect that — nothing is locked, everything is revisable, attribution always visible.</p>
+      </div>
+      <div class="pr-cell">
+        <div class="pr-big-num">02</div>
+        <div class="pr-num">Principle 02</div>
+        <div class="pr-title">Community is the product</div>
+        <p class="pr-body">The chartreuse cursor appears for the brand mark, CTAs, and the adopted status only. Its scarcity is the design. Every instance says: this is what the community has committed to. The platform is infrastructure — the people are the point. Avatars and names are always visible. Nothing is anonymous.</p>
+      </div>
+      <div class="pr-cell">
+        <div class="pr-big-num">03</div>
+        <div class="pr-num">Principle 03</div>
+        <div class="pr-title">Precision over simplification</div>
+        <p class="pr-body">Fira Code for every requirement ID, version string, and system output. Not because it looks good — because it signals: this is a machine-verifiable fact, not an opinion. We don't simplify away the complexity of requirements engineering. We make it navigable. A requirement that's been dumbed down is a wish.</p>
+      </div>
+      <div class="pr-cell">
+        <div class="pr-big-num">04</div>
+        <div class="pr-num">Principle 04</div>
+        <div class="pr-title">The dark field is intentional</div>
+        <p class="pr-body">Specify's default surface is near-black, not white. This is a deliberate rejection of the "open and friendly" visual language of consumer tech. AI safety is serious work. The dark field communicates that. The chartreuse cursor communicates warmth, precision, and energy within it. Neither works without the other.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="fc">
+    <div class="fc-label">Mark</div>
+    <div class="fc-wm">
+      <span class="fc-wm-text">specify</span>
+      <span class="fc-wm-cursor"></span>
+    </div>
+    <div class="fc-val">Brand Identity v1.0<br>Open source · 2026<br><span class="chart">REQ-BRAND-2026 · adopted</span></div>
+  </div>
+  <div class="fc">
+    <div class="fc-label">Type</div>
+    <div class="fc-val">Plus Jakarta Sans 800 — Display<br>Lora Italic — Editorial<br>DM Sans 400 — Body<br>Fira Code — System</div>
+  </div>
+  <div class="fc">
+    <div class="fc-label">Colour</div>
+    <div class="fc-val"><span class="chart">#D4FF00</span> Chartreuse<br>#0C0E12 Void<br>#F4F6FA Cloud<br>#0A1628 Navy</div>
+  </div>
+  <div class="fc">
+    <div class="fc-label">Contributors</div>
+    <div class="fc-val">mira.kovacs<br>j.santos<br>r.patel<br>a.lin + 10 others</div>
+  </div>
+</div>
+
+<script>
+function showSection(id, tab) {
+  // Hide all sections
+  document.querySelectorAll('.section-body').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.sn-tab').forEach(el => el.classList.remove('active'));
+  // Show target
+  document.getElementById('sec-' + id).classList.add('active');
+  tab.classList.add('active');
+  // Scroll to nav
+  document.getElementById('section-nav').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+
+</body>
+</html>
