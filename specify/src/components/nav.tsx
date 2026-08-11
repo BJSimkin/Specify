@@ -124,18 +124,6 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           Model Audit
         </Link>
         <Link
-          href="/subsystem-eval"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
-        >
-          Subsystem Eval
-        </Link>
-        <Link
-          href="/offensive"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
-        >
-          Offensive Probe
-        </Link>
-        <Link
           href="/education"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >
