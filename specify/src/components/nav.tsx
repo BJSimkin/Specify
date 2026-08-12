@@ -136,6 +136,12 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           Regulatory
         </Link>
         <Link
+          href="/framework"
+          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+        >
+          Framework
+        </Link>
+        <Link
           href="/contact"
           className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
         >

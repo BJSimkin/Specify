@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { AUDIT_CATEGORIES, type RiskCategory } from '@/lib/scenarios-data'
@@ -9,6 +9,29 @@ import TeamSettingsModal from '@/components/TeamSettingsModal'
 import ModelComparisonPanel from '@/components/ModelComparisonPanel'
 import OffensiveProbePanel, { type OffensiveRun } from './offensive-probe-panel'
 import { SubsystemEvalClient } from '../subsystem-eval/subsystem-eval-client'
+
+// ─── Framework Tooltip ────────────────────────────────────────────────────────
+
+function FrameworkTooltip({ articleId, description, children }: {
+  articleId: string; description: string; children: React.ReactNode
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      {show && (
+        <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 6, zIndex: 9999,
+          background: '#1F2937', color: 'white', padding: '6px 10px', borderRadius: 8, fontSize: 11, whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', cursor: 'pointer' }}
+          onClick={() => window.open(`/framework#${articleId}`, '_blank')}>
+          <span style={{ fontWeight: 700, color: '#A5B4FC' }}>§{articleId}</span> {description}
+          <div style={{ fontSize: 9, color: '#9CA3AF', marginTop: 2 }}>Click to open in Framework ↗</div>
+        </div>
+      )}
+    </span>
+  )
+}
 
 function SubsystemEvalEmbedded({ testConfig }: { testConfig: TestConfigState }) {
   return <SubsystemEvalClient embedded testConfig={testConfig} />
@@ -4532,28 +4555,64 @@ function DualRangeSlider({
   label: string; min: number; max: number; value: [number, number]
   onChange: (v: [number, number]) => void; formatValue?: (v: number) => string
 }) {
-  const fmt = formatValue ?? (v => String(v))
+  const fmt = formatValue ?? ((v: number) => String(v))
+  const trackRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef<'low' | 'high' | null>(null)
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  const getVal = useCallback((clientX: number) => {
+    if (!trackRef.current) return min
+    const rect = trackRef.current.getBoundingClientRect()
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    return Math.round(min + pct * (max - min))
+  }, [min, max])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!draggingRef.current) return
+      const v = getVal(e.clientX)
+      const [lo, hi] = valueRef.current
+      if (draggingRef.current === 'low') onChange([Math.max(min, Math.min(v, hi - 1)), hi])
+      else onChange([lo, Math.min(max, Math.max(v, lo + 1))])
+    }
+    const onUp = () => { draggingRef.current = null }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [min, max, onChange, getVal])
+
+  const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const v = getVal(e.clientX)
+    const [lo, hi] = value
+    const dLo = Math.abs(v - lo), dHi = Math.abs(v - hi)
+    if (dLo <= dHi) onChange([Math.max(min, Math.min(v, hi - 1)), hi])
+    else onChange([lo, Math.min(max, Math.max(v, lo + 1))])
+  }
+
+  const pctLow = ((value[0] - min) / (max - min)) * 100
+  const pctHigh = ((value[1] - min) / (max - min)) * 100
+
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
         <span style={{ fontSize: 10, color: '#374151', fontWeight: 600 }}>{fmt(value[0])} – {fmt(value[1])}</span>
       </div>
-      <div style={{ position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
-        {/* Track */}
-        <div style={{ position: 'absolute', left: 0, right: 0, height: 4, background: '#E5E7EB', borderRadius: 2 }}/>
+      <div ref={trackRef} style={{ position: 'relative', height: 24, cursor: 'pointer', userSelect: 'none' }}
+        onClick={handleTrackClick}>
+        {/* Background track */}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 4, background: '#E5E7EB', borderRadius: 2 }}/>
         {/* Active fill */}
-        <div style={{ position: 'absolute', height: 4, background: '#6366F1', borderRadius: 2,
-          left: `${((value[0] - min) / (max - min)) * 100}%`,
-          width: `${((value[1] - value[0]) / (max - min)) * 100}%` }}/>
-        {/* Min handle */}
-        <input type="range" min={min} max={max} value={value[0]}
-          onChange={e => { const v = Number(e.target.value); if (v <= value[1]) onChange([v, value[1]]) }}
-          style={{ position: 'absolute', width: '100%', appearance: 'none', WebkitAppearance: 'none', background: 'transparent', pointerEvents: 'auto', height: 20, cursor: 'pointer', zIndex: 2 }}/>
-        {/* Max handle */}
-        <input type="range" min={min} max={max} value={value[1]}
-          onChange={e => { const v = Number(e.target.value); if (v >= value[0]) onChange([value[0], v]) }}
-          style={{ position: 'absolute', width: '100%', appearance: 'none', WebkitAppearance: 'none', background: 'transparent', pointerEvents: 'auto', height: 20, cursor: 'pointer', zIndex: 1 }}/>
+        <div style={{ position: 'absolute', left: `${pctLow}%`, width: `${pctHigh - pctLow}%`, top: 10, height: 4, background: '#6366F1', borderRadius: 2 }}/>
+        {/* Low thumb */}
+        <div
+          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); draggingRef.current = 'low' }}
+          style={{ position: 'absolute', left: `calc(${pctLow}% - 8px)`, top: 4, width: 16, height: 16, borderRadius: '50%', background: '#6366F1', border: '2px solid white', boxShadow: '0 1px 4px rgba(0,0,0,.25)', cursor: 'grab', zIndex: 3 }}/>
+        {/* High thumb */}
+        <div
+          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); draggingRef.current = 'high' }}
+          style={{ position: 'absolute', left: `calc(${pctHigh}% - 8px)`, top: 4, width: 16, height: 16, borderRadius: '50%', background: '#6366F1', border: '2px solid white', boxShadow: '0 1px 4px rgba(0,0,0,.25)', cursor: 'grab', zIndex: 3 }}/>
       </div>
     </div>
   )
@@ -4841,8 +4900,8 @@ Output exactly ${llmCount} lines in that format. No numbering. No explanation. J
             </div>
           </div>
           {genError && <p style={{ fontSize:9, color:'#EF4444', marginBottom:5 }}>{genError}</p>}
-          <button onClick={generatePrompts} disabled={phase === 'generating' || phase === 'running'} style={{ width:'100%', padding:'8px', background:'#6366F1', color:'white', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', marginBottom:5, opacity:(phase==='generating'||phase==='running')?0.5:1 }}>{phase === 'generating' ? '⏳ Generating…' : '🎲 Generate Prompts'}</button>
-          {(phase === 'generated' || phase === 'complete') && <button onClick={generatePrompts} style={{ width:'100%', padding:'6px', background:'white', color:'#6366F1', border:'1px solid #C7D2FE', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer', marginBottom:5 }}>↺ Refresh Prompts</button>}
+          <button onClick={() => generatePrompts()} disabled={phase === 'generating' || phase === 'running'} style={{ width:'100%', padding:'8px', background:'#6366F1', color:'white', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', marginBottom:5, opacity:(phase==='generating'||phase==='running')?0.5:1 }}>{phase === 'generating' ? '⏳ Generating…' : '🎲 Generate Prompts'}</button>
+          {(phase === 'generated' || phase === 'complete') && <button onClick={() => generatePrompts()} style={{ width:'100%', padding:'6px', background:'white', color:'#6366F1', border:'1px solid #C7D2FE', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer', marginBottom:5 }}>↺ Refresh Prompts</button>}
           {(phase === 'generated' || phase === 'complete') && <button onClick={runAgainstModel} disabled={!canRun || generatedPrompts.length === 0} style={{ width:'100%', padding:'8px', background:'#059669', color:'white', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', opacity:!canRun?0.5:1 }}>▶ Run Against Model</button>}
           {phase === 'running' && <button onClick={() => { cancelRef.current = true }} style={{ width:'100%', padding:'8px', background:'#FEE2E2', color:'#DC2626', border:'1px solid #FCA5A5', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>■ Stop</button>}
           {!canRun && <p style={{ fontSize:9, color:'#EF4444', marginTop:4 }}>Set API key, model under test, and judge model in Test Configuration.</p>}
@@ -5522,41 +5581,6 @@ Write 2-3 sentences: where is the boundary, what specific characteristics of the
       }
     } catch { /* summary is optional */ }
   }
-  // Draft-phase viz: shown immediately when steps are generated (all grey + seed marker)
-  function BoundaryVizDraft({ n, midIdx }: { n: number; midIdx: number }) {
-    if (n === 0) return null
-    const W = 560, H = 120, PAD = 32
-    const spacing = (W - PAD * 2) / Math.max(n - 1, 1)
-    const CY = 52
-    return (
-      <div style={{ background: 'white', border: '1px dashed #D1D5DB', borderRadius: 12, padding: '16px', marginBottom: 16, opacity: 0.75 }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: '#9CA3AF', margin: '0 0 10px' }}>Boundary Visualisation — awaiting model evaluation</p>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', overflow: 'visible' }}>
-          {/* grey track */}
-          <line x1={PAD} y1={CY} x2={W - PAD} y2={CY} stroke="#E5E7EB" strokeWidth={2}/>
-          {Array.from({ length: n }).map((_, i) => {
-            const x = PAD + i * spacing
-            const isSeed = i === midIdx
-            return (
-              <g key={i}>
-                <circle cx={x} cy={CY} r={isSeed ? 18 : 13} fill={isSeed ? '#FEF3C7' : '#F9FAFB'} stroke={isSeed ? '#F59E0B' : '#D1D5DB'} strokeWidth={isSeed ? 2.5 : 1.5}/>
-                <text x={x} y={CY} textAnchor="middle" dominantBaseline="middle" fontSize="8" fontWeight="800" fill={isSeed ? '#D97706' : '#D1D5DB'}>
-                  {isSeed ? '★' : i + 1}
-                </text>
-                <text x={x} y={CY + 27} textAnchor="middle" fontSize="7" fill={isSeed ? '#D97706' : '#9CA3AF'}>
-                  {isSeed ? 'seed' : ''}
-                </text>
-              </g>
-            )
-          })}
-          <text x={PAD} y={CY + 38} textAnchor="middle" fontSize="7" fill="#D1D5DB">safe ←</text>
-          <text x={W - PAD} y={CY + 38} textAnchor="middle" fontSize="7" fill="#D1D5DB">→ risky</text>
-        </svg>
-        <p style={{ fontSize: 10, color: '#9CA3AF', margin: '4px 0 0', fontStyle: 'italic' }}>Run the model test to reveal the boundary</p>
-      </div>
-    )
-  }
-
   function BoundaryViz({ run }: { run: BHRun }) {
     const steps = run.steps
     const n = steps.length
@@ -5630,26 +5654,32 @@ Write 2-3 sentences: where is the boundary, what specific characteristics of the
           {steps.map((step, i) => {
             const x = PAD + i * spacing
             const isSeed = i === draftMidIdx
-            const color = verdictColor[step.verdict]
+            // Effective verdict: human override takes priority
+            const effectiveVerdict = (step.humanVerdict === 'safe' ? 'refuse' : step.humanVerdict === 'unsafe' ? 'comply' : step.verdict) as BHVerdict
+            // Human safe = refuse (model was safe = refused the risky request) — actually:
+            // humanVerdict 'safe' means model output was safe (i.e. model refused/was careful) = green
+            // humanVerdict 'unsafe' means model output was unsafe (i.e. model complied with risky prompt) = red
+            const humanColor = step.humanVerdict === 'safe' ? '#22C55E' : step.humanVerdict === 'unsafe' ? '#EF4444' : null
+            const color = humanColor ?? verdictColor[step.verdict]
             const isPending = step.verdict === 'pending'
+            const icon = isPending ? '?' : step.verdict === 'comply' ? '✓' : step.verdict === 'refuse' ? '✕' : '~'
             return (
               <g key={i}>
                 <circle cx={x} cy={CY} r={isSeed ? 20 : 16}
-                  fill={isSeed ? '#FEF3C7' : isPending ? '#F9FAFB' : color}
-                  fillOpacity={isSeed ? 1 : isPending ? 1 : 0.15}
-                  stroke={isSeed ? '#F59E0B' : isPending ? '#E5E7EB' : color}
+                  fill={isPending ? '#F9FAFB' : color}
+                  fillOpacity={isPending ? 1 : 0.18}
+                  stroke={isPending ? '#E5E7EB' : color}
                   strokeWidth={isSeed ? 3 : 2}/>
                 <text x={x} y={CY} textAnchor="middle" dominantBaseline="middle" fontSize="8" fontWeight="800"
-                  fill={isSeed ? '#D97706' : isPending ? '#D1D5DB' : color}>
-                  {isSeed ? '★' : isPending ? '?' : step.verdict === 'comply' ? '✓' : step.verdict === 'refuse' ? '✕' : '~'}
+                  fill={isPending ? '#D1D5DB' : color}>
+                  {isSeed ? '★' : icon}
                 </text>
                 <text x={x} y={CY + 30} textAnchor="middle" fontSize="7.5" fill={i === draftMidIdx ? '#D97706' : '#6B7280'} fontWeight={i === draftMidIdx ? '700' : '400'}>{i === draftMidIdx ? 'seed' : i + 1}</text>
               </g>
             )
           })}
 
-          <text x={PAD} y={CY + 42} textAnchor="middle" fontSize="7" fill="#22C55E" fontWeight="700">COMPLY</text>
-          <text x={W - PAD} y={CY + 42} textAnchor="middle" fontSize="7" fill="#EF4444" fontWeight="700">REFUSE</text>
+
         </svg>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
@@ -5770,14 +5800,7 @@ Write 2-3 sentences: where is the boundary, what specific characteristics of the
         {statusMsg && <p style={{ fontSize: 11, color: '#6B7280', marginTop: 0 }}>{statusMsg}</p>}
       </div>
 
-      {/* Show draft viz (grey circles) as soon as steps are generated; switch to coloured viz after running */}
-      {draftPhase === 'draft_ready' && draftPrompts.length > 0 && !activeRun && (
-        <BoundaryVizDraft n={draftPrompts.length} midIdx={draftMidIdx} />
-      )}
       {activeRun && <BoundaryViz run={activeRun} />}
-      {(draftPhase === 'running' || draftPhase === 'done') && activeRun && activeRun.steps.every(s => s.verdict === 'pending') && (
-        <BoundaryVizDraft n={draftPrompts.length} midIdx={draftMidIdx} />
-      )}
 
       {draftPrompts.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #C7D2FE', borderRadius: 12, padding: 14, marginBottom: 12 }}>
@@ -5811,7 +5834,7 @@ Write 2-3 sentences: where is the boundary, what specific characteristics of the
                     </span>
                     <div style={{ height: 4, flex: 1, background: '#E5E7EB', borderRadius: 2 }}>
                       <div style={{ height: '100%', borderRadius: 2, width: `${((i + 1) / draftPrompts.length) * 100}%`,
-                        background: stepResult && stepResult.verdict !== 'pending' ? verdictColor[stepResult.verdict] : `hsl(${140 - Math.round((i / Math.max(draftPrompts.length - 1, 1)) * 140)}, 70%, 45%)` }} />
+                        background: stepResult && stepResult.verdict !== 'pending' ? verdictColor[stepResult.verdict] : '#D1D5DB' }} />
                     </div>
                     {/* Verdict badge */}
                     {isRunPhase && stepResult && stepResult.verdict !== 'pending' && (
@@ -5822,8 +5845,8 @@ Write 2-3 sentences: where is the boundary, what specific characteristics of the
                       </span>
                     )}
                     {isStepRunning && <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 700, background: '#EEF2FF', color: '#4F46E5' }}>⚡ running…</span>}
-                    <span style={{ fontSize: 9, color: i === draftMidIdx ? '#D97706' : '#9CA3AF', fontWeight: i === draftMidIdx ? 700 : 400 }}>
-                      {i === 0 ? 'safe ←' : i === draftPrompts.length - 1 ? '→ harmful' : i === draftMidIdx ? 'SEED' : ''}
+                    <span style={{ fontSize: 9, color: '#D97706', fontWeight: 700 }}>
+                      {i === draftMidIdx ? 'SEED' : ''}
                     </span>
                   </div>
 
@@ -6129,7 +6152,9 @@ function FailureCasesPanel({
           {(['cases', 'analysis', 'boundary-hunt'] as const).map(v => (
             <button key={v} type="button" onClick={() => setActiveView(v)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeView === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {v === 'cases' ? `📋 Cases (${allCases.length})` : v === 'analysis' ? '📊 Analysis' : '🎯 Boundary Hunt'}
+              {v === 'cases' ? `📋 Cases (${allCases.length})` : v === 'analysis' ? '📊 Analysis' : (
+                <FrameworkTooltip articleId="7.1" description="Policy gradient search across four axes: Payload, Specificity, Intent, Framing">🎯 Boundary Hunt</FrameworkTooltip>
+              )}
             </button>
           ))}
         </div>
@@ -8828,8 +8853,12 @@ export default function SelfAuditClient() {
 
       {/* ── Risk Dashboard ────── */}
       <div className="mb-4 border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-        {/* Sub-tabs */}
-        <div className="flex items-center gap-1 border-b border-gray-100 px-4 pt-3">
+        {/* Header row with title + sub-tabs */}
+        <div className="flex items-center justify-between px-4 pt-3 border-b border-gray-100">
+          <FrameworkTooltip articleId="10.1" description="ASR estimates with CI across SST, SMT, DDM and human eval">
+            <span className="text-sm font-bold" style={{ color: '#1E1B4B' }}>Risk Dashboard</span>
+          </FrameworkTooltip>
+          <div className="flex items-center gap-1">
           {(['model', 'comparative'] as const).map(tab => (
             <button
               key={tab}
@@ -8842,6 +8871,7 @@ export default function SelfAuditClient() {
               {tab === 'model' ? 'Model under test' : 'Comparative models'}
             </button>
           ))}
+          </div>
         </div>
         <div className="p-4">
           {dashTab === 'model' ? (
@@ -9127,7 +9157,11 @@ export default function SelfAuditClient() {
                   ? { color: '#7C3AED', borderColor: '#7C3AED' }
                   : { color: '#6B7280', borderColor: 'transparent' }
                 }>
-                {tab.label}
+                {tab.id === 'campaign' ? (
+                  <FrameworkTooltip articleId="5.1" description="SST evaluation using four-category ResponseType taxonomy">{tab.label}</FrameworkTooltip>
+                ) : tab.id === 'adversarial-discovery' ? (
+                  <FrameworkTooltip articleId="8.1" description="Eight probe styles from STI/LSP noise to SDA/HFI/AFP/APA coherent adversarial inputs">{tab.label}</FrameworkTooltip>
+                ) : tab.label}
                 {tab.done
                   ? <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ backgroundColor: '#16A34A', fontSize: '8px' }}>✓</span>
                   : <span className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 flex-shrink-0" />

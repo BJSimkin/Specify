@@ -58,23 +58,27 @@ async function getPackages(searchParams: SearchParams) {
   else if (sort === 'downloads') orderBy.push({ viewCount: 'desc' })
   else orderBy.push({ createdAt: 'desc' })
 
-  const [packages, total] = await Promise.all([
-    prisma.package.findMany({
-      where,
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: {
-        author: true,
-        certifications: true,
-        tags: true,
-        _count: { select: { stars: true, forks: true, comments: true, versions: true } },
-      },
-    }),
-    prisma.package.count({ where }),
-  ])
-
-  return { packages, total, page, pageSize }
+  try {
+    const [packages, total] = await Promise.all([
+      prisma.package.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          author: true,
+          certifications: true,
+          tags: true,
+          _count: { select: { stars: true, forks: true, comments: true, versions: true } },
+        },
+      }),
+      prisma.package.count({ where }),
+    ])
+    return { packages, total, page, pageSize }
+  } catch (e) {
+    console.error('Homepage DB error:', e)
+    return { packages: [], total: 0, page, pageSize }
+  }
 }
 
 interface PageProps {
