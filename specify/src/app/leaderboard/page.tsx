@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { getInitials, formatNumber } from '@/lib/utils'
 import LeaderboardClient from './leaderboard-client'
 
-export const metadata = { title: 'Leaderboard — Specify' }
+export const metadata = { title: 'Leaderboard — Sequel' }
 
 export default async function LeaderboardPage() {
   // Contributors leaderboard

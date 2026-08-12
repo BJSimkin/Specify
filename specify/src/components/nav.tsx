@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
@@ -45,8 +45,8 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
 
   return (
     <nav
-      style={{ backgroundColor: '#1E1B4B', height: 50, position: 'sticky', top: 0, zIndex: 100 }}
-      className="flex items-center px-4 gap-4 border-b border-indigo-900 shadow-md"
+      style={{ backgroundColor: '#1D3228', height: 50, position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #2C4C3A' }}
+      className="flex items-center px-4 gap-4 shadow-md"
     >
       {/* Logo */}
       <Link href="/" className="flex-shrink-0">
@@ -57,7 +57,8 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
       <form onSubmit={handleSearch} className="flex-1 max-w-lg">
         <div className="relative">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-300"
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+          style={{ color: '#7AAA84' }}
             width="14"
             height="14"
             viewBox="0 0 20 20"
@@ -89,61 +90,91 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
       <div className="flex items-center gap-1">
         <Link
           href="/homepage"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Home
         </Link>
         <Link
           href="/"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Requirements
         </Link>
         <Link
           href="/marketplace"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Marketplace
         </Link>
         <Link
           href="/risk-repository"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Risk & Hazards
         </Link>
         <Link
           href="/dataset-audit"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Dataset Audit
         </Link>
         <Link
           href="/self-audit"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Model Audit
         </Link>
         <Link
           href="/education"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Education
         </Link>
         <Link
           href="/regulatory"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Regulatory
         </Link>
         <Link
           href="/framework"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Framework
         </Link>
         <Link
           href="/contact"
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+          className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style={{ color: '#B4D4BA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F0ECE4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#2C4C3A' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#B4D4BA'; (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
         >
           Contact
         </Link>
@@ -154,7 +185,8 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           {/* Bell */}
           <Link
             href="/notifications"
-            className="relative p-1.5 rounded-md text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+            className="relative p-1.5 rounded-md transition-colors"
+            style={{ color: '#B4D4BA' }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
@@ -162,7 +194,7 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
             {unreadCount > 0 && (
               <span
                 className="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold"
-                style={{ backgroundColor: '#F59E0B', color: '#1E1B4B' }}
+                style={{ backgroundColor: '#E8622A', color: 'white' }}
               >
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
@@ -173,7 +205,8 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen((o) => !o)}
-              className="flex items-center justify-center w-8 h-8 rounded-full overflow-hidden ring-2 ring-indigo-400 hover:ring-amber-400 transition-all"
+              className="flex items-center justify-center w-8 h-8 rounded-full overflow-hidden ring-2 transition-all"
+              style={{ '--tw-ring-color': '#3E6649' } as React.CSSProperties}
             >
               {user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -181,7 +214,7 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
               ) : (
                 <span
                   className="w-full h-full flex items-center justify-center text-xs font-bold"
-                  style={{ backgroundColor: '#4338CA', color: 'white' }}
+                  style={{ backgroundColor: '#E8622A', color: 'white' }}
                 >
                   {getInitials(user.name)}
                 </span>
@@ -225,7 +258,8 @@ export function Nav({ user, unreadCount = 0 }: NavProps) {
         <div className="flex items-center gap-2">
           <Link
             href="/api/auth/signin"
-            className="px-3 py-1.5 rounded-md text-sm font-medium border border-indigo-400 text-indigo-200 hover:text-white hover:bg-indigo-800 transition-colors"
+            className="px-3 py-1.5 rounded-md text-sm font-medium border transition-colors"
+            style={{ borderColor: '#3E6649', color: '#B4D4BA' }}
           >
             Sign in
           </Link>

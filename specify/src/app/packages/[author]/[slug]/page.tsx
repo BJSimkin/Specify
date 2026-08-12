@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: PageProps) {
   const pkg = await getPackage(params.author, params.slug)
   if (!pkg) return { title: 'Not found' }
   return {
-    title: `${pkg.slug} — Specify`,
+    title: `${pkg.slug} — Sequel`,
     description: pkg.description ?? `AI requirements package by ${pkg.author.name}`,
   }
 }

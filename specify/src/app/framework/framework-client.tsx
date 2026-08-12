@@ -495,7 +495,7 @@ export default function FrameworkClient() {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-1" style={{ color: '#1E1B4B' }}>Evaluation Framework</h1>
-          <p className="text-sm text-gray-500">Specify AI Safety Evaluation Methodology — systematic hazard identification, risk-proportionate trust tiers, and structured evidence generation.</p>
+          <p className="text-sm text-gray-500">Sequel AI Safety Evaluation Methodology — systematic hazard identification, risk-proportionate trust tiers, and structured evidence generation.</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -639,8 +639,8 @@ export default function FrameworkClient() {
 
           {/* Footer */}
           <div className="border-t border-gray-200 pt-6 text-xs text-gray-400 space-y-1">
-            <p><strong className="text-gray-500">Specify Evaluation Framework {version}</strong></p>
-            <p>This document is the normative methodology specification for the Specify AI Safety Evaluation Platform. All evaluation features are implemented against this specification.</p>
+            <p><strong className="text-gray-500">Sequel Evaluation Framework {version}</strong></p>
+            <p>This document is the normative methodology specification for the Sequel AI Safety Evaluation Platform. All evaluation features are implemented against this specification.</p>
           </div>
         </main>
       </div>

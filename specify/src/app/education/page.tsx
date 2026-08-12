@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Education — Specify' }
+export const metadata = { title: 'Education — Sequel' }
 
 export default function EducationPage() {
   return (

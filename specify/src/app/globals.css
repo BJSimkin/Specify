@@ -1,15 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,700&family=Inter:wght@300;400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --sp: #1E1B4B;
-  --sp2: #2D2A6E;
-  --sp3: #4338CA;
-  --am: #F59E0B;
-  --am2: #D97706;
-  --am3: #FEF3C7;
-  --am4: #78350F;
+  /* ── SEQUEL BRAND v11 ── */
+  --bone:      #F0ECE4;
+  --surface:   #EAE5DC;
+  --linen:     #E0D9CC;
+  --rule:      #D4CFBF;
+  --rule-lt:   #DDD8CC;
+  --sepia:     #8A8478;
+  --dust:      #B4AEA4;
+  --ink:       #3A352C;
+  --body-txt:  #6A6458;
+  --grove:     #1D3228;
+  --fern:      #2C4C3A;
+  --moss:      #3E6649;
+  --sage:      #7AAA84;
+  --mint:      #B4D4BA;
+  --sage-lo:   rgba(62, 102, 73, 0.10);
+  --ember:     #E8622A;
+  --ember-lo:  rgba(232, 98, 42, 0.09);
+  --ember-mid: rgba(232, 98, 42, 0.18);
+  --sq-pass:   #4A8E58;
+  --sq-fail:   #E8622A;
+  --sq-warn:   #C8900A;
+  --sq-run:    #6878A8;
+
+  /* Legacy aliases (kept for backward compat) */
+  --sp:  #1D3228;
+  --sp2: #2C4C3A;
+  --sp3: #E8622A;
+  --am:  #E8622A;
+  --am2: #CC4E18;
+  --am3: rgba(232, 98, 42, 0.12);
+  --am4: #7A2810;
 }
 
 * {
@@ -23,8 +50,8 @@ body {
 }
 
 body {
-  background-color: #F9FAFB;
-  color: #111827;
+  background-color: var(--bone);
+  color: var(--ink);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -35,43 +62,43 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F3F4F6;
+  background: var(--linen);
 }
 ::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: var(--rule);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: var(--sepia);
 }
 
 /* Focus styles */
 :focus-visible {
-  outline: 2px solid var(--sp3);
+  outline: 2px solid var(--ember);
   outline-offset: 2px;
 }
 
 /* Custom prose-like styles for requirement bodies */
 .req-body p { margin: 0.5rem 0; }
 .req-body code {
-  background: #F3F4F6;
+  background: var(--linen);
   padding: 0.1em 0.3em;
   border-radius: 3px;
   font-size: 0.875em;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: 'DM Mono', 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* Amber accent selection */
+/* Selection */
 ::selection {
-  background: var(--am3);
-  color: var(--am4);
+  background: var(--ember-mid);
+  color: var(--ink);
 }
 
 @layer components {
   .btn-primary {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-colors;
-    background-color: var(--am);
-    color: var(--sp);
+    background-color: var(--ember);
+    color: white;
   }
   .btn-primary:hover {
     background-color: var(--am2);
@@ -79,19 +106,20 @@ body {
 
   .btn-secondary {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold border transition-colors;
-    border-color: #D1D5DB;
-    color: #374151;
-    background-color: white;
+    border-color: var(--rule);
+    color: var(--body-txt);
+    background-color: var(--surface);
   }
   .btn-secondary:hover {
-    background-color: #F9FAFB;
+    background-color: var(--linen);
   }
 
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-600;
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors;
+    color: var(--body-txt);
   }
   .btn-ghost:hover {
-    @apply bg-gray-100;
+    background-color: var(--linen);
   }
 
   .tag-pill {
@@ -99,15 +127,27 @@ body {
   }
 
   .card {
-    @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+    border-radius: 8px;
+    border: 1px solid var(--rule-lt);
+    background-color: var(--surface);
+    box-shadow: 0 1px 3px rgba(58, 53, 44, 0.06);
   }
 
   .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:border-transparent;
-    --tw-ring-color: var(--sp3);
+    @apply w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:border-transparent;
+    border: 1px solid var(--rule);
+    background-color: var(--bone);
+    color: var(--ink);
+    --tw-ring-color: var(--ember);
   }
 
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply block text-sm font-medium mb-1;
+    color: var(--body-txt);
+  }
+
+  /* Mono/data labels */
+  .mono {
+    font-family: 'DM Mono', 'JetBrains Mono', monospace;
   }
 }

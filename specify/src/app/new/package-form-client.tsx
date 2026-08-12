@@ -61,7 +61,7 @@ function ContributorSearch({
   return (
     <div>
       <label className="label">Contributors</label>
-      <p className="text-xs text-gray-400 mb-2">Tag other Specify users who contributed to this package.</p>
+      <p className="text-xs text-gray-400 mb-2">Tag other Sequel users who contributed to this package.</p>
 
       {/* Current contributors */}
       {contributors.length > 0 && (

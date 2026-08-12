@@ -71,7 +71,7 @@ function NewsletterSection() {
           <h2 className="text-lg font-bold" style={{ color: '#1E1B4B' }}>Stay up to date</h2>
         </div>
         <p className="text-sm text-gray-500 mb-5">
-          Get notified about new requirements packages, risk repository updates, and Specify releases.
+          Get notified about new requirements packages, risk repository updates, and Sequel releases.
         </p>
 
         {status === 'success' ? (
@@ -313,7 +313,7 @@ export default function ContactPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const mailto = `mailto:contact@specify.ai?subject=${encodeURIComponent(form.subject || 'Specify enquiry')}&body=${encodeURIComponent(
+    const mailto = `mailto:contact@specify.ai?subject=${encodeURIComponent(form.subject || 'Sequel enquiry')}&body=${encodeURIComponent(
       `Name: ${form.name}\nEmail: ${form.email}\n\n${form.message}`
     )}`
     window.location.href = mailto
@@ -326,7 +326,7 @@ export default function ContactPage() {
       <div className="mb-10">
         <h1 className="text-3xl font-bold mb-3" style={{ color: '#1E1B4B' }}>Contact us</h1>
         <p className="text-gray-500 text-base max-w-xl">
-          Have a question, feedback, or want to contribute to Specify? We&apos;d love to hear from you.
+          Have a question, feedback, or want to contribute to Sequel? We&apos;d love to hear from you.
         </p>
       </div>
 

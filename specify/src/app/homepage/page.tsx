@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { getInitials, formatNumber } from '@/lib/utils'
 import HomepageClient from './homepage-client'
 
-export const metadata = { title: 'Specify' }
+export const metadata = { title: 'Sequel' }
 
 export default async function HomepagePage() {
   // Fetch contributor leaderboard data

@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import HumanEvalClient from './human-eval-client'
 
 export const metadata = {
-  title: 'Human Eval — Specify',
+  title: 'Human Eval — Sequel',
   description: 'Human red team playground: chat with the model under test and tag responses as safe or unsafe.',
 }
 

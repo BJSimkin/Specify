@@ -59,7 +59,7 @@ function ShareButton({ pkg }: { pkg: any }) {
   const [copied, setCopied] = useState(false)
 
   const url = typeof window !== 'undefined' ? window.location.href : `https://specify-qtha-eight.vercel.app/packages/${pkg.slug}`
-  const text = `Check out "${pkg.name}" — AI system requirements package on Specify`
+  const text = `Check out "${pkg.name}" — AI system requirements package on Sequel`
 
   function copyLink() {
     navigator.clipboard.writeText(url).then(() => {

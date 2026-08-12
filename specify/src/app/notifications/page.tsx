@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { formatRelativeDate } from '@/lib/utils'
 
-export const metadata = { title: 'Notifications — Specify' }
+export const metadata = { title: 'Notifications — Sequel' }
 
 const TYPE_ICONS: Record<string, { icon: string; color: string }> = {
   COMMENT: { icon: '💬', color: '#3B82F6' },

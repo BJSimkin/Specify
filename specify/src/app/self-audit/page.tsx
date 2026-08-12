@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import SelfAuditClient from './self-audit-client'
 
 export const metadata = {
-  title: 'Self Audit — Specify',
+  title: 'Self Audit — Sequel',
   description: 'Test your AI system against curated risk scenarios and threat vectors.',
 }
 

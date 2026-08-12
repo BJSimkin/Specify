@@ -159,6 +159,6 @@ export async function generateMetadata({
   const { reqId } = await params
   const req = ABSTRACTED_REQUIREMENTS.find((r) => r.id === reqId)
   return {
-    title: req ? `${req.id} — ${req.title} — Specify` : 'Requirement — Specify',
+    title: req ? `${req.id} — ${req.title} — Sequel` : 'Requirement — Sequel',
   }
 }

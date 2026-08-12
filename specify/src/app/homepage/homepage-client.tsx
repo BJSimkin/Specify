@@ -39,7 +39,7 @@ export default function HomepageClient({ contributors, benchmarks, formatNumber 
           The open platform for AI system requirements
         </h1>
         <p className="text-lg text-gray-500 max-w-2xl mx-auto mb-6">
-          Specify helps teams document, share, and validate AI requirements packages — covering risks, controls, benchmarks, and regulatory compliance.
+          Sequel helps teams document, share, and validate AI requirements packages — covering risks, controls, benchmarks, and regulatory compliance.
         </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link href="/" className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors"

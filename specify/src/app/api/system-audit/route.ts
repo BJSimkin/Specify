@@ -83,7 +83,7 @@ async function callOpenRouter(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
       'HTTP-Referer': 'https://specify.ai',
-      'X-Title': 'Specify System Audit',
+      'X-Title': 'Sequel System Audit',
     },
     body: JSON.stringify({ model: modelId, messages, temperature, max_tokens: maxTokens }),
   })

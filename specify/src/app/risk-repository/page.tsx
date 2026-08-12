@@ -1,7 +1,7 @@
 import RiskClient from './risk-client'
 
 export const metadata = {
-  title: 'Risk Repository — Specify',
+  title: 'Risk Repository — Sequel',
   description: 'Community-maintained catalogue of AI system risks with severity voting, comments, and version control.',
 }
 

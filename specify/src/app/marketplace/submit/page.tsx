@@ -154,7 +154,7 @@ export default function SubmitVendorPage() {
         </form>
 
         <p className="text-xs text-gray-400 mt-4">
-          Listings are publicly visible. Verified badges are awarded by the Specify team.
+          Listings are publicly visible. Verified badges are awarded by the Sequel team.
         </p>
     </div>
   )

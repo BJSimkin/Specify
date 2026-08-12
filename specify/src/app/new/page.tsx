@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import PackageFormClient from './package-form-client'
 
 export const metadata = {
-  title: 'New package — Specify',
+  title: 'New package — Sequel',
 }
 
 export default async function NewPackagePage() {

@@ -52,7 +52,7 @@ export default function SignInPage() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-gray-900">Welcome to Specify</h1>
+            <h1 className="text-xl font-bold text-gray-900">Welcome to Sequel</h1>
             <p className="text-sm text-gray-500 mt-1">
               Sign in or create an account — it&apos;s the same step.
             </p>
@@ -147,7 +147,7 @@ export default function SignInPage() {
           )}
 
           <p className="text-xs text-gray-400 text-center mt-6 leading-relaxed">
-            By continuing, you agree to Specify&apos;s terms. New users get an account automatically.
+            By continuing, you agree to Sequel&apos;s terms. New users get an account automatically.
           </p>
         </div>
 

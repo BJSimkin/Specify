@@ -86,7 +86,7 @@ export default function HumanEvalClient() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${openrouterApiKey}`,
           'HTTP-Referer': 'https://specify.ai',
-          'X-Title': 'Specify Human Eval',
+          'X-Title': 'Sequel Human Eval',
         },
         body: JSON.stringify({
           model: modelId,

@@ -1,4 +1,4 @@
-export const metadata = { title: 'Definitions — Specify Education' }
+export const metadata = { title: 'Definitions — Sequel Education' }
 
 export default function DefinitionsPage() {
   return (

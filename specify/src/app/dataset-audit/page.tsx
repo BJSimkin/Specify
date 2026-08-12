@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import DatasetAuditClient from './dataset-audit-client'
 
 export const metadata = {
-  title: 'Dataset Audit — Specify',
+  title: 'Dataset Audit — Sequel',
   description: 'Upload a dataset, configure AI annotation strategies, and review results with human-in-the-loop verification.',
 }
 

@@ -710,7 +710,7 @@ export default function DatasetAuditClient() {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                Keys are stored in localStorage and never sent to Specify servers.
+                Keys are stored in localStorage and never sent to Sequel servers.
               </p>
             </div>
           </section>
